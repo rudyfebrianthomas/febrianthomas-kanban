@@ -117,7 +117,8 @@ const cardError = ref('')
 const imageError = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 
-const draggingCardId = ref('')
+const selectedCardIds = ref<string[]>([])
+const draggingCardIds = ref<string[]>([])
 const dragOverBoardId = ref('')
 
 function isBoardCompleted(board: KanbanBoard): boolean {
@@ -183,6 +184,43 @@ function toKanbanCard(row: KanbanCardRow): KanbanCard {
 
 function cardsForBoard(boardId: string): KanbanCard[] {
   return cards.value.filter((card) => card.boardId === boardId)
+}
+
+function isCardSelected(cardId: string): boolean {
+  return selectedCardIds.value.includes(cardId)
+}
+
+function toggleCardSelected(cardId: string) {
+  if (isCardSelected(cardId)) {
+    selectedCardIds.value = selectedCardIds.value.filter((id) => id !== cardId)
+  } else {
+    selectedCardIds.value = [...selectedCardIds.value, cardId]
+  }
+}
+
+function isAllBoardCardsSelected(boardId: string): boolean {
+  const boardCards = cardsForBoard(boardId)
+  return boardCards.length > 0 && boardCards.every((card) => isCardSelected(card.id))
+}
+
+function isSomeBoardCardsSelected(boardId: string): boolean {
+  const boardCards = cardsForBoard(boardId)
+  if (boardCards.length === 0) return false
+  const selectedCount = boardCards.filter((card) => isCardSelected(card.id)).length
+  return selectedCount > 0 && selectedCount < boardCards.length
+}
+
+function toggleAllBoardCards(boardId: string) {
+  const boardCardIds = cardsForBoard(boardId).map((card) => card.id)
+  if (boardCardIds.length === 0) return
+  if (isAllBoardCardsSelected(boardId)) {
+    const idSet = new Set(boardCardIds)
+    selectedCardIds.value = selectedCardIds.value.filter((id) => !idSet.has(id))
+  } else {
+    const next = new Set(selectedCardIds.value)
+    for (const id of boardCardIds) next.add(id)
+    selectedCardIds.value = [...next]
+  }
 }
 
 function cardStatusLabel(board: KanbanBoard, card: KanbanCard): string {
@@ -409,6 +447,10 @@ async function deleteBoard(board: KanbanBoard) {
       URL.revokeObjectURL(card.imageUrl)
     }
   }
+  const deletedBoardCardIds = new Set(
+    cards.value.filter((item) => item.boardId === board.id).map((item) => item.id),
+  )
+  selectedCardIds.value = selectedCardIds.value.filter((id) => !deletedBoardCardIds.has(id))
   cards.value = cards.value.filter((item) => item.boardId !== board.id)
   boards.value = boards.value.filter((item) => item.id !== board.id)
 }
@@ -742,24 +784,39 @@ async function deleteCard(card: KanbanCard) {
   } else if (card.imageUrl?.startsWith('blob:')) {
     URL.revokeObjectURL(card.imageUrl)
   }
+  selectedCardIds.value = selectedCardIds.value.filter((id) => id !== card.id)
   cards.value = cards.value.filter((item) => item.id !== card.id)
 }
 
+function parseDraggedCardIds(raw: string | undefined): string[] {
+  if (!raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is string => typeof item === 'string' && item.length > 0)
+    }
+  } catch {
+    return [raw]
+  }
+  return [raw]
+}
+
 function onCardDragStart(cardId: string, event: DragEvent) {
-  draggingCardId.value = cardId
+  const ids = isCardSelected(cardId) ? [...selectedCardIds.value] : [cardId]
+  draggingCardIds.value = ids
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('text/plain', cardId)
+    event.dataTransfer.setData('text/plain', JSON.stringify(ids))
   }
 }
 
 function onCardDragEnd() {
-  draggingCardId.value = ''
+  draggingCardIds.value = []
   dragOverBoardId.value = ''
 }
 
 function onBoardDragOver(boardId: string, event: DragEvent) {
-  if (!draggingCardId.value) return
+  if (draggingCardIds.value.length === 0) return
   if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
   dragOverBoardId.value = boardId
 }
@@ -772,19 +829,33 @@ function onBoardDragLeave(boardId: string, event: DragEvent) {
 }
 
 async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
-  const cardId = draggingCardId.value || event.dataTransfer?.getData('text/plain') || ''
+  const ids =
+    draggingCardIds.value.length > 0
+      ? [...draggingCardIds.value]
+      : parseDraggedCardIds(event.dataTransfer?.getData('text/plain'))
   onCardDragEnd()
-  if (!cardId) return
+  if (ids.length === 0) return
 
-  const card = cards.value.find((item) => item.id === cardId)
-  if (!card || card.boardId === targetBoard.id) return
+  const draggedIdSet = new Set(ids)
+  const targetCards = cards.value.filter(
+    (item) => draggedIdSet.has(item.id) && item.boardId !== targetBoard.id,
+  )
+  if (targetCards.length === 0) return
 
-  const previousBoardId = card.boardId
-  const previousStage = card.stageNumber
   const nextStage = text.value.home.stages[0]?.number ?? '01'
+  const previousStates = targetCards.map((item) => ({
+    card: item,
+    boardId: item.boardId,
+    stageNumber: item.stageNumber,
+  }))
+  const movedIds = targetCards.map((item) => item.id)
+  const movedIdSet = new Set(movedIds)
 
-  card.boardId = targetBoard.id
-  card.stageNumber = nextStage
+  for (const item of targetCards) {
+    item.boardId = targetBoard.id
+    item.stageNumber = nextStage
+  }
+  selectedCardIds.value = selectedCardIds.value.filter((id) => !movedIdSet.has(id))
 
   if (supabase) {
     const { error } = await supabase
@@ -793,11 +864,13 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
         board_id: targetBoard.id,
         stage_number: nextStage,
       })
-      .eq('id', card.id)
+      .in('id', movedIds)
 
     if (error) {
-      card.boardId = previousBoardId
-      card.stageNumber = previousStage
+      for (const prev of previousStates) {
+        prev.card.boardId = prev.boardId
+        prev.card.stageNumber = prev.stageNumber
+      }
       loadError.value = error.message
     }
   }
@@ -1342,17 +1415,37 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
 
             <div class="rounded-xl bg-zinc-100 p-2.5 dark:bg-zinc-800/70">
               <div v-if="cardsForBoard(board.id).length" class="flex flex-col gap-2">
+                <div class="flex items-center px-3 py-1">
+                  <label class="inline-flex cursor-pointer select-none items-center gap-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                    <input
+                      type="checkbox"
+                      :checked="isAllBoardCardsSelected(board.id)"
+                      :indeterminate.prop="isSomeBoardCardsSelected(board.id)"
+                      class="size-4 cursor-pointer rounded border-zinc-300 accent-zinc-900 dark:border-zinc-600 dark:accent-zinc-100"
+                      @change="toggleAllBoardCards(board.id)"
+                    />
+                    <span>{{ text.setting.selectAllCards }}</span>
+                  </label>
+                </div>
                 <article
                   v-for="card in cardsForBoard(board.id)"
                   :key="card.id"
                   draggable="true"
                   :class="[
                     'flex w-full cursor-grab items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-zinc-950 shadow-xs transition-opacity active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50',
-                    draggingCardId === card.id ? 'opacity-50' : '',
+                    draggingCardIds.includes(card.id) ? 'opacity-50' : '',
                   ]"
                   @dragstart="onCardDragStart(card.id, $event)"
                   @dragend="onCardDragEnd"
                 >
+                  <input
+                    type="checkbox"
+                    :checked="isCardSelected(card.id)"
+                    :aria-label="`${text.setting.selectCard}: ${card.title}`"
+                    class="size-4 shrink-0 cursor-pointer rounded border-zinc-300 accent-zinc-900 dark:border-zinc-600 dark:accent-zinc-100"
+                    @click.stop
+                    @change="toggleCardSelected(card.id)"
+                  />
                   <img
                     v-if="card.imageUrl"
                     :src="card.imageUrl"

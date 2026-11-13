@@ -120,7 +120,9 @@
     "filterAll": "All",
     "filterActive": "Active",
     "filterInactive": "Inactive",
-    "filterCompleted": "Completed"
+    "filterCompleted": "Completed",
+    "selectAllCards": "Select all",
+    "selectCard": "Select card"
   },
   "about": {
     "eyebrow": "A little introduction",
