@@ -43,7 +43,7 @@ const donations = [
       <img src="/images/follow.gif" alt="Illustration of febrianthomas" width="500" height="500" class="mx-auto aspect-square w-full max-w-md object-contain" />
       <div>
         <p class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">A little introduction</p>
-        <h1 class="mt-5 text-6xl leading-none sm:text-8xl">About.</h1>
+        <h1 class="mt-5 font-bagel-fat-one text-6xl leading-none sm:text-8xl">About.</h1>
         <p class="mt-6 text-xl leading-8 text-zinc-800">Hi, I’m Febrian—a self-taught illustrator and 2D animator who loves bringing characters and ideas to life.</p>
         <p class="mt-4 text-lg leading-8 text-zinc-600">When I’m not drawing or learning web development, you’ll probably find me watching anime, playing games, or enjoying another cup of coffee.</p>
         <nav aria-label="Social profiles" class="mt-8 flex flex-wrap gap-3">
@@ -68,7 +68,7 @@ const donations = [
     <div class="mx-auto max-w-5xl pb-32 pt-8 sm:pb-40 sm:pt-12">
       <div class="flex flex-col gap-16 sm:gap-20">
         <section v-for="section in sections" :key="section.title">
-          <h2 class="text-center text-4xl sm:text-5xl">{{ section.title }}</h2>
+          <h2 class="text-center font-bagel-fat-one text-4xl sm:text-5xl">{{ section.title }}</h2>
           <ul class="mt-8 flex flex-wrap justify-center gap-4">
             <li v-for="item in section.items" :key="item.name" class="flex min-h-44 w-44 max-w-full flex-col items-center justify-center gap-5 p-6 text-center text-lg text-zinc-900 sm:w-52">
               <img :src="item.image" alt="" width="88" height="88" class="about-item-image size-22 object-contain" />
@@ -82,7 +82,7 @@ const donations = [
       </div>
 
       <section id="support" class="mx-auto mt-24 max-w-3xl scroll-mt-24 text-center sm:mt-32">
-        <h2 class="text-4xl sm:text-5xl">Support My Work.</h2>
+        <h2 class="font-bagel-fat-one text-4xl sm:text-5xl">Support My Work.</h2>
         <p class="mx-auto mt-5 max-w-md text-lg leading-8 text-zinc-600">If you enjoy what I create, you can support me here.</p>
         <div class="mt-8 flex flex-wrap justify-center gap-4">
           <motion.a

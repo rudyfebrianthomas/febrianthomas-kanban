@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 
 @theme inline {
+  --font-bagel-fat-one: 'Bagel Fat One', sans-serif;
   --font-sniglet: 'Sniglet', sans-serif;
 }
 
