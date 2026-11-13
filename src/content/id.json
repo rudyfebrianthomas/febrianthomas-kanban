@@ -24,10 +24,31 @@
     "stagesLabel": "Tahap commission",
     "stages": [
       { "number": "01", "label": "Antrean" },
-      { "number": "02", "label": "Lagi dikerjain" },
-      { "number": "03", "label": "Selesai" }
+      { "number": "02", "label": "Sketsa" },
+      { "number": "03", "label": "Lineart" },
+      { "number": "04", "label": "Finishing" },
+      { "number": "05", "label": "Disetujui" },
+      { "number": "06", "label": "Selesai" }
     ],
-    "boardMessage": "Papannya lagi disiapin, ya. Cek lagi nanti buat lihat updatenya."
+    "boardMessage": "Papannya lagi disiapin, ya. Cek lagi nanti buat lihat updatenya.",
+    "addCard": "Tambah kartu",
+    "createCardTitle": "Tambah kartu",
+    "createCardDescription": "Tambahkan kartu commission baru ke papan.",
+    "close": "Tutup",
+    "titleLabel": "Judul",
+    "descriptionLabel": "Deskripsi",
+    "requestorLabel": "Requestor / tag",
+    "requestorHelp": "Masukkan nama requestor atau pisahkan beberapa tag dengan koma.",
+    "imageLabel": "Gambar (opsional)",
+    "imagePreview": "Pratinjau gambar terpilih",
+    "imageHelp": "Pilih PNG, JPEG, WebP, atau GIF hingga 5 MB.",
+    "chooseImage": "Pilih file",
+    "dropImage": "atau drag file ke sini",
+    "removeImage": "Hapus gambar",
+    "imageSingle": "Pilih satu gambar sekaligus.",
+    "imageInvalid": "Pilih PNG, JPEG, WebP, atau GIF tidak lebih dari 5 MB.",
+    "requiredFields": "Isi judul, deskripsi, dan requestor dulu, ya.",
+    "submitCard": "Tambah kartu"
   },
   "about": {
     "eyebrow": "Kenalan dulu, yuk",

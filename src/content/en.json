@@ -24,10 +24,31 @@
     "stagesLabel": "Commission stages",
     "stages": [
       { "number": "01", "label": "To do" },
-      { "number": "02", "label": "In progress" },
-      { "number": "03", "label": "Done" }
+      { "number": "02", "label": "Sketch" },
+      { "number": "03", "label": "Lineart" },
+      { "number": "04", "label": "Finishing" },
+      { "number": "05", "label": "Approved" },
+      { "number": "06", "label": "Completed" }
     ],
-    "boardMessage": "The board is being prepared. Check back soon for updates."
+    "boardMessage": "The board is being prepared. Check back soon for updates.",
+    "addCard": "Add card",
+    "createCardTitle": "Add a card",
+    "createCardDescription": "Add a new commission card to the board.",
+    "close": "Close",
+    "titleLabel": "Title",
+    "descriptionLabel": "Description",
+    "requestorLabel": "Requestor / tags",
+    "requestorHelp": "Enter a requestor name or separate multiple tags with commas.",
+    "imageLabel": "Image (optional)",
+    "imagePreview": "Selected image preview",
+    "imageHelp": "Choose a PNG, JPEG, WebP, or GIF up to 5 MB.",
+    "chooseImage": "Choose file",
+    "dropImage": "or drag and drop it here",
+    "removeImage": "Remove image",
+    "imageSingle": "Choose one image at a time.",
+    "imageInvalid": "Choose a PNG, JPEG, WebP, or GIF no larger than 5 MB.",
+    "requiredFields": "Please fill in title, description, and requestor.",
+    "submitCard": "Add card"
   },
   "about": {
     "eyebrow": "A little introduction",

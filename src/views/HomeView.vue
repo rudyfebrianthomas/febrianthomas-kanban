@@ -1,7 +1,162 @@
 <script setup lang="ts">
+import {
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogOverlay,
+  DialogPortal,
+  DialogRoot,
+  DialogTitle,
+  DialogTrigger,
+} from 'reka-ui'
+import { Plus, UploadCloud, X } from '@lucide/vue'
+import { motion, useReducedMotion } from 'motion-v'
+import { computed, onUnmounted, ref } from 'vue'
 import { useLanguage } from '../composables/useLanguage'
 
+interface KanbanCard {
+  id: string
+  stageNumber: string
+  title: string
+  description: string
+  requestors: string[]
+  imageUrl?: string
+}
+
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const fieldClass =
+  'mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-base text-zinc-950 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-300'
+
 const { text } = useLanguage()
+const reducedMotion = useReducedMotion()
+
+const open = ref(false)
+const cards = ref<KanbanCard[]>([])
+const title = ref('')
+const description = ref('')
+const requestorInput = ref('')
+const imageFile = ref<File | null>(null)
+const previewUrl = ref('')
+const dragging = ref(false)
+const error = ref('')
+const imageError = ref('')
+const fileInput = ref<HTMLInputElement | null>(null)
+
+function parseTags(raw: string): string[] {
+  return [...new Set(raw.split(',').map((item) => item.trim()).filter(Boolean))]
+}
+
+const previewTags = computed(() => parseTags(requestorInput.value))
+
+function isValidImage(file: File): boolean {
+  return ALLOWED_IMAGE_TYPES.has(file.type) && file.size > 0 && file.size <= MAX_IMAGE_BYTES
+}
+
+function revokePreview() {
+  if (previewUrl.value) {
+    URL.revokeObjectURL(previewUrl.value)
+    previewUrl.value = ''
+  }
+}
+
+function selectImage(file: File | null) {
+  revokePreview()
+  if (file && !isValidImage(file)) {
+    imageFile.value = null
+    if (fileInput.value) fileInput.value.value = ''
+    imageError.value = text.value.home.imageInvalid
+    return
+  }
+  imageFile.value = file
+  if (file) previewUrl.value = URL.createObjectURL(file)
+  imageError.value = ''
+  error.value = ''
+}
+
+function onFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  selectImage(input.files?.[0] ?? null)
+}
+
+function onDragEnter(event: DragEvent) {
+  if (event.dataTransfer?.types.includes('Files')) dragging.value = true
+}
+
+function onDragLeave(event: DragEvent) {
+  const currentTarget = event.currentTarget as HTMLElement | null
+  const related = event.relatedTarget as Node | null
+  if (!related || !currentTarget?.contains(related)) dragging.value = false
+}
+
+function onDrop(event: DragEvent) {
+  dragging.value = false
+  const files = event.dataTransfer?.files
+  if (!files || files.length !== 1) {
+    selectImage(null)
+    imageError.value = text.value.home.imageSingle
+    return
+  }
+  if (fileInput.value) fileInput.value.value = ''
+  selectImage(files[0] ?? null)
+}
+
+function clearImage() {
+  if (fileInput.value) fileInput.value.value = ''
+  selectImage(null)
+}
+
+function resetForm() {
+  title.value = ''
+  description.value = ''
+  requestorInput.value = ''
+  dragging.value = false
+  error.value = ''
+  imageError.value = ''
+  if (fileInput.value) fileInput.value.value = ''
+  imageFile.value = null
+  revokePreview()
+}
+
+function onOpenChange(nextOpen: boolean) {
+  open.value = nextOpen
+  if (!nextOpen) resetForm()
+}
+
+function submitCard() {
+  if (imageError.value) return
+  const trimmedTitle = title.value.trim()
+  const trimmedDescription = description.value.trim()
+  const requestors = parseTags(requestorInput.value)
+
+  if (!trimmedTitle || !trimmedDescription || requestors.length === 0) {
+    error.value = text.value.home.requiredFields
+    return
+  }
+
+  const cardImageUrl = imageFile.value ? URL.createObjectURL(imageFile.value) : undefined
+  cards.value.push({
+    id: crypto.randomUUID(),
+    stageNumber: text.value.home.stages[0]?.number ?? '01',
+    title: trimmedTitle,
+    description: trimmedDescription,
+    requestors,
+    imageUrl: cardImageUrl,
+  })
+  open.value = false
+  resetForm()
+}
+
+function cardsForStage(stageNumber: string): KanbanCard[] {
+  return cards.value.filter((card) => card.stageNumber === stageNumber)
+}
+
+onUnmounted(() => {
+  revokePreview()
+  for (const card of cards.value) {
+    if (card.imageUrl) URL.revokeObjectURL(card.imageUrl)
+  }
+})
 </script>
 
 <template>
@@ -14,17 +169,201 @@ const { text } = useLanguage()
         </h1>
         <p class="mt-6 text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">{{ text.home.intro }}</p>
       </div>
+
       <div class="surface-shadow mt-12 rounded-2xl border border-zinc-200 bg-white p-6 sm:mt-16 sm:p-7 dark:border-zinc-800 dark:bg-zinc-900">
-        <div class="flex items-center justify-between gap-4 text-xs font-medium tracking-[0.12em] text-zinc-500 dark:text-zinc-400">
-          <span>{{ text.home.boardHeading }}</span>
-          <span class="tracking-normal text-sm text-zinc-500 dark:text-zinc-400">{{ text.home.comingSoon }}</span>
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <span class="text-xs font-medium tracking-[0.12em] text-zinc-500 dark:text-zinc-400">{{ text.home.boardHeading }}</span>
+
+          <DialogRoot :open="open" @update:open="onOpenChange">
+            <DialogTrigger as-child>
+              <motion.button
+                type="button"
+                :while-tap="reducedMotion ? undefined : { scale: 0.98 }"
+                :transition="{ duration: 0.14 }"
+                class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
+              >
+                <Plus :size="18" aria-hidden="true" />
+                {{ text.home.addCard }}
+              </motion.button>
+            </DialogTrigger>
+
+            <DialogPortal>
+              <DialogOverlay class="fixed inset-0 z-60 bg-zinc-950/50" />
+              <div class="pointer-events-none fixed inset-0 z-70 flex items-center justify-center p-4 sm:p-6">
+                <DialogContent as-child>
+                  <motion.div
+                    data-lenis-prevent
+                    :initial="reducedMotion ? false : { opacity: 0, scale: 0.97, y: 8 }"
+                    :animate="{ opacity: 1, scale: 1, y: 0 }"
+                    :transition="{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }"
+                    class="surface-shadow pointer-events-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 text-zinc-950 focus:outline-none sm:p-8 dark:bg-zinc-900 dark:text-zinc-50"
+                  >
+                    <div class="flex items-start justify-between gap-4">
+                      <DialogTitle class="text-3xl font-semibold tracking-tight sm:text-4xl">{{ text.home.createCardTitle }}</DialogTitle>
+                      <DialogClose as-child>
+                        <button
+                          type="button"
+                          :aria-label="text.home.close"
+                          class="flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:hover:bg-zinc-800"
+                        >
+                          <X :size="20" aria-hidden="true" />
+                        </button>
+                      </DialogClose>
+                    </div>
+                    <DialogDescription class="mt-3 text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">
+                      {{ text.home.createCardDescription }}
+                    </DialogDescription>
+
+                    <form class="mt-7 space-y-5" @submit.prevent="submitCard">
+                      <div>
+                        <label for="card-title" class="block text-sm font-medium">{{ text.home.titleLabel }}</label>
+                        <input id="card-title" v-model="title" type="text" required maxlength="120" :class="fieldClass" />
+                      </div>
+
+                      <div>
+                        <label for="card-description" class="block text-sm font-medium">{{ text.home.descriptionLabel }}</label>
+                        <textarea id="card-description" v-model="description" required maxlength="240" rows="3" :class="fieldClass" />
+                      </div>
+
+                      <div>
+                        <label for="card-requestor" class="block text-sm font-medium">{{ text.home.requestorLabel }}</label>
+                        <input
+                          id="card-requestor"
+                          v-model="requestorInput"
+                          type="text"
+                          required
+                          aria-describedby="card-requestor-help"
+                          :class="fieldClass"
+                        />
+                        <p id="card-requestor-help" class="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{{ text.home.requestorHelp }}</p>
+                        <div v-if="previewTags.length" class="mt-2.5 flex flex-wrap gap-2">
+                          <span
+                            v-for="tag in previewTags"
+                            :key="tag"
+                            class="rounded-full bg-orange-100 px-3 py-1 text-xs text-orange-800 dark:bg-zinc-800 dark:text-orange-200"
+                          >
+                            {{ tag }}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <p id="card-image-label" class="block text-sm font-medium">{{ text.home.imageLabel }}</p>
+                        <div
+                          :class="[
+                            'mt-2 rounded-xl border-2 border-dashed p-5 focus-within:ring-2 focus-within:ring-zinc-900 dark:focus-within:ring-zinc-300',
+                            dragging ? 'border-orange-500 bg-orange-50 dark:border-orange-400 dark:bg-zinc-800' : 'border-zinc-300 dark:border-zinc-600',
+                          ]"
+                          @dragenter.prevent="onDragEnter"
+                          @dragover.prevent
+                          @dragleave="onDragLeave"
+                          @drop.prevent="onDrop"
+                        >
+                          <input
+                            ref="fileInput"
+                            id="card-image"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            aria-labelledby="card-image-label"
+                            :aria-describedby="imageError ? 'card-image-help card-image-error' : 'card-image-help'"
+                            :aria-invalid="Boolean(imageError)"
+                            class="sr-only"
+                            @change="onFileChange"
+                          />
+                          <div class="flex flex-wrap items-center gap-3">
+                            <UploadCloud :size="22" aria-hidden="true" class="text-zinc-500 dark:text-zinc-400" />
+                            <label
+                              for="card-image"
+                              class="cursor-pointer rounded-xl bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-600"
+                            >
+                              {{ text.home.chooseImage }}
+                            </label>
+                            <span class="text-sm text-zinc-600 dark:text-zinc-300">{{ text.home.dropImage }}</span>
+                          </div>
+
+                          <img
+                            v-if="imageFile && previewUrl"
+                            :src="previewUrl"
+                            :alt="text.home.imagePreview"
+                            class="mt-4 max-h-64 w-full rounded-xl bg-zinc-100 object-contain dark:bg-zinc-800"
+                          />
+
+                          <div v-if="imageFile || imageError" class="mt-4 flex items-center justify-between gap-3">
+                            <span role="status" class="min-w-0 wrap-break-words text-sm">{{ imageFile?.name }}</span>
+                            <button
+                              type="button"
+                              class="shrink-0 rounded-xl px-3 py-2 text-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+                              @click="clearImage"
+                            >
+                              {{ text.home.removeImage }}
+                            </button>
+                          </div>
+                        </div>
+                        <p id="card-image-help" class="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{{ text.home.imageHelp }}</p>
+                        <p v-if="imageError" id="card-image-error" role="alert" class="mt-2 text-sm text-red-700 dark:text-red-400">
+                          {{ imageError }}
+                        </p>
+                      </div>
+
+                      <p v-if="error" role="alert" class="text-sm text-red-700 dark:text-red-400">{{ error }}</p>
+
+                      <motion.button
+                        type="submit"
+                        :while-tap="reducedMotion ? undefined : { scale: 0.98 }"
+                        :transition="{ duration: 0.14 }"
+                        class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
+                      >
+                        {{ text.home.submitCard }}
+                      </motion.button>
+                    </form>
+                  </motion.div>
+                </DialogContent>
+              </div>
+            </DialogPortal>
+          </DialogRoot>
         </div>
-        <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3" :aria-label="text.home.stagesLabel">
-          <div v-for="stage in text.home.stages" :key="stage.number" class="flex min-h-16 items-center gap-3 rounded-xl bg-zinc-100 px-4 py-3 text-base text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100">
-            <span class="grid size-8 flex-none place-items-center rounded-full bg-zinc-200 text-xs font-medium text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">{{ stage.number }}</span>
-            <span>{{ stage.label }}</span>
+
+        <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" :aria-label="text.home.stagesLabel">
+          <div
+            v-for="stage in text.home.stages"
+            :key="stage.number"
+            class="flex flex-col gap-3 rounded-xl bg-zinc-100 p-4 text-base text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+          >
+            <div class="flex items-center gap-3">
+              <span class="grid size-8 flex-none place-items-center rounded-full bg-zinc-200 text-xs font-medium text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">
+                {{ stage.number }}
+              </span>
+              <span>{{ stage.label }}</span>
+            </div>
+
+            <div v-if="cardsForStage(stage.number).length" class="space-y-3">
+              <article
+                v-for="card in cardsForStage(stage.number)"
+                :key="card.id"
+                class="rounded-2xl bg-white p-4 text-zinc-950 shadow-xs dark:bg-zinc-900 dark:text-zinc-50"
+              >
+                <img
+                  v-if="card.imageUrl"
+                  :src="card.imageUrl"
+                  :alt="card.title"
+                  class="mb-3 aspect-4/3 w-full rounded-xl bg-zinc-100 object-cover dark:bg-zinc-800"
+                />
+                <h2 class="text-base font-medium">{{ card.title }}</h2>
+                <p class="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{{ card.description }}</p>
+                <div class="mt-3 flex flex-wrap gap-1.5">
+                  <span
+                    v-for="requestor in card.requestors"
+                    :key="requestor"
+                    class="rounded-full bg-orange-100 px-3 py-1 text-xs text-orange-800 dark:bg-zinc-800 dark:text-orange-200"
+                  >
+                    {{ requestor }}
+                  </span>
+                </div>
+              </article>
+            </div>
           </div>
         </div>
+
         <p class="mt-5 text-sm text-zinc-500 dark:text-zinc-400">{{ text.home.boardMessage }}</p>
       </div>
     </section>
