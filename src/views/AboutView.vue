@@ -59,7 +59,7 @@ const donations = [
             :transition="{ type: 'spring', duration: 0.3, bounce: 0.2 }"
             :class="`inline-flex size-12 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 ${social.colorClass}`"
           >
-            <svg aria-hidden="true" viewBox="0 0 24 24" class="size-6 fill-current"><path :d="social.path" /></svg>
+            <svg aria-hidden="true" viewBox="0 0 24 24" class="size-6 fill-current"><path :d="social.icon.path" /></svg>
           </motion.a>
         </nav>
       </div>

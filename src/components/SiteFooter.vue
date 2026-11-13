@@ -26,7 +26,7 @@ const starters = ['bulba', 'ivy', 'venu']
             :title="social.name"
             class="flex size-10 items-center justify-center rounded-full text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2"
           >
-            <svg aria-hidden="true" viewBox="0 0 24 24" class="size-5 fill-current"><path :d="social.path" /></svg>
+            <svg aria-hidden="true" viewBox="0 0 24 24" class="size-5 fill-current"><path :d="social.icon.path" /></svg>
           </a>
         </nav>
       </div>
