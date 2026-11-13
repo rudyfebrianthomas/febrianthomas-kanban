@@ -99,6 +99,7 @@
     "titleLabel": "Title",
     "descriptionLabel": "Description (optional)",
     "requiredTitle": "Title is required.",
+    "duplicateTitle": "A board with this title already exists.",
     "submitBoard": "Create board",
     "savingBoard": "Creating...",
     "saveBoardError": "Failed to save board.",

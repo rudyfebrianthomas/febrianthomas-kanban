@@ -280,6 +280,11 @@ function openEditBoard(board: KanbanBoard) {
   dialogOpen.value = true
 }
 
+function boardSaveErrorMessage(error: { code?: string; message?: string } | null) {
+  if (error?.code === '23505') return text.value.setting.duplicateTitle
+  return error?.message || text.value.setting.saveBoardError
+}
+
 async function handleSaveBoard() {
   const trimmedTitle = titleInput.value.trim()
   if (!trimmedTitle) {
@@ -290,6 +295,15 @@ async function handleSaveBoard() {
   const trimmedDescription = descriptionInput.value.trim()
   const nextDescription = trimmedDescription || null
   const editing = editingBoard.value
+  const normalizedTitle = trimmedTitle.toLowerCase()
+  if (
+    boards.value.some(
+      (item) => item.id !== editing?.id && item.title.trim().toLowerCase() === normalizedTitle,
+    )
+  ) {
+    formError.value = text.value.setting.duplicateTitle
+    return
+  }
 
   saving.value = true
   formError.value = ''
@@ -335,7 +349,7 @@ async function handleSaveBoard() {
     saving.value = false
 
     if (error || !data) {
-      formError.value = error?.message || text.value.setting.saveBoardError
+      formError.value = boardSaveErrorMessage(error)
       return
     }
 
@@ -358,7 +372,7 @@ async function handleSaveBoard() {
   saving.value = false
 
   if (error || !data) {
-    formError.value = error?.message || text.value.setting.saveBoardError
+    formError.value = boardSaveErrorMessage(error)
     return
   }
 

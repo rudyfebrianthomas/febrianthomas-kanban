@@ -99,6 +99,7 @@
     "titleLabel": "Judul",
     "descriptionLabel": "Deskripsi (opsional)",
     "requiredTitle": "Judul wajib diisi.",
+    "duplicateTitle": "Papan dengan judul ini sudah ada.",
     "submitBoard": "Buat papan",
     "savingBoard": "Membuat...",
     "saveBoardError": "Gagal menyimpan papan.",
