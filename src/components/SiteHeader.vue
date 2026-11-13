@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { onUnmounted, ref } from 'vue'
 import { LogIn, LogOut } from '@lucide/vue'
 import { supabase } from '../supabase'
