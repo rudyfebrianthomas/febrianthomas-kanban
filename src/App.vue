@@ -54,6 +54,9 @@ onUnmounted(() => {
     <span class="floating-shape shape-square-three"></span>
     <span class="floating-shape shape-triangle-three"></span>
     <span class="floating-shape shape-diamond-three"></span>
+    <span class="floating-shape shape-center-circle"></span>
+    <span class="floating-shape shape-center-square"></span>
+    <span class="floating-shape shape-center-diamond"></span>
   </div>
   <RouterView />
 </template>
