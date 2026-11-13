@@ -9,6 +9,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .page { min-height: 100vh; display: grid; place-items: center; padding: 32px 24px; }
 .login-panel { width: 100%; max-width: 380px; }
 .brand { margin-bottom: 48px; display: flex; align-items: center; gap: 10px; font-size: 16px; letter-spacing: -.4px; font-weight: 700; }
+.login-brand { color: inherit; text-decoration: none; }
 .brand-icon { width: 34px; height: 34px; display: grid; place-items: center; color: #fffdf7; background: #3b4439; border-radius: 10px; transform: rotate(-8deg); }
 .brand-dot, .heading-dot { color: #c16f56; }
 .form-wrap { width: 100%; }
@@ -36,14 +37,27 @@ form .error { margin: 0; }
 
 a.submit { text-decoration: none; }
 
-.site-header { min-height: 80px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px; padding: 16px clamp(24px, 5vw, 72px); border-bottom: 1px solid #e8e4d9; }
+.site-header { min-height: 80px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px; padding: 16px clamp(24px, 5vw, 72px); border-bottom: 1px solid #e8e4d9; background: #faf8f2; }
 .site-name { justify-self: start; color: #302e2a; text-decoration: none; font-family: 'Sniglet', sans-serif; font-size: 15px; font-weight: 400; }
 .site-nav { display: flex; align-items: center; gap: 32px; }
-.site-nav a { color: #69675f; text-decoration: none; padding: 12px 0; font-size: 14px; }
+.site-nav a { color: #59584f; text-decoration: none; padding: 12px 0; font-size: 14px; }
 .site-nav a:hover, .site-nav a.router-link-exact-active { color: #a84f3b; }
 .auth-control { justify-self: end; min-width: 44px; min-height: 44px; }
 .auth-icon { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 10px; color: #3b4439; background: transparent; }
 .auth-icon:hover { background: #eeeae0; }
 .auth-icon:disabled { opacity: .55; cursor: not-allowed; }
-.home-page { min-height: calc(100vh - 80px); display: grid; place-items: center; padding: 48px 24px; }
+.home-page { min-height: calc(100vh - 80px); display: grid; align-items: center; padding: 64px clamp(24px, 5vw, 72px); }
+.home-content { width: 100%; max-width: 1120px; margin: 0 auto; }
+.home-heading { max-width: 760px; }
+.home-heading h1 { font-size: clamp(48px, 7vw, 88px); line-height: 1.04; letter-spacing: -1.5px; }
+.home-intro { color: #59584f; font-size: 16px; line-height: 1.6; margin: 24px 0 0; }
+.progress-preview { margin-top: clamp(48px, 8vh, 80px); padding: 24px 28px 28px; border: 1px solid #ddd8ca; border-radius: 16px; background: #fffdf8; }
+.preview-heading { display: flex; justify-content: space-between; gap: 16px; color: #5f5e55; font-size: 11px; letter-spacing: .1em; }
+.preview-note { color: #a4503c; letter-spacing: 0; font-size: 13px; }
+.progress-stages { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 24px; }
+.progress-stage { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 14px 16px; border-radius: 10px; background: #f3f1e9; font-size: 15px; }
+.stage-number { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 50%; background: #e7d0c2; color: #74402f; font-size: 11px; }
+.preview-message { color: #69675f; font-size: 13px; margin: 20px 0 0; }
+.secondary-page { max-width: 700px; }
+@media (max-width: 600px) { .home-page { padding-top: 52px; padding-bottom: 52px; }.home-heading h1 { font-size: clamp(42px, 11vw, 58px); }.progress-preview { padding: 20px; }.progress-stages { grid-template-columns: 1fr; gap: 8px; }.progress-stage { min-height: 54px; } }
 @media (max-width: 700px) { .site-header { grid-template-columns: 1fr auto; gap: 4px 16px; padding: 16px 24px 8px; }.site-nav { grid-row: 2; grid-column: 1 / -1; justify-content: center; gap: 32px; }.auth-control { grid-column: 2; grid-row: 1; }.home-page { min-height: calc(100vh - 120px); } }

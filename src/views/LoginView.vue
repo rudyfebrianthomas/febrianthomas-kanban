@@ -44,10 +44,9 @@ async function signIn() {
 <template>
   <main class="page">
     <section class="login-panel" aria-labelledby="page-title">
-      <div class="brand"><span class="brand-icon"><Pencil :size="18" aria-hidden="true" /></span><span>the commission desk<span class="brand-dot">.</span></span></div>
+      <RouterLink class="brand login-brand" to="/"><span class="brand-icon"><Pencil :size="18" aria-hidden="true" /></span><span>febrianthomas commission progress<span class="brand-dot">.</span></span></RouterLink>
 
       <div class="form-wrap">
-        <div class="mobile-mark" aria-hidden="true">✳</div>
         <template v-if="checkingSession">
           <p class="eyebrow">ARTIST'S CORNER</p>
           <h1 id="page-title">One little moment<span class="heading-dot">.</span></h1>
@@ -64,10 +63,8 @@ async function signIn() {
             <p v-if="errorMessage" class="error" role="alert">{{ errorMessage }}</p>
             <button class="submit" type="submit" :disabled="loading || !supabase">{{ loading ? 'Signing in…' : 'Sign in' }} <ArrowRight :size="18" aria-hidden="true" /></button>
           </form>
-          <p class="account-note">A little space for your works in progress.</p>
         </template>
       </div>
-      <p class="footer">Made for the messy middle <span aria-hidden="true">✳</span></p>
     </section>
 
   </main>
