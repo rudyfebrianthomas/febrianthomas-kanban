@@ -129,27 +129,76 @@
     "selectCard": "Pilih kartu"
   },
   "about": {
-    "eyebrow": "Kenalan dulu, yuk",
     "title": "Tentang.",
+    "eyebrow": "Kenalan dulu, yuk",
     "description": "Hai, aku Febrian! Aku suka gambar karakter dan bikin animasi 2D. Semuanya aku pelajari sendiri, dari coba-coba sampai jadi karya.",
     "details": "Kalau lagi nggak gambar atau belajar web development, biasanya aku lagi nonton anime, main game, atau ngopi lagi.",
+    "image": "/images/follow.gif",
     "imageAlt": "Ilustrasi febrianthomas",
     "socialLabel": "Media sosial",
-    "software": {
-      "title": "Software yang Aku Pakai",
-      "items": [
-        { "name": "Adobe Animate CC", "image": "/images/icons/an.png" },
-        { "name": "Adobe Audition CC", "image": "/images/icons/au.png" },
-        { "name": "Clip Studio Paint EX", "image": "/images/icons/csp.png" },
-        { "name": "Otak kecilku", "image": "/images/icons/brain.png" },
-        { "name": "DaVinci Resolve", "image": "/images/icons/dr.png" },
-        { "name": "OBS Studio", "image": "/images/icons/obs.png" }
-      ]
+    "socialUnavailable": "tautan belum diatur",
+    "donations": {
+      "title": "Dukung Karyaku.",
+      "description": "Suka sama karyaku? Kamu bisa support aku lewat sini!",
+      "unavailable": "Coming soon",
+      "enabled": "Tampil",
+      "disabled": "Tersembunyi",
+      "settingsError": "Pengaturan tombol support belum bisa dimuat atau disimpan. Coba lagi nanti, ya.",
+      "streamlabs": {
+        "name": "Streamlabs",
+        "url": "https://streamlabs.com/febrianthomas/tip",
+        "image": "/images/donatedollar.gif"
+      },
+      "saweria": {
+        "name": "Saweria",
+        "url": "https://saweria.co/donate/febrianthomas",
+        "image": "/images/donaterp.gif"
+      },
+      "kofi": {
+        "name": "Ko-fi",
+        "url": "https://ko-fi.com/febrianthomas",
+        "image": "/images/donatedollar.gif"
+      },
+      "trakteer": {
+        "name": "Trakteer",
+        "url": "https://trakteer.id/febrianthomas",
+        "image": "/images/donaterp.gif"
+      }
+    },
+    "socials": {
+      "instagram": {
+        "name": "Instagram",
+        "url": "https://www.instagram.com/febrianthomas_"
+      },
+      "youtube": {
+        "name": "YouTube",
+        "url": "https://www.youtube.com/@febrianthomas"
+      },
+      "twitter": {
+        "name": "X / Twitter",
+        "url": "https://x.com/febrianthomas_"
+      },
+      "threads": {
+        "name": "Threads",
+        "url": "https://www.threads.com/@febrianthomas_"
+      },
+      "twitch": {
+        "name": "Twitch",
+        "url": "https://www.twitch.tv/febrianthomas/about"
+      },
+      "tiktok": {
+        "name": "TikTok",
+        "url": "https://www.tiktok.com/@febrianthomas_"
+      }
     },
     "tools": {
       "title": "Tools yang Aku Pakai",
+      "empty": "Daftar tools coming soon!",
       "items": [
-        { "name": "XP Pen Artist 13.3 Pro", "image": "/images/icons/xppen.png" },
+        {
+          "name": "XP Pen Artist 13.3 Pro",
+          "image": "/images/icons/xppen.png"
+        },
         {
           "name": "PC",
           "image": "/images/icons/pc.png",
@@ -161,14 +210,34 @@
         }
       ]
     },
-    "donations": {
-      "title": "Dukung Karyaku.",
-      "description": "Suka sama karyaku? Kamu bisa support aku lewat sini!",
+    "software": {
+      "title": "Software yang Aku Pakai",
+      "empty": "Daftar software coming soon!",
       "items": [
-        { "name": "Streamlabs", "url": "https://streamlabs.com/febrianthomas/tip", "image": "/images/donatedollar.gif" },
-        { "name": "Saweria", "url": "https://saweria.co/donate/febrianthomas", "image": "/images/donaterp.gif" },
-        { "name": "Ko-fi", "url": "https://ko-fi.com/febrianthomas", "image": "/images/donatedollar.gif" },
-        { "name": "Trakteer", "url": "https://trakteer.id/febrianthomas", "image": "/images/donaterp.gif" }
+        {
+          "name": "Adobe Animate CC",
+          "image": "/images/icons/an.png"
+        },
+        {
+          "name": "Adobe Audition CC",
+          "image": "/images/icons/au.png"
+        },
+        {
+          "name": "Clip Studio Paint EX",
+          "image": "/images/icons/csp.png"
+        },
+        {
+          "name": "Otak kecilku",
+          "image": "/images/icons/brain.png"
+        },
+        {
+          "name": "DaVinci Resolve",
+          "image": "/images/icons/dr.png"
+        },
+        {
+          "name": "OBS Studio",
+          "image": "/images/icons/obs.png"
+        }
       ]
     }
   },
