@@ -3,6 +3,16 @@
 :root { font-family: 'Sniglet', sans-serif; color: #242424; background: #fafafa; font-synthesis: none; text-rendering: optimizeLegibility; }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; }
+#app { position: relative; isolation: isolate; }
+.floating-shapes { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.floating-shape { position: absolute; display: block; animation: float-shape 7s ease-in-out infinite alternate; }
+.shape-circle { width: 54px; height: 54px; top: 22%; right: 8%; border-radius: 50%; background: #f26868; }
+.shape-square { width: 38px; height: 38px; top: 48%; right: 18%; border-radius: 7px; background: #f2be38; animation-duration: 8s; animation-delay: -3s; }
+.shape-triangle { width: 48px; height: 44px; bottom: 10%; left: 4%; background: #4a99db; clip-path: polygon(50% 0, 100% 100%, 0 100%); animation-duration: 9s; animation-delay: -2s; }
+.shape-star { width: 42px; height: 42px; bottom: 13%; right: 5%; background: #78b76f; clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 93%, 50% 71%, 21% 93%, 32% 57%, 2% 35%, 39% 35%); animation-duration: 8.5s; animation-delay: -4s; }
+@keyframes float-shape { from { transform: translateY(-6px) rotate(-5deg); } to { transform: translateY(6px) rotate(5deg); } }
+@media (max-width: 700px) { .floating-shape { scale: .6; }.shape-circle { top: 18%; right: 2%; }.shape-square { top: 34%; right: 1%; }.shape-triangle { bottom: 4%; left: 1%; }.shape-star { bottom: 4%; right: 1%; } }
+@media (prefers-reduced-motion: reduce) { .floating-shape { animation: none; } }
 button, input { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid #303030; outline-offset: 3px; }
