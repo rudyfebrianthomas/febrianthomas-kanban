@@ -6,6 +6,7 @@
   "navigation": {
     "label": "Main navigation",
     "home": "Home",
+    "commission": "Commission",
     "about": "About",
     "signIn": "Sign in",
     "signOut": "Sign out",
