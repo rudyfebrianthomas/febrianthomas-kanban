@@ -24,19 +24,19 @@ import {
   COMMISSION_STATUS_STYLES,
   type CommissionStatusValue,
   fetchCommissionStatus,
-} from '../commissionStatus'
-import ConfirmDialog from '../components/ConfirmDialog.vue'
-import KanbanCardFormDialog from '../components/KanbanCardFormDialog.vue'
-import SelectField from '../components/SelectField.vue'
+} from '../lib/commissionStatus'
+import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
+import KanbanCardFormDialog from '../components/commission/KanbanCardFormDialog.vue'
+import SelectField from '../components/ui/SelectField.vue'
 import { useLanguage } from '../composables/useLanguage'
 import {
   type KanbanCard,
   type KanbanCardRow,
   deleteKanbanCard,
   toKanbanCard,
-} from '../kanbanCard'
-import { stageLabel, stageProgress } from '../kanbanStage'
-import { supabase } from '../supabase'
+} from '../lib/kanbanCard'
+import { stageLabel, stageProgress } from '../lib/kanbanStage'
+import { supabase } from '../lib/supabase'
 
 interface KanbanBoard {
   id: string

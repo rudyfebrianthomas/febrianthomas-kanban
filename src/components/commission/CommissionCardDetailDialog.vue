@@ -11,9 +11,9 @@ import {
   DialogTitle,
 } from 'reka-ui'
 import { onUnmounted, ref, watch } from 'vue'
-import { useLanguage } from '../composables/useLanguage'
-import { type KanbanCard } from '../kanbanCard'
-import { stageStyle } from '../kanbanStage'
+import { useLanguage } from '../../composables/useLanguage'
+import { type KanbanCard } from '../../lib/kanbanCard'
+import { stageStyle } from '../../lib/kanbanStage'
 
 const props = defineProps<{
   card: KanbanCard | null

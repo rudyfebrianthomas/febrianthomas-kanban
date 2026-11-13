@@ -2,12 +2,12 @@
 import { ArrowRight, FileText } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { type CommissionStatus, type CommissionType, fetchCommissionStatus } from '../commissionStatus'
-import CommissionStatusBadge from '../components/CommissionStatusBadge.vue'
+import { type CommissionStatus, type CommissionType, fetchCommissionStatus } from '../lib/commissionStatus'
+import CommissionStatusBadge from '../components/commission/CommissionStatusBadge.vue'
 import { useLanguage } from '../composables/useLanguage'
-import { kanbanImageUrl, latestTimestamp } from '../kanbanCard'
-import { stageLabel, stageProgress, stageStyle } from '../kanbanStage'
-import { supabase } from '../supabase'
+import { kanbanImageUrl, latestTimestamp } from '../lib/kanbanCard'
+import { stageLabel, stageProgress, stageStyle } from '../lib/kanbanStage'
+import { supabase } from '../lib/supabase'
 
 interface ActiveBoardSummary {
   id: string

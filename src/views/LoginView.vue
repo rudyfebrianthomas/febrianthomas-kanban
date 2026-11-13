@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { motion, useReducedMotion } from 'motion-v'
 import { Eye, EyeOff } from '@lucide/vue'
 import { useLanguage } from '../composables/useLanguage'
-import { supabase } from '../supabase'
+import { supabase } from '../lib/supabase'
 
 const { text } = useLanguage()
 const router = useRouter()

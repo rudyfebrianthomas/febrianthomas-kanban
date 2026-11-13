@@ -2,12 +2,12 @@
 import { FileText, Plus, Search } from '@lucide/vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { COMMISSION_TYPES, type CommissionStatus, type CommissionType, fetchCommissionStatus } from '../commissionStatus'
-import CommissionCard from '../components/CommissionCard.vue'
-import CommissionCardDetailDialog from '../components/CommissionCardDetailDialog.vue'
-import CommissionStatusBadge from '../components/CommissionStatusBadge.vue'
-import KanbanCardFormDialog from '../components/KanbanCardFormDialog.vue'
-import SelectField from '../components/SelectField.vue'
+import { COMMISSION_TYPES, type CommissionStatus, type CommissionType, fetchCommissionStatus } from '../lib/commissionStatus'
+import CommissionCard from '../components/commission/CommissionCard.vue'
+import CommissionCardDetailDialog from '../components/commission/CommissionCardDetailDialog.vue'
+import CommissionStatusBadge from '../components/commission/CommissionStatusBadge.vue'
+import KanbanCardFormDialog from '../components/commission/KanbanCardFormDialog.vue'
+import SelectField from '../components/ui/SelectField.vue'
 import { useLanguage } from '../composables/useLanguage'
 import {
   deleteKanbanCard,
@@ -15,9 +15,9 @@ import {
   type KanbanCardRow,
   latestTimestamp,
   toKanbanCard,
-} from '../kanbanCard'
-import { stageLabel as getStageLabel, stageProgress as getStageProgress, stageStyle } from '../kanbanStage'
-import { supabase } from '../supabase'
+} from '../lib/kanbanCard'
+import { stageLabel as getStageLabel, stageProgress as getStageProgress, stageStyle } from '../lib/kanbanStage'
+import { supabase } from '../lib/supabase'
 
 interface KanbanBoard {
   id: string

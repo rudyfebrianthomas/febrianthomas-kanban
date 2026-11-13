@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { COMMISSION_STATUS_STYLES, type CommissionStatus } from '../commissionStatus'
-import { useLanguage } from '../composables/useLanguage'
+import { COMMISSION_STATUS_STYLES, type CommissionStatus } from '../../lib/commissionStatus'
+import { useLanguage } from '../../composables/useLanguage'
 
 defineProps<{
   value: CommissionStatus

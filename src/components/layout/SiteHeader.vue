@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { onUnmounted, ref } from 'vue'
 import { LogOut, UserRound } from '@lucide/vue'
-import { useLanguage } from '../composables/useLanguage'
-import { supabase } from '../supabase'
-import AnimatedLink from './AnimatedLink.vue'
-import ConfirmDialog from './ConfirmDialog.vue'
-import LanguageToggle from './LanguageToggle.vue'
-import ThemeToggle from './ThemeToggle.vue'
+import { useLanguage } from '../../composables/useLanguage'
+import { supabase } from '../../lib/supabase'
+import AnimatedLink from '../ui/AnimatedLink.vue'
+import ConfirmDialog from '../ui/ConfirmDialog.vue'
+import LanguageToggle from '../ui/LanguageToggle.vue'
+import ThemeToggle from '../ui/ThemeToggle.vue'
 
 const { text } = useLanguage()
 const signedIn = ref(false)

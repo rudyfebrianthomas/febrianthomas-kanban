@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ChevronLeft, ChevronRight, Pencil, Trash2 } from '@lucide/vue'
-import { useLanguage } from '../composables/useLanguage'
-import { type KanbanCard } from '../kanbanCard'
-import { stageStyle } from '../kanbanStage'
-import ConfirmDialog from './ConfirmDialog.vue'
+import { useLanguage } from '../../composables/useLanguage'
+import { type KanbanCard } from '../../lib/kanbanCard'
+import { stageStyle } from '../../lib/kanbanStage'
+import ConfirmDialog from '../ui/ConfirmDialog.vue'
 
 const props = defineProps<{
   card: KanbanCard

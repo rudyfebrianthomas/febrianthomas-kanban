@@ -1,10 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { supabase } from './supabase'
-import AboutView from './views/AboutView.vue'
-import CommissionView from './views/CommissionView.vue'
-import HomeView from './views/HomeView.vue'
-import LoginView from './views/LoginView.vue'
-import SettingView from './views/SettingView.vue'
+import { supabase } from '../lib/supabase'
+import AboutView from '../views/AboutView.vue'
+import CommissionView from '../views/CommissionView.vue'
+import HomeView from '../views/HomeView.vue'
+import LoginView from '../views/LoginView.vue'
+import SettingView from '../views/SettingView.vue'
 
 const BASE_TITLE = 'febrianthomas · Kanban'
 

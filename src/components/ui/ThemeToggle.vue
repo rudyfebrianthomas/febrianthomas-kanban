@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Moon, Sun } from '@lucide/vue'
 import { onMounted, ref } from 'vue'
-import { useLanguage } from '../composables/useLanguage'
+import { useLanguage } from '../../composables/useLanguage'
 
 const { text } = useLanguage()
 const dark = ref(false)

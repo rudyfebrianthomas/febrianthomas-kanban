@@ -4,7 +4,7 @@ import { Image as ImageIcon } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import { useLanguage } from '../composables/useLanguage'
 import { socials as socialCatalog } from '../data/socials'
-import { supabase } from '../supabase'
+import { supabase } from '../lib/supabase'
 
 interface AboutItem {
   name: string

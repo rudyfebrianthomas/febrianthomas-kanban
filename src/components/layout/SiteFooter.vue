@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useLanguage } from '../composables/useLanguage'
-import { socials } from '../data/socials'
+import { useLanguage } from '../../composables/useLanguage'
+import { socials } from '../../data/socials'
 
 const { text } = useLanguage()
 const year = new Date().getFullYear()

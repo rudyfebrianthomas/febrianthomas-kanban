@@ -11,13 +11,13 @@ import {
   DialogTitle,
 } from 'reka-ui'
 import { computed, onUnmounted, ref, watch } from 'vue'
-import { COMMISSION_TYPES, type CommissionType } from '../commissionStatus'
-import { useLanguage } from '../composables/useLanguage'
-import { type KanbanCard, type KanbanCardRow, parseRequestorTags, toKanbanCard } from '../kanbanCard'
-import { kanbanImageExtension, optimizeKanbanImage } from '../kanbanImage'
-import { stageStyle } from '../kanbanStage'
-import { supabase } from '../supabase'
-import SelectField from './SelectField.vue'
+import { COMMISSION_TYPES, type CommissionType } from '../../lib/commissionStatus'
+import { useLanguage } from '../../composables/useLanguage'
+import { type KanbanCard, type KanbanCardRow, parseRequestorTags, toKanbanCard } from '../../lib/kanbanCard'
+import { kanbanImageExtension, optimizeKanbanImage } from '../../lib/kanbanImage'
+import { stageStyle } from '../../lib/kanbanStage'
+import { supabase } from '../../lib/supabase'
+import SelectField from '../ui/SelectField.vue'
 
 const props = withDefaults(
   defineProps<{

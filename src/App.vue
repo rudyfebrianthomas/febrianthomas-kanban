@@ -2,9 +2,9 @@
 import Lenis from 'lenis'
 import { motion, useReducedMotion } from 'motion-v'
 import { onMounted, onUnmounted } from 'vue'
-import FloatingShapes from './components/FloatingShapes.vue'
-import SiteFooter from './components/SiteFooter.vue'
-import SiteHeader from './components/SiteHeader.vue'
+import FloatingShapes from './components/ui/FloatingShapes.vue'
+import SiteFooter from './components/layout/SiteFooter.vue'
+import SiteHeader from './components/layout/SiteHeader.vue'
 
 const reducedMotion = useReducedMotion()
 let lenis: Lenis | undefined
