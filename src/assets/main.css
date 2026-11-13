@@ -37,7 +37,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .brand-dot, .heading-dot { color: #303030; }
 .form-wrap { width: 100%; }
 .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .14em; color: #666666; margin: 0 0 18px; }
-h1 { font-family: 'Bagel Fat One', sans-serif; font-size: clamp(48px, 4.7vw, 66px); line-height: 1.1; letter-spacing: -1px; margin: 0; font-weight: 400; }
+h1 { font-size: clamp(48px, 4.7vw, 66px); line-height: 1.1; letter-spacing: -1px; margin: 0; font-weight: 400; }
 .login-panel .eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 14px; }
 .login-panel h1 { font-size: clamp(32px, 4vw, 42px); line-height: 1.12; letter-spacing: -0.5px; }
 .intro { color: #626262; font-size: 15px; margin: 14px 0 32px; line-height: 1.6; }
