@@ -66,6 +66,14 @@
     "deletingCard": "Deleting…",
     "deleteCardError": "Could not delete the card. Please try again.",
     "noActiveBoardTitle": "No active board.",
+    "commissionTypeLabel": "Commission type",
+    "commissionTypes": {
+      "Emote": "Emote",
+      "GIF": "GIF",
+      "Animation": "Animation",
+      "Illustration": "Illustration",
+      "Transition": "Transition"
+    },
     "noActiveBoardDescription": "There is no active commission board right now. Check back soon!"
   },
   "setting": {

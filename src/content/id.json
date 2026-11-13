@@ -66,6 +66,14 @@
     "deletingCard": "Menghapus…",
     "deleteCardError": "Kartunya belum bisa dihapus. Coba lagi, ya.",
     "noActiveBoardTitle": "Belum ada papan aktif.",
+    "commissionTypeLabel": "Tipe commission",
+    "commissionTypes": {
+      "Emote": "Emote",
+      "GIF": "GIF",
+      "Animation": "Animasi",
+      "Illustration": "Ilustrasi",
+      "Transition": "Transisi"
+    },
     "noActiveBoardDescription": "Saat ini belum ada papan commission yang aktif. Cek lagi nanti, ya!"
   },
   "setting": {

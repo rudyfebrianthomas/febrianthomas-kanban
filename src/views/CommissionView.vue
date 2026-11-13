@@ -23,10 +23,14 @@ interface KanbanBoard {
   is_active: boolean
 }
 
+const COMMISSION_TYPES = ['Emote', 'GIF', 'Animation', 'Illustration', 'Transition'] as const
+type CommissionType = (typeof COMMISSION_TYPES)[number]
+
 interface KanbanCard {
   id: string
   boardId: string
   stageNumber: string
+  commissionType: CommissionType
   title: string
   description: string
   requestors: string[]
@@ -38,6 +42,7 @@ interface KanbanCardRow {
   id: string
   board_id: string
   stage_number: string
+  commission_type: CommissionType
   title: string
   description: string
   requestors: string[]
@@ -65,6 +70,7 @@ const pending = ref(false)
 const editingCard = ref<KanbanCard | null>(null)
 const removeExistingImage = ref(false)
 const cards = ref<KanbanCard[]>([])
+const commissionType = ref<CommissionType>('Illustration')
 const title = ref('')
 const description = ref('')
 const requestorInput = ref('')
@@ -100,6 +106,7 @@ function toKanbanCard(row: KanbanCardRow): KanbanCard {
     id: row.id,
     boardId: row.board_id,
     stageNumber: row.stage_number,
+    commissionType: row.commission_type,
     title: row.title,
     description: row.description,
     requestors: row.requestors,
@@ -122,7 +129,7 @@ onMounted(async () => {
 
     const { data: cardsData } = await supabase
       .from('kanban_cards')
-      .select('id,board_id,stage_number,title,description,requestors,image_path')
+      .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path')
       .eq('board_id', activeBoard.value.id)
       .order('created_at', { ascending: true })
 
@@ -192,6 +199,7 @@ function clearImage() {
 function resetForm() {
   editingCard.value = null
   removeExistingImage.value = false
+  commissionType.value = 'Illustration'
   title.value = ''
   description.value = ''
   requestorInput.value = ''
@@ -211,6 +219,7 @@ function openAddCard() {
 function openEditCard(card: KanbanCard) {
   resetForm()
   editingCard.value = card
+  commissionType.value = card.commissionType
   title.value = card.title
   description.value = card.description
   requestorInput.value = card.requestors.join(', ')
@@ -254,6 +263,7 @@ async function submitCard() {
       if ((imageFile.value || removeExistingImage.value) && editing.imageUrl?.startsWith('blob:')) {
         URL.revokeObjectURL(editing.imageUrl)
       }
+      editing.commissionType = commissionType.value
       editing.title = trimmedTitle
       editing.description = trimmedDescription
       editing.requestors = requestors
@@ -264,6 +274,7 @@ async function submitCard() {
         id: crypto.randomUUID(),
         boardId,
         stageNumber,
+        commissionType: commissionType.value,
         title: trimmedTitle,
         description: trimmedDescription,
         requestors,
@@ -300,13 +311,14 @@ async function submitCard() {
       const { data, error: updateError } = await supabase
         .from('kanban_cards')
         .update({
+          commission_type: commissionType.value,
           title: trimmedTitle,
           description: trimmedDescription,
           requestors,
           image_path: nextImagePath,
         })
         .eq('id', editing.id)
-        .select('id,board_id,stage_number,title,description,requestors,image_path')
+        .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path')
         .single()
 
       if (updateError) throw updateError
@@ -322,12 +334,13 @@ async function submitCard() {
         .insert({
           board_id: boardId,
           stage_number: stageNumber,
+          commission_type: commissionType.value,
           title: trimmedTitle,
           description: trimmedDescription,
           requestors,
           image_path: uploadedPath,
         })
-        .select('id,board_id,stage_number,title,description,requestors,image_path')
+        .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path')
         .single()
 
       if (insertError) throw insertError
@@ -490,6 +503,15 @@ onUnmounted(() => {
                     <div>
                       <label for="card-title" class="block text-sm font-medium">{{ text.home.titleLabel }}</label>
                       <input id="card-title" v-model="title" type="text" required maxlength="120" :class="fieldClass" />
+                    </div>
+
+                    <div>
+                      <label for="card-commission-type" class="block text-sm font-medium">{{ text.home.commissionTypeLabel }}</label>
+                      <select id="card-commission-type" v-model="commissionType" required :class="fieldClass">
+                        <option v-for="typeOption in COMMISSION_TYPES" :key="typeOption" :value="typeOption">
+                          {{ text.home.commissionTypes[typeOption] }}
+                        </option>
+                      </select>
                     </div>
 
                     <div>
@@ -666,7 +688,10 @@ onUnmounted(() => {
                   class="mb-3 aspect-4/3 w-full rounded-xl bg-zinc-100 object-cover dark:bg-zinc-800"
                 />
                 <h2 :class="['text-base font-medium', signedIn && !card.imageUrl ? 'pr-20' : '']">{{ card.title }}</h2>
-                <p class="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{{ card.description }}</p>
+                <p class="mt-2 inline-flex rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                  {{ text.home.commissionTypes[card.commissionType] }}
+                </p>
+                <p class="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{{ card.description }}</p>
                 <div class="mt-3">
                   <div class="flex items-center justify-between gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">
                     <span>{{ stageLabel(card.stageNumber) }}</span>
