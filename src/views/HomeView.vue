@@ -323,11 +323,11 @@ onUnmounted(() => {
           </DialogRoot>
         </div>
 
-        <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" :aria-label="text.home.stagesLabel">
+        <div class="mt-6 flex gap-3 overflow-x-auto" :aria-label="text.home.stagesLabel">
           <div
             v-for="stage in text.home.stages"
             :key="stage.number"
-            class="flex flex-col gap-3 rounded-xl bg-zinc-100 p-4 text-base text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+            class="flex min-w-60 flex-1 flex-col gap-3 rounded-xl bg-zinc-100 p-4 text-base text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
           >
             <div class="flex items-center gap-3">
               <span class="grid size-8 flex-none place-items-center rounded-full bg-zinc-200 text-xs font-medium text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">
