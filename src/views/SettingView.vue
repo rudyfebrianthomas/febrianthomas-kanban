@@ -21,14 +21,17 @@ import {
 } from 'reka-ui'
 import {
   COMMISSION_STATUSES,
+  COMMISSION_STATUS_STYLES,
   COMMISSION_TYPES,
   type CommissionStatusValue,
   type CommissionType,
   fetchCommissionStatus,
 } from '../commissionStatus'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
+import SelectField from '../components/SelectField.vue'
 import { useLanguage } from '../composables/useLanguage'
 import { kanbanImageExtension, optimizeKanbanImage } from '../kanbanImage'
+import { stageStyle } from '../kanbanStage'
 import { supabase } from '../supabase'
 
 interface KanbanBoard {
@@ -160,6 +163,33 @@ const filteredBoards = computed(() => {
     )
   })
 })
+
+const commissionTypeOptions = computed(() =>
+  COMMISSION_TYPES.map((typeOption) => ({
+    value: typeOption,
+    label: text.value.home.commissionTypes[typeOption],
+  })),
+)
+const stageOptions = computed(() =>
+  text.value.home.stages.map((stage) => ({
+    value: stage.number,
+    label: stage.label,
+    dotClass: stageStyle(stage.number).dot,
+  })),
+)
+const commissionStatusOptions = computed(() =>
+  COMMISSION_STATUSES.map((option) => ({
+    value: option,
+    label: text.value.home.commissionStatuses[option],
+    dotClass: COMMISSION_STATUS_STYLES[option].dot,
+  })),
+)
+const boardFilterOptions = computed<{ value: BoardFilter; label: string }[]>(() => [
+  { value: 'all', label: text.value.setting.filterAll },
+  { value: 'active', label: text.value.setting.filterActive },
+  { value: 'inactive', label: text.value.setting.filterInactive },
+  { value: 'completed', label: text.value.setting.filterCompleted },
+])
 
 const previewTags = computed(() => parseTags(requestorInput.value))
 const activeImagePreviewUrl = computed(() => {
@@ -1126,30 +1156,24 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                     <label for="setting-card-commission-type" class="block text-sm">
                       {{ text.home.commissionTypeLabel }}
                     </label>
-                    <select
+                    <SelectField
                       id="setting-card-commission-type"
                       v-model="cardCommissionType"
+                      :options="commissionTypeOptions"
+                      size="lg"
                       required
-                      :class="cardFieldClass"
-                    >
-                      <option v-for="typeOption in COMMISSION_TYPES" :key="typeOption" :value="typeOption">
-                        {{ text.home.commissionTypes[typeOption] }}
-                      </option>
-                    </select>
+                    />
                   </div>
 
                   <div v-if="targetCardBoard && !targetCardBoard.is_backlog">
                     <label for="setting-card-stage" class="block text-sm">{{ text.home.stageLabel }}</label>
-                    <select
+                    <SelectField
                       id="setting-card-stage"
                       v-model="cardStageNumber"
+                      :options="stageOptions"
+                      size="lg"
                       required
-                      :class="cardFieldClass"
-                    >
-                      <option v-for="stage in text.home.stages" :key="stage.number" :value="stage.number">
-                        {{ stage.label }}
-                      </option>
-                    </select>
+                    />
                   </div>
 
                   <div>
@@ -1335,15 +1359,11 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
             <label for="commission-status-select" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
               {{ text.setting.commissionStatusTitle }}
             </label>
-            <select
+            <SelectField
               id="commission-status-select"
               v-model="commissionStatusValue"
-              class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
-            >
-              <option v-for="option in COMMISSION_STATUSES" :key="option" :value="option">
-                {{ text.home.commissionStatuses[option] }}
-              </option>
-            </select>
+              :options="commissionStatusOptions"
+            />
           </div>
           <div class="w-28">
             <label for="slots-open" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
@@ -1405,17 +1425,15 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
             class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-4 text-sm text-zinc-950 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-zinc-300"
           />
         </div>
-        <label for="board-filter" class="sr-only">{{ text.setting.filterBoards }}</label>
-        <select
-          id="board-filter"
-          v-model="statusFilter"
-          class="min-h-11 rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
-        >
-          <option value="all">{{ text.setting.filterAll }}</option>
-          <option value="active">{{ text.setting.filterActive }}</option>
-          <option value="inactive">{{ text.setting.filterInactive }}</option>
-          <option value="completed">{{ text.setting.filterCompleted }}</option>
-        </select>
+        <div class="w-40">
+          <label for="board-filter" class="sr-only">{{ text.setting.filterBoards }}</label>
+          <SelectField
+            id="board-filter"
+            v-model="statusFilter"
+            :options="boardFilterOptions"
+            :aria-label="text.setting.filterBoards"
+          />
+        </div>
       </form>
 
       <div class="mt-6">

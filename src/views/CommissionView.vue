@@ -15,6 +15,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { COMMISSION_TYPES, type CommissionStatus, type CommissionType, fetchCommissionStatus } from '../commissionStatus'
 import CommissionCard from '../components/CommissionCard.vue'
 import CommissionStatusBadge from '../components/CommissionStatusBadge.vue'
+import SelectField from '../components/SelectField.vue'
 import { useLanguage } from '../composables/useLanguage'
 import { kanbanImageExtension, optimizeKanbanImage } from '../kanbanImage'
 import { stageProgress as getStageProgress, stageStyle } from '../kanbanStage'
@@ -178,6 +179,22 @@ const completedBoards = computed(() =>
   boards.value
     .filter((board) => !board.is_active && isBoardCompleted(board))
     .sort((a, b) => boardSortTime(b) - boardSortTime(a)),
+)
+const completedBoardOptions = computed(() =>
+  completedBoards.value.map((board) => ({ value: board.id, label: board.title })),
+)
+const commissionTypeOptions = computed(() =>
+  COMMISSION_TYPES.map((typeOption) => ({
+    value: typeOption,
+    label: text.value.home.commissionTypes[typeOption],
+  })),
+)
+const stageOptions = computed(() =>
+  text.value.home.stages.map((stage) => ({
+    value: stage.number,
+    label: stage.label,
+    dotClass: stageStyle(stage.number).dot,
+  })),
 )
 const displayedBoard = computed<KanbanBoard | null>(() => {
   if (viewMode.value === 'completed') {
@@ -737,17 +754,14 @@ onUnmounted(() => {
               </button>
             </div>
 
-            <div v-if="viewMode === 'completed' && completedBoards.length > 1">
+            <div v-if="viewMode === 'completed' && completedBoards.length > 1" class="min-w-44">
               <label for="completed-board-select" class="sr-only">{{ text.home.selectCompletedBoard }}</label>
-              <select
+              <SelectField
                 id="completed-board-select"
                 v-model="selectedCompletedBoardId"
-                class="min-h-11 rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
-              >
-                <option v-for="board in completedBoards" :key="board.id" :value="board.id">
-                  {{ board.title }}
-                </option>
-              </select>
+                :options="completedBoardOptions"
+                :aria-label="text.home.selectCompletedBoard"
+              />
             </div>
 
             <form class="w-full sm:w-72" role="search" @submit.prevent>
@@ -851,20 +865,24 @@ onUnmounted(() => {
 
                     <div>
                       <label for="card-commission-type" class="block text-sm">{{ text.home.commissionTypeLabel }}</label>
-                      <select id="card-commission-type" v-model="commissionType" required :class="fieldClass">
-                        <option v-for="typeOption in COMMISSION_TYPES" :key="typeOption" :value="typeOption">
-                          {{ text.home.commissionTypes[typeOption] }}
-                        </option>
-                      </select>
+                      <SelectField
+                        id="card-commission-type"
+                        v-model="commissionType"
+                        :options="commissionTypeOptions"
+                        size="lg"
+                        required
+                      />
                     </div>
 
                     <div>
                       <label for="card-stage" class="block text-sm">{{ text.home.stageLabel }}</label>
-                      <select id="card-stage" v-model="stageNumber" required :class="fieldClass">
-                        <option v-for="stage in text.home.stages" :key="stage.number" :value="stage.number">
-                          {{ stage.label }}
-                        </option>
-                      </select>
+                      <SelectField
+                        id="card-stage"
+                        v-model="stageNumber"
+                        :options="stageOptions"
+                        size="lg"
+                        required
+                      />
                     </div>
 
                     <div>
