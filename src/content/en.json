@@ -89,8 +89,8 @@
     "signingIn": "Signing in…",
     "signIn": "Sign in",
     "connectionError": "Could not connect. Check your connection and try again.",
-    "confirmSignOut": "Sign out?",
-    "signOutDescription": "You can sign back in at any time.",
+    "confirmSignOut": "Are you sure you want to sign out?",
+    "signOutDescription": "You can sign in again whenever you’re ready.",
     "cancel": "Cancel"
   }
 }
