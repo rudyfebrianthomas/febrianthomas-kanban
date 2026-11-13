@@ -1478,7 +1478,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
             <div class="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div class="flex flex-wrap items-center gap-2.5">
-                  <h2 class="text-xl font-bold text-zinc-950 dark:text-zinc-50">
+                  <h2 class="text-2xl font-bold text-zinc-950 sm:text-3xl dark:text-zinc-50">
                     {{ board.title }}
                   </h2>
                   <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">

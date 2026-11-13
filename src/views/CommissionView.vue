@@ -670,7 +670,7 @@ onUnmounted(() => {
       <div v-else-if="displayedBoard" class="surface-shadow mx-auto mt-8 w-full max-w-384 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 class="text-xl font-bold text-zinc-950 sm:text-2xl dark:text-zinc-50">
+            <h2 class="text-2xl font-bold text-zinc-950 sm:text-3xl dark:text-zinc-50">
               {{ displayedBoard.title }}
             </h2>
             <p

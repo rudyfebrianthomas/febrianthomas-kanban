@@ -260,7 +260,7 @@ onUnmounted(() => {
       >
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h3 class="text-xl font-bold text-zinc-950 sm:text-2xl dark:text-zinc-50">
+            <h3 class="text-2xl font-bold text-zinc-950 sm:text-3xl dark:text-zinc-50">
               {{ activeBoard.title }}
             </h3>
             <p
