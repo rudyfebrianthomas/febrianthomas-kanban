@@ -31,8 +31,8 @@
       { "number": "01", "label": "Antrean" },
       { "number": "02", "label": "Sketsa" },
       { "number": "03", "label": "Lineart" },
-      { "number": "04", "label": "Finishing" },
-      { "number": "05", "label": "Disetujui" },
+      { "number": "04", "label": "Rendering" },
+      { "number": "05", "label": "Review" },
       { "number": "06", "label": "Selesai" }
     ],
     "addCard": "Tambah kartu",

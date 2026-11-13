@@ -28,11 +28,11 @@
     "searchCardsPlaceholder": "Search by title, description, or tag...",
     "stagesLabel": "Commission stages",
     "stages": [
-      { "number": "01", "label": "To do" },
+      { "number": "01", "label": "Queue" },
       { "number": "02", "label": "Sketch" },
       { "number": "03", "label": "Lineart" },
-      { "number": "04", "label": "Finishing" },
-      { "number": "05", "label": "Approved" },
+      { "number": "04", "label": "Rendering" },
+      { "number": "05", "label": "Review" },
       { "number": "06", "label": "Completed" }
     ],
     "addCard": "Add card",
