@@ -1281,14 +1281,14 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
               </div>
             </div>
 
-            <div class="rounded-xl bg-zinc-100 p-3 dark:bg-zinc-800/70">
-              <div v-if="cardsForBoard(board.id).length" class="flex flex-col gap-3">
+            <div class="rounded-xl bg-zinc-100 p-2.5 dark:bg-zinc-800/70">
+              <div v-if="cardsForBoard(board.id).length" class="flex flex-col gap-2">
                 <article
                   v-for="card in cardsForBoard(board.id)"
                   :key="card.id"
                   draggable="true"
                   :class="[
-                    'relative flex w-full cursor-grab flex-col gap-4 rounded-2xl bg-white p-4 text-zinc-950 shadow-xs transition-opacity active:cursor-grabbing sm:flex-row sm:items-start dark:bg-zinc-900 dark:text-zinc-50',
+                    'flex w-full cursor-grab items-center gap-3 rounded-xl bg-white px-3 py-2 text-zinc-950 shadow-xs transition-opacity active:cursor-grabbing dark:bg-zinc-900 dark:text-zinc-50',
                     draggingCardId === card.id ? 'opacity-50' : '',
                   ]"
                   @dragstart="onCardDragStart(card.id, $event)"
@@ -1299,77 +1299,61 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                     :src="card.imageUrl"
                     :alt="card.title"
                     draggable="false"
-                    class="aspect-4/3 w-full shrink-0 rounded-xl bg-zinc-100 object-cover sm:w-44 dark:bg-zinc-800"
+                    class="size-10 shrink-0 rounded-lg bg-zinc-100 object-cover dark:bg-zinc-800"
                   />
 
                   <div class="min-w-0 flex-1">
-                    <div class="flex items-start justify-between gap-3">
-                      <div class="min-w-0 flex-1">
-                        <h3 class="text-base font-medium">{{ card.title }}</h3>
-                        <p class="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{{ card.description }}</p>
-                      </div>
-
-                      <div class="flex shrink-0 gap-1.5">
-                        <button
-                          type="button"
-                          :aria-label="`${text.home.editCard}: ${card.title}`"
-                          :title="text.home.editCard"
-                          class="flex size-9 items-center justify-center rounded-xl bg-white text-zinc-700 shadow-sm hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                          @click="openEditCard(card, board)"
-                        >
-                          <Pencil :size="16" aria-hidden="true" />
-                        </button>
-                        <ConfirmDialog
-                          :title="text.home.deleteCardTitle"
-                          :description="text.home.deleteCardDescription"
-                          :cancel-label="text.login.cancel"
-                          :confirm-label="text.home.deleteCard"
-                          :pending-label="text.home.deletingCard"
-                          :error-message="text.home.deleteCardError"
-                          :on-confirm="() => deleteCard(card)"
-                        >
-                          <button
-                            type="button"
-                            :aria-label="`${text.home.deleteCard}: ${card.title}`"
-                            :title="text.home.deleteCard"
-                            class="flex size-9 items-center justify-center rounded-xl bg-white text-red-700 shadow-sm hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-900 dark:text-red-300 dark:hover:bg-red-950"
-                          >
-                            <Trash2 :size="16" aria-hidden="true" />
-                          </button>
-                        </ConfirmDialog>
-                      </div>
-                    </div>
-
-                    <div class="mt-3">
-                      <div class="flex items-center justify-between gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">
-                        <span>{{ cardStatusLabel(board) }}</span>
-                        <span>0%</span>
-                      </div>
-                      <div
-                        role="progressbar"
-                        :aria-label="text.home.progressLabel"
-                        aria-valuenow="0"
-                        aria-valuemin="0"
-                        aria-valuemax="100"
-                        class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
-                      >
-                        <div class="h-full w-0 rounded-full bg-orange-500 transition-all duration-300 dark:bg-orange-400" />
-                      </div>
-                    </div>
-
-                    <div class="mt-3 flex flex-wrap gap-1.5">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      <h3 class="truncate text-sm font-medium">{{ card.title }}</h3>
                       <span
                         v-for="requestor in card.requestors"
                         :key="requestor"
-                        class="rounded-full bg-orange-100 px-3 py-1 text-xs text-orange-800 dark:bg-zinc-800 dark:text-orange-200"
+                        class="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] text-orange-800 dark:bg-zinc-800 dark:text-orange-200"
                       >
                         {{ requestor }}
                       </span>
                     </div>
+                    <p class="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">{{ card.description }}</p>
+                  </div>
+
+                  <div class="flex shrink-0 items-center gap-2">
+                    <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                      {{ cardStatusLabel(board) }} · 0%
+                    </span>
+
+                    <div class="flex items-center gap-1">
+                      <button
+                        type="button"
+                        :aria-label="`${text.home.editCard}: ${card.title}`"
+                        :title="text.home.editCard"
+                        class="flex size-8 items-center justify-center rounded-lg text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
+                        @click="openEditCard(card, board)"
+                      >
+                        <Pencil :size="14" aria-hidden="true" />
+                      </button>
+                      <ConfirmDialog
+                        :title="text.home.deleteCardTitle"
+                        :description="text.home.deleteCardDescription"
+                        :cancel-label="text.login.cancel"
+                        :confirm-label="text.home.deleteCard"
+                        :pending-label="text.home.deletingCard"
+                        :error-message="text.home.deleteCardError"
+                        :on-confirm="() => deleteCard(card)"
+                      >
+                        <button
+                          type="button"
+                          :aria-label="`${text.home.deleteCard}: ${card.title}`"
+                          :title="text.home.deleteCard"
+                          class="flex size-8 items-center justify-center rounded-lg text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-red-300 dark:hover:bg-red-950"
+                        >
+                          <Trash2 :size="14" aria-hidden="true" />
+                        </button>
+                      </ConfirmDialog>
+                    </div>
                   </div>
                 </article>
               </div>
-              <p v-else class="px-2 py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
+              <p v-else class="px-2 py-3 text-center text-xs text-zinc-500 dark:text-zinc-400">
                 {{ text.setting.emptyBoardCards }}
               </p>
             </div>
