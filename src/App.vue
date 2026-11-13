@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { onUnmounted, ref } from 'vue'
 import { createClient, type Session } from '@supabase/supabase-js'
 import { ArrowRight, Eye, EyeOff, Pencil } from '@lucide/vue'
@@ -95,29 +95,5 @@ async function signOut() {
       <p class="footer">Made for the messy middle <span aria-hidden="true">✳</span></p>
     </section>
 
-    <aside class="visual-panel" aria-label="Illustration commission workspace">
-      <div class="visual-inner">
-        <p class="visual-kicker">A LITTLE CREATIVE SPACE</p>
-        <h2>Good things<br />take <em>making.</em></h2>
-        <p class="visual-intro">From first sketch to finishing touches,<br />keep every commission in view.</p>
-        <div class="artwork" aria-hidden="true">
-          <span class="art-spark art-spark-one">✳</span><span class="art-spark art-spark-two">✦</span>
-          <div class="paper paper-back"></div>
-          <div class="paper paper-front">
-            <div class="paper-label">A LITTLE WORK IN PROGRESS <span>↗</span></div>
-            <svg class="drawing" viewBox="0 0 250 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M21 151C48 135 61 153 86 137C110 121 113 128 130 134C151 141 166 111 185 116C205 122 215 105 232 99" stroke="#43443A" stroke-width="3" stroke-linecap="round"/>
-              <path d="M87 134C82 112 82 84 93 72C103 61 119 70 119 85C119 66 137 59 146 73C154 85 147 114 140 133" fill="#E7A886" stroke="#43443A" stroke-width="3" stroke-linejoin="round"/>
-              <path d="M97 98C101 104 105 104 109 98M128 98C132 104 136 104 140 98M112 112C118 118 124 118 130 112" stroke="#43443A" stroke-width="3" stroke-linecap="round"/>
-              <path d="M46 76L53 55L60 76L81 83L60 90L53 111L46 90L25 83L46 76Z" fill="#E9C85F" stroke="#43443A" stroke-width="3" stroke-linejoin="round"/>
-              <path d="M177 56C184 42 199 43 202 55C209 45 222 51 219 62C216 75 199 85 190 89C180 80 170 68 177 56Z" fill="#D39081" stroke="#43443A" stroke-width="3" stroke-linejoin="round"/>
-            </svg>
-            <div class="paper-bottom"><span>SKETCHBOOK NO. 01</span><span>✳</span></div>
-          </div>
-          <div class="pencil-art"><span></span></div>
-        </div>
-        <p class="visual-foot">A place for ideas in progress <span>✳</span></p>
-      </div>
-    </aside>
   </main>
 </template>
