@@ -31,15 +31,17 @@ async function signOut() {
 
 <template>
   <header class="site-header">
-    <RouterLink class="site-name" to="/">febrianthomas kanban</RouterLink>
-    <nav class="site-nav" aria-label="Main navigation">
-      <AnimatedLink to="/">Home</AnimatedLink>
-      <AnimatedLink to="/project">Project</AnimatedLink>
-      <AnimatedLink to="/about">About</AnimatedLink>
-    </nav>
-    <div class="auth-control">
-      <button v-if="signedIn" class="auth-icon" type="button" :disabled="loading" :aria-label="loading ? 'Signing out' : 'Sign out'" :title="loading ? 'Signing out' : 'Sign out'" @click="signOut"><LogOut :size="20" aria-hidden="true" /></button>
-      <RouterLink v-else-if="!checkingSession" class="auth-icon" to="/login" aria-label="Sign in" title="Sign in"><LogIn :size="20" aria-hidden="true" /></RouterLink>
+    <div class="site-header-inner">
+      <RouterLink class="site-name" to="/">febrianthomas kanban</RouterLink>
+      <nav class="site-nav" aria-label="Main navigation">
+        <AnimatedLink to="/">Home</AnimatedLink>
+        <AnimatedLink to="/project">Project</AnimatedLink>
+        <AnimatedLink to="/about">About</AnimatedLink>
+      </nav>
+      <div class="auth-control">
+        <button v-if="signedIn" class="auth-icon" type="button" :disabled="loading" :aria-label="loading ? 'Signing out' : 'Sign out'" :title="loading ? 'Signing out' : 'Sign out'" @click="signOut"><LogOut :size="20" aria-hidden="true" /></button>
+        <RouterLink v-else-if="!checkingSession" class="auth-icon" to="/login" aria-label="Sign in" title="Sign in"><LogIn :size="20" aria-hidden="true" /></RouterLink>
+      </div>
     </div>
   </header>
   <p v-if="errorMessage" class="header-error error" role="alert">{{ errorMessage }}</p>
