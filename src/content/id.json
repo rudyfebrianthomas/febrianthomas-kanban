@@ -8,6 +8,7 @@
     "home": "Beranda",
     "commission": "Commission",
     "about": "Tentang",
+    "setting": "Pengaturan",
     "signIn": "Masuk",
     "signOut": "Keluar",
     "signingOut": "Sedang keluar…",
@@ -55,6 +56,11 @@
     "tagsInvalid": "Gunakan maksimal 10 tag, total maksimal 400 karakter.",
     "progressLabel": "Progres",
     "selectBoard": "Pilih papan"
+  },
+  "setting": {
+    "eyebrow": "PREFERENSI",
+    "title": "Pengaturan.",
+    "description": "Atur papan dan pengaturan aplikasi."
   },
   "about": {
     "eyebrow": "Kenalan dulu, yuk",

@@ -8,6 +8,7 @@
     "home": "Home",
     "commission": "Commission",
     "about": "About",
+    "setting": "Setting",
     "signIn": "Sign in",
     "signOut": "Sign out",
     "signingOut": "Signing out…",
@@ -55,6 +56,11 @@
     "tagsInvalid": "Use up to 10 tags, up to 400 characters total.",
     "progressLabel": "Progress",
     "selectBoard": "Select board"
+  },
+  "setting": {
+    "eyebrow": "PREFERENCES",
+    "title": "Setting.",
+    "description": "Manage board and application settings."
   },
   "about": {
     "eyebrow": "A little introduction",
