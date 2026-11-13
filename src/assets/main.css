@@ -33,3 +33,5 @@ form .error { margin: 0; }
 .account-note { color: #716f66; font-size: 12px; line-height: 1.6; }
 .account-note { margin-top: 25px; }
 @media (prefers-reduced-motion: reduce) { .submit { transition: none; } }
+
+a.submit { text-decoration: none; }
