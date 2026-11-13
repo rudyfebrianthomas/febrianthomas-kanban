@@ -13,7 +13,7 @@ const reducedMotion = useReducedMotion()
       :class="{ 'router-link-exact-active': isExactActive }"
       :aria-current="isExactActive ? 'page' : undefined"
       :while-hover="reducedMotion ? undefined : { y: -2 }"
-      :transition="{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }"
+      :transition="{ type: 'spring', duration: 0.25, bounce: 0.1 }"
       @click="navigate"
     ><slot /></motion.a>
   </RouterLink>
