@@ -11,6 +11,7 @@
     "signOut": "Sign out",
     "signingOut": "Signing out…",
     "signOutError": "Could not sign out. Check your connection and try again.",
+    "darkTheme": "Dark theme",
     "changeLanguage": "Switch language to Indonesian"
   },
   "home": {
@@ -80,11 +81,16 @@
     "description": "Only febrianthomas can sign in.",
     "missingConfig": "Supabase isn’t configured yet. Add your project URL and publishable key to",
     "email": "Email address",
+    "emailPlaceholder": "name@example.com",
     "password": "Password",
+    "passwordPlaceholder": "Enter your password",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
     "signingIn": "Signing in…",
     "signIn": "Sign in",
-    "connectionError": "Could not connect. Check your connection and try again."
+    "connectionError": "Could not connect. Check your connection and try again.",
+    "confirmSignOut": "Sign out?",
+    "signOutDescription": "You can sign back in at any time.",
+    "cancel": "Cancel"
   }
 }

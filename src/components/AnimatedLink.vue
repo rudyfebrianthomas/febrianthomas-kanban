@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { motion, useReducedMotion, type TargetAndTransition } from 'motion-v'
 import type { RouteLocationRaw } from 'vue-router'
 
@@ -14,7 +14,7 @@ const reducedMotion = useReducedMotion()
   <RouterLink v-slot="{ href, navigate, isExactActive }" :to="to" custom>
     <motion.a
       :href="href"
-      :class="[$props.class, isExactActive ? 'text-zinc-950' : '']"
+      :class="[$props.class, isExactActive ? 'text-zinc-950 dark:text-zinc-50' : '']"
       :aria-current="isExactActive ? 'page' : undefined"
       :while-hover="reducedMotion ? undefined : whileHover ?? { y: -2 }"
       :transition="{ type: 'spring', duration: 0.3, bounce: 0.2 }"

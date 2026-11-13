@@ -11,6 +11,7 @@
     "signOut": "Keluar",
     "signingOut": "Sedang keluar…",
     "signOutError": "Belum bisa keluar. Coba lagi, ya.",
+    "darkTheme": "Tema gelap",
     "changeLanguage": "Ganti bahasa ke Inggris"
   },
   "home": {
@@ -80,11 +81,16 @@
     "description": "Cuma febrianthomas yang bisa masuk.",
     "missingConfig": "Supabase belum dikonfigurasi. Tambahkan project URL dan publishable key ke",
     "email": "Alamat email",
+    "emailPlaceholder": "nama@example.com",
     "password": "Kata sandi",
+    "passwordPlaceholder": "Masukkan kata sandi",
     "showPassword": "Tampilkan kata sandi",
     "hidePassword": "Sembunyikan kata sandi",
     "signingIn": "Sedang masuk…",
     "signIn": "Masuk",
-    "connectionError": "Belum bisa terhubung. Coba lagi nanti, ya."
+    "connectionError": "Belum bisa terhubung. Coba lagi nanti, ya.",
+    "confirmSignOut": "Yakin ingin keluar?",
+    "signOutDescription": "Kamu bisa masuk lagi kapan saja.",
+    "cancel": "Batal"
   }
 }
