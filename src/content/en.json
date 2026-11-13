@@ -21,8 +21,11 @@
     "titleLine1": "Step by step.",
     "titleLine2": "Sketch to finish.",
     "intro": "Follow your illustration from the first idea to the final artwork.",
-    "boardHeading": "THE COMMISSION BOARD",
-    "comingSoon": "Coming soon",
+    "commissionEyebrow": "COMMISSION BOARD",
+    "commissionTitle": "Commission.",
+    "commissionDescription": "Track active commissions and artwork progress from queue to completion.",
+    "searchCards": "Search cards",
+    "searchCardsPlaceholder": "Search by title, description, or tag...",
     "stagesLabel": "Commission stages",
     "stages": [
       { "number": "01", "label": "To do" },
@@ -32,7 +35,6 @@
       { "number": "05", "label": "Approved" },
       { "number": "06", "label": "Completed" }
     ],
-    "boardMessage": "The board is being prepared. Check back soon for updates.",
     "addCard": "Add card",
     "createCardTitle": "Add a card",
     "createCardDescription": "Add a new commission card to the board.",

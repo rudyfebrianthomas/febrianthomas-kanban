@@ -21,8 +21,11 @@
     "titleLine1": "Satu per satu.",
     "titleLine2": "Dari sketsa sampai jadi.",
     "intro": "Ikuti progres ilustrasimu dari ide awal sampai karya final.",
-    "boardHeading": "PAPAN COMMISSION",
-    "comingSoon": "Segera hadir",
+    "commissionEyebrow": "PAPAN COMMISSION",
+    "commissionTitle": "Commission.",
+    "commissionDescription": "Pantau antrean dan progres pengerjaan commission yang sedang aktif.",
+    "searchCards": "Cari kartu",
+    "searchCardsPlaceholder": "Cari berdasarkan judul, deskripsi, atau tag...",
     "stagesLabel": "Tahap commission",
     "stages": [
       { "number": "01", "label": "Antrean" },
@@ -32,7 +35,6 @@
       { "number": "05", "label": "Disetujui" },
       { "number": "06", "label": "Selesai" }
     ],
-    "boardMessage": "Papannya lagi disiapin, ya. Cek lagi nanti buat lihat updatenya.",
     "addCard": "Tambah kartu",
     "createCardTitle": "Tambah kartu",
     "createCardDescription": "Tambahkan kartu commission baru ke papan.",

@@ -8,7 +8,7 @@ import {
   DialogRoot,
   DialogTitle,
 } from 'reka-ui'
-import { FileText, Pencil, Trash2, UploadCloud, X } from '@lucide/vue'
+import { FileText, Pencil, Search, Trash2, UploadCloud, X } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
@@ -80,6 +80,7 @@ const dragging = ref(false)
 const error = ref('')
 const imageError = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
+const searchQuery = ref('')
 
 function parseTags(raw: string): string[] {
   return [...new Set(raw.split(',').map((item) => item.trim()).filter(Boolean))]
@@ -118,11 +119,15 @@ function toKanbanCard(row: KanbanCardRow): KanbanCard {
 onMounted(async () => {
   if (!supabase) return
   try {
-    const { data: boardData } = await supabase
-      .from('kanban_boards')
-      .select('id,title,description,is_active')
-      .eq('is_active', true)
-      .maybeSingle()
+    const [{ data: sessionData }, { data: boardData }] = await Promise.all([
+      supabase.auth.getSession(),
+      supabase
+        .from('kanban_boards')
+        .select('id,title,description,is_active')
+        .eq('is_active', true)
+        .maybeSingle(),
+    ])
+    signedIn.value = Boolean(sessionData.session)
 
     activeBoard.value = (boardData as KanbanBoard | null) ?? null
     if (!activeBoard.value) return
@@ -212,11 +217,13 @@ function resetForm() {
 }
 
 function openAddCard() {
+  if (!signedIn.value) return
   resetForm()
   open.value = true
 }
 
 function openEditCard(card: KanbanCard) {
+  if (!signedIn.value) return
   resetForm()
   editingCard.value = card
   commissionType.value = card.commissionType
@@ -235,7 +242,7 @@ function onOpenChange(nextOpen: boolean) {
 }
 
 async function submitCard() {
-  if (pending.value || imageError.value || !activeBoard.value) return
+  if (!signedIn.value || pending.value || imageError.value || !activeBoard.value) return
   const trimmedTitle = title.value.trim()
   const trimmedDescription = description.value.trim()
   const requestors = parseTags(requestorInput.value)
@@ -360,6 +367,7 @@ async function submitCard() {
 }
 
 async function deleteCard(card: KanbanCard) {
+  if (!signedIn.value) return
   if (supabase) {
     const { error: deleteError } = await supabase.from('kanban_cards').delete().eq('id', card.id)
     if (deleteError) throw deleteError
@@ -377,7 +385,16 @@ const dragOverStage = ref('')
 
 function cardsForStage(stageNumber: string): KanbanCard[] {
   if (!activeBoard.value) return []
-  return cards.value.filter((card) => card.boardId === activeBoard.value!.id && card.stageNumber === stageNumber)
+  const q = searchQuery.value.trim().toLowerCase()
+  return cards.value.filter((card) => {
+    if (card.boardId !== activeBoard.value!.id || card.stageNumber !== stageNumber) return false
+    if (!q) return true
+    return (
+      card.title.toLowerCase().includes(q) ||
+      card.description.toLowerCase().includes(q) ||
+      card.requestors.some((tag) => tag.toLowerCase().includes(q))
+    )
+  })
 }
 
 function stageLabel(stageNumber: string): string {
@@ -450,25 +467,65 @@ onUnmounted(() => {
 
 <template>
   <main class="flex flex-1 flex-col px-6 sm:px-10">
-    <section class="flex w-full flex-1 flex-col justify-center py-12 sm:py-16" aria-labelledby="page-title">
-      <div v-if="!loading && !activeBoard" class="mx-auto flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center">
+    <section class="flex w-full flex-1 flex-col py-12 sm:py-16" aria-labelledby="page-title">
+      <div class="max-w-3xl">
+        <p class="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+          {{ text.home.commissionEyebrow }}
+        </p>
+        <h1
+          id="page-title"
+          class="font-bagel-fat-one text-5xl leading-[1.05] tracking-tight text-zinc-950 sm:text-7xl dark:text-zinc-50"
+        >
+          {{ text.home.commissionTitle }}
+        </h1>
+        <p class="mt-4 text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">
+          {{ text.home.commissionDescription }}
+        </p>
+      </div>
+
+      <div v-if="!loading && !activeBoard" class="mx-auto mt-8 flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center">
         <span aria-hidden="true" class="flex size-16 items-center justify-center rounded-2xl bg-orange-100 text-orange-700 dark:bg-zinc-800 dark:text-orange-300">
           <FileText :size="30" />
         </span>
-        <h1 id="page-title" class="mt-6 font-sniglet text-4xl tracking-tight text-zinc-950 sm:text-5xl dark:text-zinc-50">
+        <h2 class="mt-6 font-sniglet text-3xl text-zinc-950 dark:text-zinc-50">
           {{ text.home.noActiveBoardTitle }}
-        </h1>
+        </h2>
         <p class="mt-3 max-w-sm leading-7 text-zinc-600 dark:text-zinc-300">{{ text.home.noActiveBoardDescription }}</p>
       </div>
 
-      <div v-else-if="activeBoard" class="surface-shadow w-full rounded-2xl border border-zinc-200 bg-white p-6 sm:p-7 dark:border-zinc-800 dark:bg-zinc-900">
-        <div class="flex flex-wrap items-center justify-between gap-4">
-          <h1 id="page-title" class="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">
-            {{ activeBoard.title }}
-          </h1>
+      <div v-else-if="activeBoard" class="surface-shadow mt-8 w-full rounded-2xl border border-zinc-200 bg-white p-6 sm:p-7 dark:border-zinc-800 dark:bg-zinc-900">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 class="text-xl text-zinc-950 sm:text-2xl dark:text-zinc-50">
+              {{ activeBoard.title }}
+            </h2>
+            <p
+              v-if="activeBoard.description"
+              class="mt-1 text-sm leading-relaxed text-zinc-600 sm:text-base dark:text-zinc-400"
+            >
+              {{ activeBoard.description }}
+            </p>
+          </div>
+
+          <form class="w-full sm:w-80" role="search" @submit.prevent>
+            <label for="commission-card-search" class="sr-only">{{ text.home.searchCards }}</label>
+            <div class="relative">
+              <Search
+                class="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
+                aria-hidden="true"
+              />
+              <input
+                id="commission-card-search"
+                v-model="searchQuery"
+                type="search"
+                :placeholder="text.home.searchCardsPlaceholder"
+                class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-4 text-sm text-zinc-950 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-zinc-300"
+              />
+            </div>
+          </form>
         </div>
 
-        <DialogRoot :open="open" @update:open="onOpenChange">
+        <DialogRoot v-if="signedIn" :open="open" @update:open="onOpenChange">
           <DialogPortal>
             <DialogOverlay class="fixed inset-0 z-60 bg-zinc-950/50" />
             <div class="pointer-events-none fixed inset-0 z-70 flex items-center justify-center p-4 sm:p-6">
@@ -630,11 +687,8 @@ onUnmounted(() => {
             @dragleave="onColumnDragLeave(stage.number, $event)"
             @drop.prevent="onColumnDrop(stage.number, $event)"
           >
-            <div class="flex items-center gap-3">
-              <span class="grid size-8 flex-none place-items-center rounded-full bg-zinc-200 text-xs font-medium text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">
-                {{ stage.number }}
-              </span>
-              <span>{{ stage.label }}</span>
+            <div class="flex items-center">
+              <span class="font-medium">{{ stage.label }}</span>
             </div>
 
             <div v-if="cardsForStage(stage.number).length" class="space-y-3">
@@ -724,8 +778,6 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
-
-        <p class="mt-5 text-sm text-zinc-500 dark:text-zinc-400">{{ text.home.boardMessage }}</p>
       </div>
     </section>
   </main>
