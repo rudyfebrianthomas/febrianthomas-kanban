@@ -467,7 +467,7 @@ onUnmounted(() => {
 
 <template>
   <main class="flex flex-1 flex-col px-6 sm:px-10">
-    <section class="flex w-full flex-1 flex-col py-12 sm:py-16" aria-labelledby="page-title">
+    <section class="mx-auto flex w-full max-w-6xl flex-1 flex-col py-12 sm:py-16" aria-labelledby="page-title">
       <div class="max-w-3xl">
         <p class="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
           {{ text.home.commissionEyebrow }}
@@ -493,15 +493,15 @@ onUnmounted(() => {
         <p class="mt-3 max-w-sm leading-7 text-zinc-600 dark:text-zinc-300">{{ text.home.noActiveBoardDescription }}</p>
       </div>
 
-      <div v-else-if="activeBoard" class="surface-shadow mt-8 w-full rounded-2xl border border-zinc-200 bg-white p-6 sm:p-7 dark:border-zinc-800 dark:bg-zinc-900">
+      <div v-else-if="activeBoard" class="surface-shadow mt-8 w-full rounded-2xl border border-zinc-200 bg-white p-4 sm:p-5 dark:border-zinc-800 dark:bg-zinc-900">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 class="text-xl text-zinc-950 sm:text-2xl dark:text-zinc-50">
+            <h2 class="text-lg text-zinc-950 sm:text-xl dark:text-zinc-50">
               {{ activeBoard.title }}
             </h2>
             <p
               v-if="activeBoard.description"
-              class="mt-1 text-sm leading-relaxed text-zinc-600 sm:text-base dark:text-zinc-400"
+              class="mt-1 text-xs leading-relaxed text-zinc-600 sm:text-sm dark:text-zinc-400"
             >
               {{ activeBoard.description }}
             </p>
@@ -674,12 +674,12 @@ onUnmounted(() => {
           </DialogPortal>
         </DialogRoot>
 
-        <div class="mt-6 flex gap-3 overflow-x-auto" :aria-label="text.home.stagesLabel">
+        <div class="mt-5 flex gap-2.5 overflow-x-auto" :aria-label="text.home.stagesLabel">
           <div
             v-for="stage in text.home.stages"
             :key="stage.number"
             :class="[
-              'flex min-w-60 flex-1 flex-col gap-3 rounded-xl p-4 text-base text-zinc-900 transition-colors dark:text-zinc-100',
+              'flex min-w-40 flex-1 flex-col gap-2.5 rounded-xl p-2.5 text-xs text-zinc-900 transition-colors sm:text-sm dark:text-zinc-100',
               dragOverStage === stage.number ? 'bg-orange-50/60 ring-2 ring-orange-500 dark:bg-zinc-800/80 dark:ring-orange-400' : 'bg-zinc-100 dark:bg-zinc-800',
             ]"
             @dragover.prevent="onColumnDragOver(stage.number, $event)"
@@ -691,28 +691,28 @@ onUnmounted(() => {
               <span class="font-medium">{{ stage.label }}</span>
             </div>
 
-            <div v-if="cardsForStage(stage.number).length" class="space-y-3">
+            <div v-if="cardsForStage(stage.number).length" class="space-y-2">
               <article
                 v-for="card in cardsForStage(stage.number)"
                 :key="card.id"
                 :draggable="signedIn"
                 :class="[
-                  'relative rounded-2xl border border-zinc-200 bg-white p-4 text-zinc-950 shadow-xs transition-opacity dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50',
+                  'relative rounded-xl border border-zinc-200 bg-white p-2.5 text-zinc-950 shadow-xs transition-opacity dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50',
                   signedIn ? 'cursor-grab active:cursor-grabbing' : '',
                   draggingCardId === card.id ? 'opacity-50' : '',
                 ]"
                 @dragstart="onCardDragStart(card.id, $event)"
                 @dragend="onCardDragEnd"
               >
-                <div v-if="signedIn" class="absolute right-3 top-3 z-10 flex gap-1.5">
+                <div v-if="signedIn" class="absolute right-2 top-2 z-10 flex gap-1">
                   <button
                     type="button"
                     :aria-label="`${text.home.editCard}: ${card.title}`"
                     :title="text.home.editCard"
-                    class="flex size-9 items-center justify-center rounded-xl bg-white text-zinc-700 shadow-sm hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    class="flex size-7 items-center justify-center rounded-lg bg-white text-zinc-700 shadow-sm hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
                     @click="openEditCard(card)"
                   >
-                    <Pencil :size="16" aria-hidden="true" />
+                    <Pencil :size="13" aria-hidden="true" />
                   </button>
                   <ConfirmDialog
                     :title="text.home.deleteCardTitle"
@@ -727,9 +727,9 @@ onUnmounted(() => {
                       type="button"
                       :aria-label="`${text.home.deleteCard}: ${card.title}`"
                       :title="text.home.deleteCard"
-                      class="flex size-9 items-center justify-center rounded-xl bg-white text-red-700 shadow-sm hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-900 dark:text-red-300 dark:hover:bg-red-950"
+                      class="flex size-7 items-center justify-center rounded-lg bg-white text-red-700 shadow-sm hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-900 dark:text-red-300 dark:hover:bg-red-950"
                     >
-                      <Trash2 :size="16" aria-hidden="true" />
+                      <Trash2 :size="13" aria-hidden="true" />
                     </button>
                   </ConfirmDialog>
                 </div>
@@ -739,15 +739,15 @@ onUnmounted(() => {
                   :src="card.imageUrl"
                   :alt="card.title"
                   draggable="false"
-                  class="mb-3 aspect-4/3 w-full rounded-xl bg-zinc-100 object-cover dark:bg-zinc-800"
+                  class="mb-2 aspect-4/3 w-full rounded-lg bg-zinc-100 object-cover dark:bg-zinc-800"
                 />
-                <h2 :class="['text-base font-medium', signedIn && !card.imageUrl ? 'pr-20' : '']">{{ card.title }}</h2>
-                <p class="mt-2 inline-flex rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                <h2 :class="['text-xs font-medium sm:text-sm', signedIn && !card.imageUrl ? 'pr-14' : '']">{{ card.title }}</h2>
+                <p class="mt-1.5 inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
                   {{ text.home.commissionTypes[card.commissionType] }}
                 </p>
-                <p class="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{{ card.description }}</p>
-                <div class="mt-3">
-                  <div class="flex items-center justify-between gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                <p class="mt-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">{{ card.description }}</p>
+                <div class="mt-2">
+                  <div class="flex items-center justify-between gap-2 text-[11px] font-medium text-zinc-600 dark:text-zinc-300">
                     <span>{{ stageLabel(card.stageNumber) }}</span>
                     <span>{{ stageProgress(card.stageNumber) }}%</span>
                   </div>
@@ -757,7 +757,7 @@ onUnmounted(() => {
                     :aria-valuenow="stageProgress(card.stageNumber)"
                     aria-valuemin="0"
                     aria-valuemax="100"
-                    class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
+                    class="mt-1 h-1 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
                   >
                     <div
                       class="h-full rounded-full bg-orange-500 transition-all duration-300 dark:bg-orange-400"
@@ -765,11 +765,11 @@ onUnmounted(() => {
                     />
                   </div>
                 </div>
-                <div class="mt-3 flex flex-wrap gap-1.5">
+                <div class="mt-2 flex flex-wrap gap-1">
                   <span
                     v-for="requestor in card.requestors"
                     :key="requestor"
-                    class="rounded-full bg-orange-100 px-3 py-1 text-xs text-orange-800 dark:bg-zinc-800 dark:text-orange-200"
+                    class="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] text-orange-800 dark:bg-zinc-800 dark:text-orange-200"
                   >
                     {{ requestor }}
                   </span>
