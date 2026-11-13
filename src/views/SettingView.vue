@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Search, X } from '@lucide/vue'
+import { FileText, Plus, Search, X } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import {
   DialogClose,
@@ -303,12 +303,23 @@ async function handleCreateBoard() {
           />
         </div>
 
-        <p
+        <div
           v-else-if="boards.length === 0"
-          class="rounded-2xl border border-dashed border-zinc-300 px-6 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+          class="mx-auto flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center"
         >
-          {{ text.setting.emptyBoards }}
-        </p>
+          <span
+            aria-hidden="true"
+            class="flex size-16 items-center justify-center rounded-2xl bg-orange-100 text-orange-700 dark:bg-zinc-800 dark:text-orange-300"
+          >
+            <FileText :size="30" />
+          </span>
+          <h2 class="mt-6 font-sniglet text-3xl text-zinc-950 dark:text-zinc-50">
+            {{ text.setting.emptyTitle }}
+          </h2>
+          <p class="mt-3 max-w-sm leading-7 text-zinc-600 dark:text-zinc-300">
+            {{ text.setting.emptyDescription }}
+          </p>
+        </div>
 
         <p
           v-else-if="filteredBoards.length === 0"
