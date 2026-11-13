@@ -26,6 +26,8 @@ interface KanbanBoard {
   description: string | null
   is_active: boolean
   is_backlog: boolean
+  created_at?: string
+  updated_at?: string | null
 }
 
 interface KanbanCard {
@@ -151,6 +153,20 @@ function formatCardDate(iso?: string | null): string {
   }).format(date)
 }
 
+function latestTimestamp(updatedAt?: string | null, createdAt?: string): number {
+  return Date.parse(updatedAt ?? createdAt ?? '') || 0
+}
+
+function boardSortTime(board: KanbanBoard): number {
+  let latest = latestTimestamp(board.updated_at, board.created_at)
+  for (const card of cards.value) {
+    if (card.boardId === board.id) {
+      latest = Math.max(latest, latestTimestamp(card.updatedAt, card.createdAt))
+    }
+  }
+  return latest
+}
+
 function isBoardCompleted(board: KanbanBoard): boolean {
   if (board.is_backlog) return false
   const boardCards = cards.value.filter((card) => card.boardId === board.id)
@@ -159,7 +175,9 @@ function isBoardCompleted(board: KanbanBoard): boolean {
 
 const activeBoard = computed(() => boards.value.find((board) => board.is_active) ?? null)
 const completedBoards = computed(() =>
-  boards.value.filter((board) => !board.is_active && isBoardCompleted(board)),
+  boards.value
+    .filter((board) => !board.is_active && isBoardCompleted(board))
+    .sort((a, b) => boardSortTime(b) - boardSortTime(a)),
 )
 const displayedBoard = computed<KanbanBoard | null>(() => {
   if (viewMode.value === 'completed') {
@@ -183,7 +201,7 @@ onMounted(async () => {
       fetchCommissionStatus(),
       supabase
         .from('kanban_boards')
-        .select('id,title,description,is_active,is_backlog')
+        .select('id,title,description,is_active,is_backlog,created_at,updated_at')
         .eq('is_backlog', false)
         .order('created_at', { ascending: false }),
     ])
@@ -490,7 +508,7 @@ const filteredBoardCards = computed<KanbanCard[]>(() => {
   const board = displayedBoard.value
   if (!board) return []
   const q = searchQuery.value.trim().toLowerCase()
-  return cards.value.filter((card) => {
+  const filtered = cards.value.filter((card) => {
     if (card.boardId !== board.id) return false
     if (selectedType.value !== 'all' && card.commissionType !== selectedType.value) return false
     if (!q) return true
@@ -500,6 +518,10 @@ const filteredBoardCards = computed<KanbanCard[]>(() => {
       card.requestors.some((tag) => tag.toLowerCase().includes(q))
     )
   })
+  if (viewMode.value !== 'completed') return filtered
+  return [...filtered].sort(
+    (a, b) => latestTimestamp(b.updatedAt, b.createdAt) - latestTimestamp(a.updatedAt, a.createdAt),
+  )
 })
 
 function cardsForStage(stageNumber: string): KanbanCard[] {
