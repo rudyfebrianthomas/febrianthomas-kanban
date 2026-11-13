@@ -55,7 +55,18 @@
     "saveError": "Could not save the card. Check that you’re signed in with the site owner account and try again.",
     "tagsInvalid": "Use up to 10 tags, up to 400 characters total.",
     "progressLabel": "Progress",
-    "selectBoard": "Select board"
+    "selectBoard": "Select board",
+    "editCard": "Edit card",
+    "editCardTitle": "Edit card",
+    "editCardDescription": "Update this commission card and choose whether to keep, replace, or remove its image.",
+    "saveChanges": "Save changes",
+    "deleteCard": "Delete card",
+    "deleteCardTitle": "Delete this card?",
+    "deleteCardDescription": "This permanently deletes the card and its uploaded image.",
+    "deletingCard": "Deleting…",
+    "deleteCardError": "Could not delete the card. Please try again.",
+    "noActiveBoardTitle": "No active board.",
+    "noActiveBoardDescription": "There is no active commission board right now. Check back soon!"
   },
   "setting": {
     "eyebrow": "PREFERENCES",
