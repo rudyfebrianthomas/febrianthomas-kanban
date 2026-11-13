@@ -5,7 +5,9 @@
 body { margin: 0; min-width: 320px; }
 #app { position: relative; isolation: isolate; }
 .floating-shapes { position: fixed; inset: -24px; z-index: -1; overflow: hidden; pointer-events: none; transition: transform 300ms ease-out; }
-.floating-shape { position: absolute; display: block; animation: float-shape 7s ease-in-out infinite alternate; }
+.floating-shape { position: absolute; display: block; --drift-x: 12px; --drift-y: 14px; animation: float-shape 7s ease-in-out infinite alternate; }
+.floating-shape:nth-child(3n + 2) { --drift-x: -18px; --drift-y: 10px; }
+.floating-shape:nth-child(3n) { --drift-x: 8px; --drift-y: -16px; }
 .shape-circle { width: 54px; height: 54px; top: 22%; right: 8%; border-radius: 50%; background: #f26868; }
 .shape-rectangle { width: 32px; height: 32px; top: 48%; right: 18%; background: #f2be38; animation-duration: 8s; animation-delay: -3s; }
 .shape-triangle { width: 48px; height: 44px; bottom: 10%; left: 4%; background: #4a99db; clip-path: polygon(50% 0, 100% 100%, 0 100%); animation-duration: 9s; animation-delay: -2s; }
@@ -18,7 +20,7 @@ body { margin: 0; min-width: 320px; }
 .shape-square-three { width: 25px; height: 25px; bottom: 7%; left: 32%; background: #74b476; animation-duration: 9s; animation-delay: -1s; }
 .shape-triangle-three { width: 34px; height: 32px; top: 36%; right: 4%; background: #ed9a58; clip-path: polygon(50% 0, 100% 100%, 0 100%); animation-duration: 7.5s; animation-delay: -5s; }
 .shape-diamond-three { width: 28px; height: 28px; bottom: 8%; right: 28%; background: #659bdc; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); animation-duration: 8.5s; animation-delay: -2s; }
-@keyframes float-shape { from { transform: translateY(-6px) rotate(-5deg); } to { transform: translateY(6px) rotate(5deg); } }
+@keyframes float-shape { from { transform: translate(0, 0) rotate(-5deg); } to { transform: translate(var(--drift-x), var(--drift-y)) rotate(5deg); } }
 @media (max-width: 700px) { .floating-shape { scale: .6; }.shape-circle { top: 18%; right: 2%; }.shape-rectangle { top: 34%; right: 1%; }.shape-triangle { bottom: 4%; left: 1%; }.shape-diamond { bottom: 4%; right: 1%; }.shape-circle-two { top: 24%; left: 1%; }.shape-rectangle-two { bottom: 22%; right: 1%; }.shape-triangle-two { top: 14%; right: 25%; }.shape-diamond-two { bottom: 24%; left: 1%; } }
 @media (prefers-reduced-motion: reduce) { .floating-shapes { transition: none; }.floating-shape { animation: none; } }
 button, input { font: inherit; }
