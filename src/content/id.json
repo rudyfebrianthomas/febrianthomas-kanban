@@ -52,7 +52,8 @@
     "savingCard": "Menyimpan…",
     "saveError": "Kartunya belum bisa disimpan. Pastikan kamu masuk pakai akun pemilik situs, lalu coba lagi.",
     "tagsInvalid": "Gunakan maksimal 10 tag, total maksimal 400 karakter.",
-    "progressLabel": "Progres"
+    "progressLabel": "Progres",
+    "selectBoard": "Pilih papan"
   },
   "about": {
     "eyebrow": "Kenalan dulu, yuk",

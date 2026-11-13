@@ -15,8 +15,15 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useLanguage } from '../composables/useLanguage'
 import { supabase } from '../supabase'
 
+interface KanbanBoard {
+  id: string
+  title: string
+  description: string | null
+}
+
 interface KanbanCard {
   id: string
+  boardId: string
   stageNumber: string
   title: string
   description: string
@@ -26,12 +33,15 @@ interface KanbanCard {
 
 interface KanbanCardRow {
   id: string
+  board_id: string
   stage_number: string
   title: string
   description: string
   requestors: string[]
   image_path: string | null
 }
+
+const DEFAULT_BOARD_ID = '00000000-0000-0000-0000-000000000001'
 
 const IMAGE_EXTENSIONS: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -48,6 +58,8 @@ const reducedMotion = useReducedMotion()
 
 const open = ref(false)
 const pending = ref(false)
+const boards = ref<KanbanBoard[]>([{ id: DEFAULT_BOARD_ID, title: 'Commission Board', description: null }])
+const selectedBoardId = ref(DEFAULT_BOARD_ID)
 const cards = ref<KanbanCard[]>([])
 const title = ref('')
 const description = ref('')
@@ -77,6 +89,7 @@ function kanbanImageUrl(path: string | null): string | undefined {
 function toKanbanCard(row: KanbanCardRow): KanbanCard {
   return {
     id: row.id,
+    boardId: row.board_id,
     stageNumber: row.stage_number,
     title: row.title,
     description: row.description,
@@ -87,11 +100,18 @@ function toKanbanCard(row: KanbanCardRow): KanbanCard {
 
 onMounted(async () => {
   if (!supabase) return
-  const { data } = await supabase
-    .from('kanban_cards')
-    .select('id,stage_number,title,description,requestors,image_path')
-    .order('created_at', { ascending: true })
-  if (data) cards.value = (data as KanbanCardRow[]).map(toKanbanCard)
+  const [boardsResult, cardsResult] = await Promise.all([
+    supabase.from('kanban_boards').select('id,title,description').order('created_at', { ascending: true }),
+    supabase
+      .from('kanban_cards')
+      .select('id,board_id,stage_number,title,description,requestors,image_path')
+      .order('created_at', { ascending: true }),
+  ])
+  if (boardsResult.data?.length) {
+    boards.value = boardsResult.data as KanbanBoard[]
+    selectedBoardId.value = boards.value[0]?.id ?? DEFAULT_BOARD_ID
+  }
+  if (cardsResult.data) cards.value = (cardsResult.data as KanbanCardRow[]).map(toKanbanCard)
 })
 
 function revokePreview() {
@@ -181,11 +201,13 @@ async function submitCard() {
   }
 
   const stageNumber = text.value.home.stages[0]?.number ?? '01'
+  const boardId = selectedBoardId.value
 
   if (!supabase) {
     const cardImageUrl = imageFile.value ? URL.createObjectURL(imageFile.value) : undefined
     cards.value.push({
       id: crypto.randomUUID(),
+      boardId,
       stageNumber,
       title: trimmedTitle,
       description: trimmedDescription,
@@ -217,13 +239,14 @@ async function submitCard() {
     const { data, error: insertError } = await supabase
       .from('kanban_cards')
       .insert({
+        board_id: boardId,
         stage_number: stageNumber,
         title: trimmedTitle,
         description: trimmedDescription,
         requestors,
         image_path: uploadedPath,
       })
-      .select('id,stage_number,title,description,requestors,image_path')
+      .select('id,board_id,stage_number,title,description,requestors,image_path')
       .single()
 
     if (insertError) throw insertError
@@ -244,7 +267,7 @@ const draggingCardId = ref('')
 const dragOverStage = ref('')
 
 function cardsForStage(stageNumber: string): KanbanCard[] {
-  return cards.value.filter((card) => card.stageNumber === stageNumber)
+  return cards.value.filter((card) => card.boardId === selectedBoardId.value && card.stageNumber === stageNumber)
 }
 
 function stageLabel(stageNumber: string): string {
@@ -326,7 +349,18 @@ onUnmounted(() => {
 
       <div class="surface-shadow mt-12 rounded-2xl border border-zinc-200 bg-white p-6 sm:mt-16 sm:p-7 dark:border-zinc-800 dark:bg-zinc-900">
         <div class="flex flex-wrap items-center justify-between gap-4">
-          <span class="text-xs font-medium tracking-[0.12em] text-zinc-500 dark:text-zinc-400">{{ text.home.boardHeading }}</span>
+          <div class="flex flex-wrap items-center gap-3">
+            <span class="text-xs font-medium tracking-[0.12em] text-zinc-500 dark:text-zinc-400">{{ text.home.boardHeading }}</span>
+            <label v-if="boards.length" class="inline-flex items-center">
+              <span class="sr-only">{{ text.home.selectBoard }}</span>
+              <select
+                v-model="selectedBoardId"
+                class="min-h-11 rounded-xl border border-zinc-300 bg-white px-3 text-sm font-normal text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus-visible:outline-zinc-100"
+              >
+                <option v-for="board in boards" :key="board.id" :value="board.id">{{ board.title }}</option>
+              </select>
+            </label>
+          </div>
 
           <DialogRoot :open="open" @update:open="onOpenChange">
             <DialogTrigger as-child>

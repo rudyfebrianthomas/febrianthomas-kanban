@@ -52,7 +52,8 @@
     "savingCard": "Saving…",
     "saveError": "Could not save the card. Check that you’re signed in with the site owner account and try again.",
     "tagsInvalid": "Use up to 10 tags, up to 400 characters total.",
-    "progressLabel": "Progress"
+    "progressLabel": "Progress",
+    "selectBoard": "Select board"
   },
   "about": {
     "eyebrow": "A little introduction",
