@@ -23,7 +23,7 @@ const route = useRoute()
       </div>
     </section>
     <section v-else class="home-content secondary-page" aria-labelledby="page-title">
-      <p class="eyebrow">{{ route.path === '/project' ? 'PROJECT' : 'ABOUT' }}</p>
+      <p class="eyebrow">ABOUT</p>
       <h1 id="page-title">Coming soon<span class="heading-dot">.</span></h1>
       <p class="home-intro">This page is on its way.</p>
     </section>

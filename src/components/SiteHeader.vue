@@ -32,10 +32,9 @@ async function signOut() {
 <template>
   <header class="site-header">
     <div class="site-header-inner">
-      <RouterLink class="site-name" to="/">febrianthomas kanban</RouterLink>
+      <RouterLink class="site-name" to="/">febrianthomas · Kanban</RouterLink>
       <nav class="site-nav" aria-label="Main navigation">
         <AnimatedLink to="/">Home</AnimatedLink>
-        <AnimatedLink to="/project">Project</AnimatedLink>
         <AnimatedLink to="/about">About</AnimatedLink>
       </nav>
       <div class="auth-control">
