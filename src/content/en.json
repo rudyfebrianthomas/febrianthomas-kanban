@@ -76,6 +76,8 @@
       "Illustration": "Illustration",
       "Transition": "Transition"
     },
+    "createdAtLabel": "Created",
+    "updatedAtLabel": "Updated",
     "noActiveBoardDescription": "There is no active commission board right now. Check back soon!"
   },
   "setting": {

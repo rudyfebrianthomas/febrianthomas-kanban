@@ -76,6 +76,8 @@
       "Illustration": "Ilustrasi",
       "Transition": "Transisi"
     },
+    "createdAtLabel": "Dibuat",
+    "updatedAtLabel": "Diperbarui",
     "noActiveBoardDescription": "Saat ini belum ada papan commission yang aktif. Cek lagi nanti, ya!"
   },
   "setting": {

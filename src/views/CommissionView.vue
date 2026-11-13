@@ -36,6 +36,8 @@ interface KanbanCard {
   requestors: string[]
   imagePath: string | null
   imageUrl?: string
+  createdAt?: string
+  updatedAt?: string | null
 }
 
 interface KanbanCardRow {
@@ -47,13 +49,15 @@ interface KanbanCardRow {
   description: string
   requestors: string[]
   image_path: string | null
+  created_at?: string
+  updated_at?: string | null
 }
 
 const DEFAULT_BOARD_ID = '00000000-0000-0000-0000-000000000001'
 const fieldClass =
   'mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-base text-zinc-950 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-300'
 
-const { text } = useLanguage()
+const { language, text } = useLanguage()
 const reducedMotion = useReducedMotion()
 
 const signedIn = ref(false)
@@ -113,7 +117,20 @@ function toKanbanCard(row: KanbanCardRow): KanbanCard {
     requestors: row.requestors,
     imagePath: row.image_path,
     imageUrl: kanbanImageUrl(row.image_path),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   }
+}
+
+function formatCardDate(iso?: string | null): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat(language.value === 'id' ? 'id-ID' : 'en-US', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date)
 }
 
 onMounted(async () => {
@@ -134,7 +151,7 @@ onMounted(async () => {
 
     const { data: cardsData } = await supabase
       .from('kanban_cards')
-      .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path')
+      .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path,created_at,updated_at')
       .eq('board_id', activeBoard.value.id)
       .order('created_at', { ascending: true })
 
@@ -275,6 +292,7 @@ async function submitCard() {
       editing.description = trimmedDescription
       editing.requestors = requestors
       editing.imageUrl = nextUrl
+      editing.updatedAt = new Date().toISOString()
     } else {
       const cardImageUrl = imageFile.value ? URL.createObjectURL(imageFile.value) : undefined
       cards.value.push({
@@ -287,6 +305,8 @@ async function submitCard() {
         requestors,
         imagePath: null,
         imageUrl: cardImageUrl,
+        createdAt: new Date().toISOString(),
+        updatedAt: null,
       })
     }
     open.value = false
@@ -325,7 +345,7 @@ async function submitCard() {
           image_path: nextImagePath,
         })
         .eq('id', editing.id)
-        .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path')
+        .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path,created_at,updated_at')
         .single()
 
       if (updateError) throw updateError
@@ -347,7 +367,7 @@ async function submitCard() {
           requestors,
           image_path: uploadedPath,
         })
-        .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path')
+        .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path,created_at,updated_at')
         .single()
 
       if (insertError) throw insertError
@@ -444,7 +464,11 @@ async function onColumnDrop(stageNumber: string, event: DragEvent) {
   const [card] = cards.value.splice(index, 1)
   if (!card) return
   const previousStage = card.stageNumber
+  const previousUpdatedAt = card.updatedAt
   card.stageNumber = stageNumber
+  if (previousStage !== stageNumber) {
+    card.updatedAt = new Date().toISOString()
+  }
   cards.value.push(card)
 
   if (supabase && previousStage !== stageNumber) {
@@ -452,7 +476,10 @@ async function onColumnDrop(stageNumber: string, event: DragEvent) {
       .from('kanban_cards')
       .update({ stage_number: stageNumber })
       .eq('id', card.id)
-    if (updateError) card.stageNumber = previousStage
+    if (updateError) {
+      card.stageNumber = previousStage
+      card.updatedAt = previousUpdatedAt
+    }
   }
 }
 
@@ -495,7 +522,7 @@ onUnmounted(() => {
         <p class="mt-3 max-w-sm leading-7 text-zinc-600 dark:text-zinc-300">{{ text.home.noActiveBoardDescription }}</p>
       </div>
 
-      <div v-else-if="activeBoard" class="surface-shadow mx-auto mt-8 w-full max-w-[88rem] rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
+      <div v-else-if="activeBoard" class="surface-shadow mx-auto mt-8 w-full max-w-[96rem] rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 class="text-xl text-zinc-950 sm:text-2xl dark:text-zinc-50">
@@ -681,7 +708,7 @@ onUnmounted(() => {
             v-for="stage in text.home.stages"
             :key="stage.number"
             :class="[
-              'flex min-w-52 flex-1 flex-col gap-3 rounded-xl p-3.5 text-sm text-zinc-900 transition-colors dark:text-zinc-100',
+              'flex min-w-56 flex-1 flex-col gap-3 rounded-xl p-3.5 text-sm text-zinc-900 transition-colors dark:text-zinc-100',
               dragOverStage === stage.number ? 'bg-orange-50/60 ring-2 ring-orange-500 dark:bg-zinc-800/80 dark:ring-orange-400' : 'bg-zinc-100 dark:bg-zinc-800',
             ]"
             @dragover.prevent="onColumnDragOver(stage.number, $event)"
@@ -775,6 +802,17 @@ onUnmounted(() => {
                   >
                     {{ requestor }}
                   </span>
+                </div>
+                <div
+                  v-if="card.createdAt || card.updatedAt"
+                  class="mt-2.5 flex flex-col gap-0.5 border-t border-zinc-100 pt-2 text-[11px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400"
+                >
+                  <p v-if="card.createdAt">
+                    {{ text.home.createdAtLabel }}: {{ formatCardDate(card.createdAt) }}
+                  </p>
+                  <p v-if="card.updatedAt || card.createdAt">
+                    {{ text.home.updatedAtLabel }}: {{ formatCardDate(card.updatedAt ?? card.createdAt) }}
+                  </p>
                 </div>
               </article>
             </div>
