@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import SiteHeader from '../components/SiteHeader.vue'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
 </script>
 
 <template>
-  <SiteHeader />
   <main class="home-page">
     <section v-if="route.path === '/'" class="home-content" aria-labelledby="page-title">
       <div class="home-heading">
