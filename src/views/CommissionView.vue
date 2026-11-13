@@ -521,6 +521,12 @@ async function deleteCard(card: KanbanCard) {
 const draggingCardId = ref('')
 const dragOverStage = ref('')
 
+const boardCardsCount = computed(() => {
+  const board = displayedBoard.value
+  if (!board) return 0
+  return cards.value.filter((card) => card.boardId === board.id).length
+})
+
 const filteredBoardCards = computed<KanbanCard[]>(() => {
   const board = displayedBoard.value
   if (!board) return []
@@ -590,6 +596,11 @@ function setBoardView(mode: 'active' | 'completed') {
   if (mode === 'completed' && !selectedCompletedBoardId.value && completedBoards.value[0]) {
     selectedCompletedBoardId.value = completedBoards.value[0].id
   }
+}
+
+function clearFilters() {
+  searchQuery.value = ''
+  selectedType.value = 'all'
 }
 
 function stageLabel(stageNumber: string): string {
@@ -1097,12 +1108,60 @@ onUnmounted(() => {
               @detail="openDetailCard(card)"
             />
           </div>
-          <p
+          <div
             v-else
-            class="rounded-2xl border border-dashed border-zinc-300 px-6 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+            class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 px-6 py-10 text-center dark:border-zinc-700"
           >
-            {{ text.home.noFilteredCards }}
+            <p class="text-sm text-zinc-500 dark:text-zinc-400">{{ text.home.noFilteredCards }}</p>
+            <button
+              type="button"
+              class="mt-3 inline-flex min-h-9 items-center rounded-full border border-zinc-300 px-3.5 py-1 text-xs text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              @click="clearFilters"
+            >
+              {{ text.home.resetFilters }}
+            </button>
+          </div>
+        </div>
+
+        <div
+          v-else-if="boardCardsCount === 0"
+          class="mt-6 flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 px-6 py-12 text-center dark:border-zinc-700"
+        >
+          <span
+            aria-hidden="true"
+            class="flex size-14 items-center justify-center rounded-2xl bg-orange-100 text-orange-700 dark:bg-zinc-800 dark:text-orange-300"
+          >
+            <FileText :size="26" />
+          </span>
+          <h3 class="mt-5 font-sniglet text-2xl font-bold text-zinc-950 dark:text-zinc-50">
+            {{ text.home.emptyBoardTitle }}
+          </h3>
+          <p class="mt-2 max-w-sm text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+            {{ text.home.emptyBoardDescription }}
           </p>
+          <button
+            v-if="signedIn"
+            type="button"
+            class="mt-5 inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            @click="openAddCard"
+          >
+            <Plus :size="16" aria-hidden="true" />
+            <span>{{ text.home.addCard }}</span>
+          </button>
+        </div>
+
+        <div
+          v-else-if="filteredBoardCards.length === 0"
+          class="mt-6 flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 px-6 py-10 text-center dark:border-zinc-700"
+        >
+          <p class="text-sm text-zinc-500 dark:text-zinc-400">{{ text.home.noFilteredCards }}</p>
+          <button
+            type="button"
+            class="mt-3 inline-flex min-h-9 items-center rounded-full border border-zinc-300 px-3.5 py-1 text-xs text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            @click="clearFilters"
+          >
+            {{ text.home.resetFilters }}
+          </button>
         </div>
 
         <div v-else class="mt-6 flex gap-3 overflow-x-auto" :aria-label="text.home.stagesLabel">

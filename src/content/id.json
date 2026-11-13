@@ -101,6 +101,9 @@
     "copyCardLink": "Salin tautan",
     "copiedCardLink": "Tersalin!",
     "noFilteredCards": "Nggak ada komisi yang cocok sama pencarian atau filtermu.",
+    "emptyBoardTitle": "Belum ada komisi di papan ini.",
+    "emptyBoardDescription": "Komisi baru bakal langsung muncul di sini begitu masuk antrean.",
+    "resetFilters": "Reset filter",
     "commissionStatusLabel": "Status komisi",
     "commissionStatuses": {
       "open": "Komisi Buka",

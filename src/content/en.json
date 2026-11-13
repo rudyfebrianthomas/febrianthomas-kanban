@@ -101,6 +101,9 @@
     "copyCardLink": "Copy link",
     "copiedCardLink": "Copied!",
     "noFilteredCards": "No commissions match your search or filter.",
+    "emptyBoardTitle": "No commissions on this board yet.",
+    "emptyBoardDescription": "New commissions will show up here as soon as they’re added to the queue.",
+    "resetFilters": "Clear filters",
     "commissionStatusLabel": "Commission status",
     "commissionStatuses": {
       "open": "Commissions Open",
