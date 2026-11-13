@@ -1,28 +1,23 @@
 <script setup lang="ts">
 import { onUnmounted, ref } from 'vue'
-import { createClient, type Session } from '@supabase/supabase-js'
+import { useRouter } from 'vue-router'
+import { supabase } from '../supabase'
 import { ArrowRight, Eye, EyeOff, Pencil } from '@lucide/vue'
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-let supabase: ReturnType<typeof createClient> | null = null
-try {
-  if (url && key) supabase = createClient(url, key)
-} catch {
-  // Invalid configuration is shown in the form.
-}
-
+const router = useRouter()
 const email = ref('')
 const password = ref('')
 const showPassword = ref(false)
-const session = ref<Session | null>(null)
 const loading = ref(false)
 const checkingSession = ref(!!supabase)
 const errorMessage = ref('')
 
 const subscription = supabase?.auth.onAuthStateChange((_event, currentSession) => {
-  session.value = currentSession
-  checkingSession.value = false
+  if (currentSession) {
+    void router.replace('/')
+  } else {
+    checkingSession.value = false
+  }
 })
 onUnmounted(() => subscription?.data.subscription.unsubscribe())
 
@@ -44,19 +39,6 @@ async function signIn() {
   }
 }
 
-async function signOut() {
-  if (!supabase || loading.value) return
-  loading.value = true
-  errorMessage.value = ''
-  try {
-    const { error } = await supabase.auth.signOut()
-    if (error) errorMessage.value = error.message
-  } catch {
-    errorMessage.value = 'Could not sign out. Check your connection and try again.'
-  } finally {
-    loading.value = false
-  }
-}
 </script>
 
 <template>
@@ -70,13 +52,6 @@ async function signOut() {
           <p class="eyebrow">ARTIST'S CORNER</p>
           <h1 id="page-title">One little moment<span class="heading-dot">.</span></h1>
           <p class="intro" role="status">Checking your session…</p>
-        </template>
-        <template v-else-if="session">
-          <p class="eyebrow">ARTIST'S CORNER</p>
-          <h1 id="page-title">You’re signed in<span class="heading-dot">.</span></h1>
-          <p class="intro">Welcome back, <strong>{{ session.user.email }}</strong>.</p>
-          <p v-if="errorMessage" class="error" role="alert">{{ errorMessage }}</p>
-          <button class="submit" type="button" :disabled="loading" @click="signOut">{{ loading ? 'Signing out…' : 'Sign out' }} <ArrowRight :size="18" aria-hidden="true" /></button>
         </template>
         <template v-else>
           <p class="eyebrow">ARTIST'S CORNER</p>
