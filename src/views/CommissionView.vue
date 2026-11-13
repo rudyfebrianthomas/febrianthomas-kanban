@@ -439,8 +439,8 @@ const STAGE_STYLES: Record<string, { cardBorder: string; progressBar: string }> 
     progressBar: 'bg-orange-500 dark:bg-orange-400',
   },
   '05': {
-    cardBorder: 'border-teal-400 dark:border-teal-500',
-    progressBar: 'bg-teal-500 dark:bg-teal-400',
+    cardBorder: 'border-rose-400 dark:border-rose-500',
+    progressBar: 'bg-rose-500 dark:bg-rose-400',
   },
   '06': {
     cardBorder: 'border-emerald-500 dark:border-emerald-500',
