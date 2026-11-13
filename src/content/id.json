@@ -49,6 +49,9 @@
     "imageInvalid": "Pilih PNG, JPEG, WebP, atau GIF tidak lebih dari 5 MB.",
     "requiredFields": "Isi judul, deskripsi, dan requestor dulu, ya.",
     "submitCard": "Tambah kartu",
+    "savingCard": "Menyimpan…",
+    "saveError": "Kartunya belum bisa disimpan. Pastikan kamu masuk pakai akun pemilik situs, lalu coba lagi.",
+    "tagsInvalid": "Gunakan maksimal 10 tag, total maksimal 400 karakter.",
     "progressLabel": "Progres"
   },
   "about": {

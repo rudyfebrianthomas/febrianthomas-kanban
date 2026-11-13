@@ -11,8 +11,9 @@ import {
 } from 'reka-ui'
 import { Plus, UploadCloud, X } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useLanguage } from '../composables/useLanguage'
+import { supabase } from '../supabase'
 
 interface KanbanCard {
   id: string
@@ -23,7 +24,21 @@ interface KanbanCard {
   imageUrl?: string
 }
 
-const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+interface KanbanCardRow {
+  id: string
+  stage_number: string
+  title: string
+  description: string
+  requestors: string[]
+  image_path: string | null
+}
+
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+}
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 const fieldClass =
   'mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-base text-zinc-950 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-300'
@@ -32,6 +47,7 @@ const { text } = useLanguage()
 const reducedMotion = useReducedMotion()
 
 const open = ref(false)
+const pending = ref(false)
 const cards = ref<KanbanCard[]>([])
 const title = ref('')
 const description = ref('')
@@ -50,8 +66,33 @@ function parseTags(raw: string): string[] {
 const previewTags = computed(() => parseTags(requestorInput.value))
 
 function isValidImage(file: File): boolean {
-  return ALLOWED_IMAGE_TYPES.has(file.type) && file.size > 0 && file.size <= MAX_IMAGE_BYTES
+  return Object.hasOwn(IMAGE_EXTENSIONS, file.type) && file.size > 0 && file.size <= MAX_IMAGE_BYTES
 }
+
+function kanbanImageUrl(path: string | null): string | undefined {
+  if (!path || !supabase) return undefined
+  return supabase.storage.from('kanban-images').getPublicUrl(path).data.publicUrl
+}
+
+function toKanbanCard(row: KanbanCardRow): KanbanCard {
+  return {
+    id: row.id,
+    stageNumber: row.stage_number,
+    title: row.title,
+    description: row.description,
+    requestors: row.requestors,
+    imageUrl: kanbanImageUrl(row.image_path),
+  }
+}
+
+onMounted(async () => {
+  if (!supabase) return
+  const { data } = await supabase
+    .from('kanban_cards')
+    .select('id,stage_number,title,description,requestors,image_path')
+    .order('created_at', { ascending: true })
+  if (data) cards.value = (data as KanbanCardRow[]).map(toKanbanCard)
+})
 
 function revokePreview() {
   if (previewUrl.value) {
@@ -119,12 +160,13 @@ function resetForm() {
 }
 
 function onOpenChange(nextOpen: boolean) {
+  if (pending.value) return
   open.value = nextOpen
   if (!nextOpen) resetForm()
 }
 
-function submitCard() {
-  if (imageError.value) return
+async function submitCard() {
+  if (pending.value || imageError.value) return
   const trimmedTitle = title.value.trim()
   const trimmedDescription = description.value.trim()
   const requestors = parseTags(requestorInput.value)
@@ -133,18 +175,69 @@ function submitCard() {
     error.value = text.value.home.requiredFields
     return
   }
+  if (requestors.length > 10 || requestors.join(',').length > 400) {
+    error.value = text.value.home.tagsInvalid
+    return
+  }
 
-  const cardImageUrl = imageFile.value ? URL.createObjectURL(imageFile.value) : undefined
-  cards.value.push({
-    id: crypto.randomUUID(),
-    stageNumber: text.value.home.stages[0]?.number ?? '01',
-    title: trimmedTitle,
-    description: trimmedDescription,
-    requestors,
-    imageUrl: cardImageUrl,
-  })
-  open.value = false
-  resetForm()
+  const stageNumber = text.value.home.stages[0]?.number ?? '01'
+
+  if (!supabase) {
+    const cardImageUrl = imageFile.value ? URL.createObjectURL(imageFile.value) : undefined
+    cards.value.push({
+      id: crypto.randomUUID(),
+      stageNumber,
+      title: trimmedTitle,
+      description: trimmedDescription,
+      requestors,
+      imageUrl: cardImageUrl,
+    })
+    open.value = false
+    resetForm()
+    return
+  }
+
+  pending.value = true
+  error.value = ''
+  let uploadedPath: string | null = null
+  try {
+    if (imageFile.value) {
+      const ext = IMAGE_EXTENSIONS[imageFile.value.type]
+      if (!ext) throw new Error('Invalid image')
+      uploadedPath = `${crypto.randomUUID()}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('kanban-images')
+        .upload(uploadedPath, imageFile.value, { contentType: imageFile.value.type, upsert: false })
+      if (uploadError) {
+        uploadedPath = null
+        throw uploadError
+      }
+    }
+
+    const { data, error: insertError } = await supabase
+      .from('kanban_cards')
+      .insert({
+        stage_number: stageNumber,
+        title: trimmedTitle,
+        description: trimmedDescription,
+        requestors,
+        image_path: uploadedPath,
+      })
+      .select('id,stage_number,title,description,requestors,image_path')
+      .single()
+
+    if (insertError) throw insertError
+    cards.value.push(toKanbanCard(data as KanbanCardRow))
+    open.value = false
+    resetForm()
+  } catch {
+    if (uploadedPath) {
+      await supabase.storage.from('kanban-images').remove([uploadedPath]).catch(() => {})
+    }
+    error.value = text.value.home.saveError
+  } finally {
+    pending.value = false
+  }
 }
 
 const draggingCardId = ref('')
@@ -191,7 +284,7 @@ function onColumnDragLeave(stageNumber: string, event: DragEvent) {
   if (!related || !currentTarget?.contains(related)) dragOverStage.value = ''
 }
 
-function onColumnDrop(stageNumber: string, event: DragEvent) {
+async function onColumnDrop(stageNumber: string, event: DragEvent) {
   const cardId = draggingCardId.value || event.dataTransfer?.getData('text/plain') || ''
   onCardDragEnd()
   if (!cardId) return
@@ -199,14 +292,23 @@ function onColumnDrop(stageNumber: string, event: DragEvent) {
   if (index === -1) return
   const [card] = cards.value.splice(index, 1)
   if (!card) return
+  const previousStage = card.stageNumber
   card.stageNumber = stageNumber
   cards.value.push(card)
+
+  if (supabase && previousStage !== stageNumber) {
+    const { error: updateError } = await supabase
+      .from('kanban_cards')
+      .update({ stage_number: stageNumber })
+      .eq('id', card.id)
+    if (updateError) card.stageNumber = previousStage
+  }
 }
 
 onUnmounted(() => {
   revokePreview()
   for (const card of cards.value) {
-    if (card.imageUrl) URL.revokeObjectURL(card.imageUrl)
+    if (card.imageUrl?.startsWith('blob:')) URL.revokeObjectURL(card.imageUrl)
   }
 })
 </script>
@@ -255,8 +357,9 @@ onUnmounted(() => {
                       <DialogClose as-child>
                         <button
                           type="button"
+                          :disabled="pending"
                           :aria-label="text.home.close"
-                          class="flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:hover:bg-zinc-800"
+                          class="flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 dark:hover:bg-zinc-800"
                         >
                           <X :size="20" aria-hidden="true" />
                         </button>
@@ -361,11 +464,12 @@ onUnmounted(() => {
 
                       <motion.button
                         type="submit"
+                        :disabled="pending"
                         :while-tap="reducedMotion ? undefined : { scale: 0.98 }"
                         :transition="{ duration: 0.14 }"
-                        class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
+                        class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
                       >
-                        {{ text.home.submitCard }}
+                        {{ pending ? text.home.savingCard : text.home.submitCard }}
                       </motion.button>
                     </form>
                   </motion.div>
