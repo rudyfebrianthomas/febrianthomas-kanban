@@ -1211,9 +1211,14 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
           >
             <div class="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h2 class="text-xl text-zinc-950 dark:text-zinc-50">
-                  {{ board.title }}
-                </h2>
+                <div class="flex flex-wrap items-center gap-2.5">
+                  <h2 class="text-xl text-zinc-950 dark:text-zinc-50">
+                    {{ board.title }}
+                  </h2>
+                  <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                    {{ cardsForBoard(board.id).length }}
+                  </span>
+                </div>
                 <p
                   v-if="board.description"
                   class="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400"
@@ -1288,7 +1293,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                   :key="card.id"
                   draggable="true"
                   :class="[
-                    'flex w-full cursor-grab items-center gap-3 rounded-xl bg-white px-3 py-2 text-zinc-950 shadow-xs transition-opacity active:cursor-grabbing dark:bg-zinc-900 dark:text-zinc-50',
+                    'flex w-full cursor-grab items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-zinc-950 shadow-xs transition-opacity active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50',
                     draggingCardId === card.id ? 'opacity-50' : '',
                   ]"
                   @dragstart="onCardDragStart(card.id, $event)"

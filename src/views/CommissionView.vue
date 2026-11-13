@@ -621,7 +621,7 @@ onUnmounted(() => {
                 :key="card.id"
                 :draggable="signedIn"
                 :class="[
-                  'relative rounded-2xl bg-white p-4 text-zinc-950 shadow-xs transition-opacity dark:bg-zinc-900 dark:text-zinc-50',
+                  'relative rounded-2xl border border-zinc-200 bg-white p-4 text-zinc-950 shadow-xs transition-opacity dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50',
                   signedIn ? 'cursor-grab active:cursor-grabbing' : '',
                   draggingCardId === card.id ? 'opacity-50' : '',
                 ]"
