@@ -2,6 +2,8 @@
 import { ArrowRight, FileText } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { type CommissionStatus, type CommissionType, fetchCommissionStatus } from '../commissionStatus'
+import CommissionStatusBadge from '../components/CommissionStatusBadge.vue'
 import { useLanguage } from '../composables/useLanguage'
 import { stageProgress, stageStyle } from '../kanbanStage'
 import { supabase } from '../supabase'
@@ -11,8 +13,6 @@ interface ActiveBoardSummary {
   title: string
   description: string | null
 }
-
-type CommissionType = 'Emote' | 'GIF' | 'Animation' | 'Illustration' | 'Transition'
 
 interface PreviewCardRow {
   id: string
@@ -44,6 +44,7 @@ let timer: ReturnType<typeof setTimeout> | null = null
 let active = true
 
 const previewLoading = ref(!!supabase)
+const commissionStatus = ref<CommissionStatus | null>(supabase ? null : { status: 'open', slotsOpen: 3, slotsTotal: 5 })
 const activeBoard = ref<ActiveBoardSummary | null>(null)
 const boardCards = ref<PreviewCard[]>([])
 
@@ -79,13 +80,17 @@ function cardImageUrl(path: string | null): string | undefined {
 onMounted(async () => {
   if (!supabase) return
   try {
-    const { data: boardData } = await supabase
-      .from('kanban_boards')
-      .select('id,title,description')
-      .eq('is_active', true)
-      .maybeSingle()
+    const [statusData, { data: boardData }] = await Promise.all([
+      fetchCommissionStatus(),
+      supabase
+        .from('kanban_boards')
+        .select('id,title,description')
+        .eq('is_active', true)
+        .maybeSingle(),
+    ])
     if (!active) return
 
+    commissionStatus.value = statusData
     activeBoard.value = (boardData as ActiveBoardSummary | null) ?? null
     if (!activeBoard.value) return
 
@@ -124,9 +129,12 @@ onUnmounted(() => {
     >
       <div class="grid w-full items-center gap-10 md:grid-cols-[minmax(0,1fr)_auto] md:gap-12">
         <div class="max-w-3xl">
-          <p class="mb-4 text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-            {{ text.home.eyebrow }}
-          </p>
+          <div class="mb-4 flex flex-wrap items-center gap-3">
+            <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              {{ text.home.eyebrow }}
+            </p>
+            <CommissionStatusBadge v-if="commissionStatus" :value="commissionStatus" />
+          </div>
           <h1
             id="page-title"
             class="font-bagel-fat-one text-5xl leading-[1.05] tracking-tight text-zinc-950 sm:text-7xl dark:text-zinc-50"
@@ -286,7 +294,7 @@ onUnmounted(() => {
           <RouterLink
             v-for="card in recentCards"
             :key="card.id"
-            to="/commission"
+            :to="{ path: '/commission', query: { card: card.id } }"
             :class="[
               'flex flex-col rounded-2xl border-2 bg-white p-4 text-zinc-950 shadow-xs transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-900 dark:text-zinc-50',
               stageStyle(card.stageNumber).cardBorder,

@@ -8,10 +8,13 @@ import {
   DialogRoot,
   DialogTitle,
 } from 'reka-ui'
-import { FileText, Pencil, Search, Trash2, UploadCloud, X } from '@lucide/vue'
+import { Check, Copy, FileText, Plus, Search, UploadCloud, X } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import ConfirmDialog from '../components/ConfirmDialog.vue'
+import { useRoute, useRouter } from 'vue-router'
+import { COMMISSION_TYPES, type CommissionStatus, type CommissionType, fetchCommissionStatus } from '../commissionStatus'
+import CommissionCard from '../components/CommissionCard.vue'
+import CommissionStatusBadge from '../components/CommissionStatusBadge.vue'
 import { useLanguage } from '../composables/useLanguage'
 import { kanbanImageExtension, optimizeKanbanImage } from '../kanbanImage'
 import { stageProgress as getStageProgress, stageStyle } from '../kanbanStage'
@@ -22,10 +25,8 @@ interface KanbanBoard {
   title: string
   description: string | null
   is_active: boolean
+  is_backlog: boolean
 }
-
-const COMMISSION_TYPES = ['Emote', 'GIF', 'Animation', 'Illustration', 'Transition'] as const
-type CommissionType = (typeof COMMISSION_TYPES)[number]
 
 interface KanbanCard {
   id: string
@@ -59,6 +60,8 @@ const fieldClass =
   'mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-base text-zinc-950 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-300'
 
 const { language, text } = useLanguage()
+const route = useRoute()
+const router = useRouter()
 const reducedMotion = useReducedMotion()
 
 const signedIn = ref(false)
@@ -67,14 +70,20 @@ const authSubscription = supabase?.auth.onAuthStateChange((_event, session) => {
 })
 
 const loading = ref(!!supabase)
-const activeBoard = ref<KanbanBoard | null>(
-  supabase ? null : { id: DEFAULT_BOARD_ID, title: 'Commission Board', description: null, is_active: true },
+const commissionStatus = ref<CommissionStatus | null>(
+  supabase ? null : { status: 'open', slotsOpen: 3, slotsTotal: 5 },
+)
+const boards = ref<KanbanBoard[]>(
+  supabase
+    ? []
+    : [{ id: DEFAULT_BOARD_ID, title: 'Commission Board', description: null, is_active: true, is_backlog: false }],
 )
 const open = ref(false)
 const pending = ref(false)
 const editingCard = ref<KanbanCard | null>(null)
 const removeExistingImage = ref(false)
 const cards = ref<KanbanCard[]>([])
+const stageNumber = ref('01')
 const commissionType = ref<CommissionType>('Illustration')
 const title = ref('')
 const description = ref('')
@@ -86,6 +95,12 @@ const error = ref('')
 const imageError = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const searchQuery = ref('')
+const selectedType = ref<CommissionType | 'all'>('all')
+const viewMode = ref<'active' | 'completed'>('active')
+const selectedCompletedBoardId = ref('')
+const detailCard = ref<KanbanCard | null>(null)
+const copiedLink = ref(false)
+let copyTimer: ReturnType<typeof setTimeout> | null = null
 
 function parseTags(raw: string): string[] {
   return [...new Set(raw.split(',').map((item) => item.trim()).filter(Boolean))]
@@ -136,33 +151,93 @@ function formatCardDate(iso?: string | null): string {
   }).format(date)
 }
 
+function isBoardCompleted(board: KanbanBoard): boolean {
+  if (board.is_backlog) return false
+  const boardCards = cards.value.filter((card) => card.boardId === board.id)
+  return boardCards.length > 0 && boardCards.every((card) => card.stageNumber === '06')
+}
+
+const activeBoard = computed(() => boards.value.find((board) => board.is_active) ?? null)
+const completedBoards = computed(() =>
+  boards.value.filter((board) => !board.is_active && isBoardCompleted(board)),
+)
+const displayedBoard = computed<KanbanBoard | null>(() => {
+  if (viewMode.value === 'completed') {
+    return (
+      completedBoards.value.find((board) => board.id === selectedCompletedBoardId.value) ??
+      completedBoards.value[0] ??
+      null
+    )
+  }
+  return activeBoard.value
+})
+
 onMounted(async () => {
-  if (!supabase) return
+  if (!supabase) {
+    applyInitialRouteSelection()
+    return
+  }
   try {
-    const [{ data: sessionData }, { data: boardData }] = await Promise.all([
+    const [{ data: sessionData }, statusData, { data: boardsData }] = await Promise.all([
       supabase.auth.getSession(),
+      fetchCommissionStatus(),
       supabase
         .from('kanban_boards')
-        .select('id,title,description,is_active')
-        .eq('is_active', true)
-        .maybeSingle(),
+        .select('id,title,description,is_active,is_backlog')
+        .eq('is_backlog', false)
+        .order('created_at', { ascending: false }),
     ])
     signedIn.value = Boolean(sessionData.session)
+    commissionStatus.value = statusData
 
-    activeBoard.value = (boardData as KanbanBoard | null) ?? null
-    if (!activeBoard.value) return
+    const loadedBoards = (boardsData ?? []) as KanbanBoard[]
+    boards.value = loadedBoards
+    if (loadedBoards.length === 0) return
 
     const { data: cardsData } = await supabase
       .from('kanban_cards')
       .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path,created_at,updated_at')
-      .eq('board_id', activeBoard.value.id)
+      .in(
+        'board_id',
+        loadedBoards.map((board) => board.id),
+      )
       .order('created_at', { ascending: true })
 
     if (cardsData) cards.value = (cardsData as KanbanCardRow[]).map(toKanbanCard)
+    applyInitialRouteSelection()
   } finally {
     loading.value = false
   }
 })
+
+function applyInitialRouteSelection() {
+  const queryBoard = typeof route.query.board === 'string' ? route.query.board : ''
+  const queryCardId = typeof route.query.card === 'string' ? route.query.card : ''
+
+  if (!activeBoard.value && completedBoards.value.length > 0) {
+    viewMode.value = 'completed'
+    selectedCompletedBoardId.value = completedBoards.value[0]!.id
+  }
+
+  if (queryBoard && completedBoards.value.some((board) => board.id === queryBoard)) {
+    viewMode.value = 'completed'
+    selectedCompletedBoardId.value = queryBoard
+  }
+
+  if (queryCardId) {
+    const targetCard = cards.value.find((card) => card.id === queryCardId)
+    if (targetCard) {
+      if (completedBoards.value.some((board) => board.id === targetCard.boardId)) {
+        viewMode.value = 'completed'
+        selectedCompletedBoardId.value = targetCard.boardId
+        detailCard.value = targetCard
+      } else if (activeBoard.value?.id === targetCard.boardId) {
+        viewMode.value = 'active'
+        detailCard.value = targetCard
+      }
+    }
+  }
+}
 
 function revokePreview() {
   if (previewUrl.value) {
@@ -224,6 +299,7 @@ function clearImage() {
 function resetForm() {
   editingCard.value = null
   removeExistingImage.value = false
+  stageNumber.value = text.value.home.stages[0]?.number ?? '01'
   commissionType.value = 'Illustration'
   title.value = ''
   description.value = ''
@@ -237,7 +313,8 @@ function resetForm() {
 }
 
 function openAddCard() {
-  if (!signedIn.value) return
+  if (!signedIn.value || !activeBoard.value) return
+  viewMode.value = 'active'
   resetForm()
   open.value = true
 }
@@ -246,6 +323,7 @@ function openEditCard(card: KanbanCard) {
   if (!signedIn.value) return
   resetForm()
   editingCard.value = card
+  stageNumber.value = card.stageNumber
   commissionType.value = card.commissionType
   title.value = card.title
   description.value = card.description
@@ -277,7 +355,7 @@ async function submitCard() {
   }
 
   const editing = editingCard.value
-  const stageNumber = editing?.stageNumber ?? text.value.home.stages[0]?.number ?? '01'
+  const targetStage = stageNumber.value || text.value.home.stages[0]?.number || '01'
   const boardId = activeBoard.value.id
 
   if (!supabase) {
@@ -290,6 +368,7 @@ async function submitCard() {
       if ((imageFile.value || removeExistingImage.value) && editing.imageUrl?.startsWith('blob:')) {
         URL.revokeObjectURL(editing.imageUrl)
       }
+      editing.stageNumber = targetStage
       editing.commissionType = commissionType.value
       editing.title = trimmedTitle
       editing.description = trimmedDescription
@@ -301,7 +380,7 @@ async function submitCard() {
       cards.value.push({
         id: crypto.randomUUID(),
         boardId,
-        stageNumber,
+        stageNumber: targetStage,
         commissionType: commissionType.value,
         title: trimmedTitle,
         description: trimmedDescription,
@@ -341,6 +420,7 @@ async function submitCard() {
       const { data, error: updateError } = await supabase
         .from('kanban_cards')
         .update({
+          stage_number: targetStage,
           commission_type: commissionType.value,
           title: trimmedTitle,
           description: trimmedDescription,
@@ -363,7 +443,7 @@ async function submitCard() {
         .from('kanban_cards')
         .insert({
           board_id: boardId,
-          stage_number: stageNumber,
+          stage_number: targetStage,
           commission_type: commissionType.value,
           title: trimmedTitle,
           description: trimmedDescription,
@@ -406,11 +486,13 @@ async function deleteCard(card: KanbanCard) {
 const draggingCardId = ref('')
 const dragOverStage = ref('')
 
-function cardsForStage(stageNumber: string): KanbanCard[] {
-  if (!activeBoard.value) return []
+const filteredBoardCards = computed<KanbanCard[]>(() => {
+  const board = displayedBoard.value
+  if (!board) return []
   const q = searchQuery.value.trim().toLowerCase()
   return cards.value.filter((card) => {
-    if (card.boardId !== activeBoard.value!.id || card.stageNumber !== stageNumber) return false
+    if (card.boardId !== board.id) return false
+    if (selectedType.value !== 'all' && card.commissionType !== selectedType.value) return false
     if (!q) return true
     return (
       card.title.toLowerCase().includes(q) ||
@@ -418,6 +500,57 @@ function cardsForStage(stageNumber: string): KanbanCard[] {
       card.requestors.some((tag) => tag.toLowerCase().includes(q))
     )
   })
+})
+
+function cardsForStage(stageNumber: string): KanbanCard[] {
+  return filteredBoardCards.value.filter((card) => card.stageNumber === stageNumber)
+}
+
+function adjacentStage(currentStage: string, delta: -1 | 1): string | null {
+  const stages = text.value.home.stages
+  const idx = stages.findIndex((stage) => stage.number === currentStage)
+  if (idx === -1) return null
+  return stages[idx + delta]?.number ?? null
+}
+
+function openDetailCard(card: KanbanCard) {
+  detailCard.value = card
+  copiedLink.value = false
+  const nextQuery: Record<string, string> = { card: card.id }
+  if (viewMode.value === 'completed') nextQuery.board = card.boardId
+  void router.replace({ query: nextQuery })
+}
+
+function onDetailOpenChange(nextOpen: boolean) {
+  if (nextOpen) return
+  detailCard.value = null
+  copiedLink.value = false
+  const nextQuery = { ...route.query }
+  delete nextQuery.card
+  void router.replace({ query: nextQuery })
+}
+
+async function copyDetailLink(card: KanbanCard) {
+  const url = new URL('/commission', window.location.origin)
+  url.searchParams.set('card', card.id)
+  if (viewMode.value === 'completed') url.searchParams.set('board', card.boardId)
+  try {
+    await navigator.clipboard.writeText(url.toString())
+    copiedLink.value = true
+    if (copyTimer) clearTimeout(copyTimer)
+    copyTimer = setTimeout(() => {
+      copiedLink.value = false
+    }, 2000)
+  } catch {
+    copiedLink.value = false
+  }
+}
+
+function setBoardView(mode: 'active' | 'completed') {
+  viewMode.value = mode
+  if (mode === 'completed' && !selectedCompletedBoardId.value && completedBoards.value[0]) {
+    selectedCompletedBoardId.value = completedBoards.value[0].id
+  }
 }
 
 function stageLabel(stageNumber: string): string {
@@ -455,36 +588,45 @@ function onColumnDragLeave(stageNumber: string, event: DragEvent) {
   if (!related || !currentTarget?.contains(related)) dragOverStage.value = ''
 }
 
-async function onColumnDrop(stageNumber: string, event: DragEvent) {
-  const cardId = draggingCardId.value || event.dataTransfer?.getData('text/plain') || ''
-  onCardDragEnd()
-  if (!cardId || !signedIn.value) return
-  const index = cards.value.findIndex((card) => card.id === cardId)
+async function moveCardStage(card: KanbanCard, nextStage: string) {
+  if (!signedIn.value || card.stageNumber === nextStage) return
+  const index = cards.value.findIndex((item) => item.id === card.id)
   if (index === -1) return
-  const [card] = cards.value.splice(index, 1)
-  if (!card) return
-  const previousStage = card.stageNumber
-  const previousUpdatedAt = card.updatedAt
-  card.stageNumber = stageNumber
-  if (previousStage !== stageNumber) {
-    card.updatedAt = new Date().toISOString()
-  }
-  cards.value.push(card)
+  const [moved] = cards.value.splice(index, 1)
+  if (!moved) return
+  const previousStage = moved.stageNumber
+  const previousUpdatedAt = moved.updatedAt
+  moved.stageNumber = nextStage
+  moved.updatedAt = new Date().toISOString()
+  cards.value.push(moved)
 
-  if (supabase && previousStage !== stageNumber) {
+  if (detailCard.value?.id === moved.id) {
+    detailCard.value = moved
+  }
+
+  if (supabase) {
     const { error: updateError } = await supabase
       .from('kanban_cards')
-      .update({ stage_number: stageNumber })
-      .eq('id', card.id)
+      .update({ stage_number: nextStage })
+      .eq('id', moved.id)
     if (updateError) {
-      card.stageNumber = previousStage
-      card.updatedAt = previousUpdatedAt
+      moved.stageNumber = previousStage
+      moved.updatedAt = previousUpdatedAt
     }
   }
 }
 
+async function onColumnDrop(targetStage: string, event: DragEvent) {
+  const cardId = draggingCardId.value || event.dataTransfer?.getData('text/plain') || ''
+  onCardDragEnd()
+  if (!cardId || !signedIn.value) return
+  const card = cards.value.find((item) => item.id === cardId)
+  if (card) await moveCardStage(card, targetStage)
+}
+
 onUnmounted(() => {
   authSubscription?.data.subscription.unsubscribe()
+  if (copyTimer) clearTimeout(copyTimer)
   revokePreview()
   for (const card of cards.value) {
     if (card.imageUrl?.startsWith('blob:')) URL.revokeObjectURL(card.imageUrl)
@@ -497,9 +639,12 @@ onUnmounted(() => {
     <section class="flex w-full flex-1 flex-col py-12 sm:py-16" aria-labelledby="page-title">
       <div class="mx-auto w-full max-w-6xl">
         <div class="max-w-3xl">
-          <p class="mb-4 text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-            {{ text.home.commissionEyebrow }}
-          </p>
+          <div class="mb-4 flex flex-wrap items-center gap-3">
+            <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              {{ text.home.commissionEyebrow }}
+            </p>
+            <CommissionStatusBadge v-if="commissionStatus" :value="commissionStatus" />
+          </div>
           <h1
             id="page-title"
             class="font-bagel-fat-one text-5xl leading-[1.05] tracking-tight text-zinc-950 sm:text-7xl dark:text-zinc-50"
@@ -512,7 +657,7 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div v-if="!loading && !activeBoard" class="mx-auto mt-8 flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center">
+      <div v-if="!loading && !displayedBoard" class="mx-auto mt-8 flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center">
         <span aria-hidden="true" class="flex size-16 items-center justify-center rounded-2xl bg-orange-100 text-orange-700 dark:bg-zinc-800 dark:text-orange-300">
           <FileText :size="30" />
         </span>
@@ -522,36 +667,127 @@ onUnmounted(() => {
         <p class="mt-3 max-w-sm leading-7 text-zinc-600 dark:text-zinc-300">{{ text.home.noActiveBoardDescription }}</p>
       </div>
 
-      <div v-else-if="activeBoard" class="surface-shadow mx-auto mt-8 w-full max-w-384 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
+      <div v-else-if="displayedBoard" class="surface-shadow mx-auto mt-8 w-full max-w-384 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 class="text-xl font-bold text-zinc-950 sm:text-2xl dark:text-zinc-50">
-              {{ activeBoard.title }}
+              {{ displayedBoard.title }}
             </h2>
             <p
-              v-if="activeBoard.description"
+              v-if="displayedBoard.description"
               class="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400"
             >
-              {{ activeBoard.description }}
+              {{ displayedBoard.description }}
             </p>
           </div>
 
-          <form class="w-full sm:w-80" role="search" @submit.prevent>
-            <label for="commission-card-search" class="sr-only">{{ text.home.searchCards }}</label>
-            <div class="relative">
-              <Search
-                class="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
-                aria-hidden="true"
-              />
-              <input
-                id="commission-card-search"
-                v-model="searchQuery"
-                type="search"
-                :placeholder="text.home.searchCardsPlaceholder"
-                class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-4 text-sm text-zinc-950 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-zinc-300"
-              />
+          <div class="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:justify-end">
+            <div
+              v-if="completedBoards.length > 0"
+              role="group"
+              :aria-label="text.home.boardViewLabel"
+              class="inline-flex rounded-xl border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800"
+            >
+              <button
+                v-if="activeBoard"
+                type="button"
+                :class="[
+                  'min-h-9 rounded-lg px-3 text-xs font-medium transition-colors',
+                  viewMode === 'active'
+                    ? 'bg-white text-zinc-950 shadow-xs dark:bg-zinc-900 dark:text-zinc-50'
+                    : 'text-zinc-600 hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-zinc-50',
+                ]"
+                @click="setBoardView('active')"
+              >
+                {{ text.home.activeBoardTab }}
+              </button>
+              <button
+                type="button"
+                :class="[
+                  'min-h-9 rounded-lg px-3 text-xs font-medium transition-colors',
+                  viewMode === 'completed'
+                    ? 'bg-white text-zinc-950 shadow-xs dark:bg-zinc-900 dark:text-zinc-50'
+                    : 'text-zinc-600 hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-zinc-50',
+                ]"
+                @click="setBoardView('completed')"
+              >
+                {{ text.home.completedBoardsTab }} ({{ completedBoards.length }})
+              </button>
             </div>
-          </form>
+
+            <div v-if="viewMode === 'completed' && completedBoards.length > 1">
+              <label for="completed-board-select" class="sr-only">{{ text.home.selectCompletedBoard }}</label>
+              <select
+                id="completed-board-select"
+                v-model="selectedCompletedBoardId"
+                class="min-h-11 rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
+              >
+                <option v-for="board in completedBoards" :key="board.id" :value="board.id">
+                  {{ board.title }}
+                </option>
+              </select>
+            </div>
+
+            <form class="w-full sm:w-72" role="search" @submit.prevent>
+              <label for="commission-card-search" class="sr-only">{{ text.home.searchCards }}</label>
+              <div class="relative">
+                <Search
+                  class="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
+                  aria-hidden="true"
+                />
+                <input
+                  id="commission-card-search"
+                  v-model="searchQuery"
+                  type="search"
+                  :placeholder="text.home.searchCardsPlaceholder"
+                  class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-4 text-sm text-zinc-950 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-zinc-300"
+                />
+              </div>
+            </form>
+
+            <button
+              v-if="signedIn && activeBoard && viewMode === 'active'"
+              type="button"
+              class="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              @click="openAddCard"
+            >
+              <Plus :size="16" aria-hidden="true" />
+              <span>{{ text.home.addCard }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div
+          class="mt-4 flex flex-wrap items-center gap-2"
+          role="group"
+          :aria-label="text.home.filterTypeLabel"
+        >
+          <button
+            type="button"
+            :class="[
+              'min-h-9 rounded-full px-3.5 py-1 text-xs font-medium transition-colors',
+              selectedType === 'all'
+                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700',
+            ]"
+            @click="selectedType = 'all'"
+          >
+            {{ text.home.filterAllTypes }}
+          </button>
+          <button
+            v-for="typeOption in COMMISSION_TYPES"
+            :key="typeOption"
+            type="button"
+            :class="[
+              'min-h-9 rounded-full px-3.5 py-1 text-xs font-medium transition-colors',
+              selectedType === typeOption
+                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700',
+            ]"
+            @click="selectedType = typeOption"
+          >
+            {{ text.home.commissionTypes[typeOption] }}
+          </button>
         </div>
 
         <DialogRoot v-if="signedIn" :open="open" @update:open="onOpenChange">
@@ -596,6 +832,15 @@ onUnmounted(() => {
                       <select id="card-commission-type" v-model="commissionType" required :class="fieldClass">
                         <option v-for="typeOption in COMMISSION_TYPES" :key="typeOption" :value="typeOption">
                           {{ text.home.commissionTypes[typeOption] }}
+                        </option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label for="card-stage" class="block text-sm">{{ text.home.stageLabel }}</label>
+                      <select id="card-stage" v-model="stageNumber" required :class="fieldClass">
+                        <option v-for="stage in text.home.stages" :key="stage.number" :value="stage.number">
+                          {{ stage.label }}
                         </option>
                       </select>
                     </div>
@@ -703,7 +948,124 @@ onUnmounted(() => {
           </DialogPortal>
         </DialogRoot>
 
-        <div class="mt-6 flex gap-3 overflow-x-auto" :aria-label="text.home.stagesLabel">
+        <DialogRoot :open="Boolean(detailCard)" @update:open="onDetailOpenChange">
+          <DialogPortal>
+            <DialogOverlay class="fixed inset-0 z-60 bg-zinc-950/50" />
+            <div class="pointer-events-none fixed inset-0 z-70 flex items-center justify-center p-4 sm:p-6">
+              <DialogContent v-if="detailCard" as-child>
+                <motion.div
+                  data-lenis-prevent
+                  :initial="reducedMotion ? false : { opacity: 0, scale: 0.97, y: 8 }"
+                  :animate="{ opacity: 1, scale: 1, y: 0 }"
+                  :transition="{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }"
+                  class="surface-shadow pointer-events-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 text-zinc-950 focus:outline-none sm:p-8 dark:bg-zinc-900 dark:text-zinc-50"
+                >
+                  <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                      <span class="inline-flex rounded-full bg-zinc-100 px-3 py-1 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                        {{ text.home.commissionTypes[detailCard.commissionType] }}
+                      </span>
+                      <DialogTitle class="mt-2.5 text-2xl font-bold tracking-tight sm:text-3xl">
+                        {{ detailCard.title }}
+                      </DialogTitle>
+                    </div>
+                    <DialogClose as-child>
+                      <button
+                        type="button"
+                        :aria-label="text.home.close"
+                        class="flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:hover:bg-zinc-800"
+                      >
+                        <X :size="20" aria-hidden="true" />
+                      </button>
+                    </DialogClose>
+                  </div>
+
+                  <img
+                    v-if="detailCard.imageUrl"
+                    :src="detailCard.imageUrl"
+                    :alt="detailCard.title"
+                    class="mt-5 max-h-[55dvh] w-full rounded-2xl bg-zinc-100 object-contain dark:bg-zinc-800"
+                  />
+
+                  <DialogDescription class="mt-5 whitespace-pre-wrap text-base leading-7 text-zinc-600 dark:text-zinc-300">
+                    {{ detailCard.description }}
+                  </DialogDescription>
+
+                  <div class="mt-5">
+                    <div class="flex items-center justify-between gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                      <span>{{ stageLabel(detailCard.stageNumber) }}</span>
+                      <span>{{ stageProgress(detailCard.stageNumber) }}%</span>
+                    </div>
+                    <div
+                      role="progressbar"
+                      :aria-label="text.home.progressLabel"
+                      :aria-valuenow="stageProgress(detailCard.stageNumber)"
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                      class="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
+                    >
+                      <div
+                        :class="['h-full rounded-full transition-all duration-300', stageStyle(detailCard.stageNumber).progressBar]"
+                        :style="{ width: `${stageProgress(detailCard.stageNumber)}%` }"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="mt-5 flex flex-wrap gap-2">
+                    <span
+                      v-for="requestor in detailCard.requestors"
+                      :key="requestor"
+                      class="rounded-full bg-orange-100 px-3 py-1 text-xs text-orange-800 dark:bg-zinc-800 dark:text-orange-200"
+                    >
+                      {{ requestor }}
+                    </span>
+                  </div>
+
+                  <div class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+                    <p v-if="detailCard.updatedAt || detailCard.createdAt" class="text-xs text-zinc-500 dark:text-zinc-400">
+                      {{ detailCard.updatedAt ? text.home.updatedAtLabel : text.home.createdAtLabel }}:
+                      {{ formatCardDate(detailCard.updatedAt ?? detailCard.createdAt) }}
+                    </p>
+                    <button
+                      type="button"
+                      class="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-zinc-300 px-3.5 py-2 text-xs text-zinc-800 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                      @click="copyDetailLink(detailCard)"
+                    >
+                      <Check v-if="copiedLink" :size="14" aria-hidden="true" />
+                      <Copy v-else :size="14" aria-hidden="true" />
+                      <span>{{ copiedLink ? text.home.copiedCardLink : text.home.copyCardLink }}</span>
+                    </button>
+                  </div>
+                </motion.div>
+              </DialogContent>
+            </div>
+          </DialogPortal>
+        </DialogRoot>
+
+        <div
+          v-if="viewMode === 'completed'"
+          class="mt-6"
+        >
+          <div v-if="filteredBoardCards.length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <CommissionCard
+              v-for="card in filteredBoardCards"
+              :key="card.id"
+              :card="card"
+              :stage-label="stageLabel(card.stageNumber)"
+              :progress="stageProgress(card.stageNumber)"
+              :formatted-date="formatCardDate(card.updatedAt ?? card.createdAt)"
+              @detail="openDetailCard(card)"
+            />
+          </div>
+          <p
+            v-else
+            class="rounded-2xl border border-dashed border-zinc-300 px-6 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+          >
+            {{ text.home.noFilteredCards }}
+          </p>
+        </div>
+
+        <div v-else class="mt-6 flex gap-3 overflow-x-auto" :aria-label="text.home.stagesLabel">
           <div
             v-for="stage in text.home.stages"
             :key="stage.number"
@@ -716,102 +1078,36 @@ onUnmounted(() => {
             @dragleave="onColumnDragLeave(stage.number, $event)"
             @drop.prevent="onColumnDrop(stage.number, $event)"
           >
-            <div class="flex items-center">
-              <span>{{ stage.label }}</span>
+            <div class="flex items-center justify-between gap-2">
+              <span class="inline-flex items-center gap-2">
+                <span :class="['size-2 rounded-full', stageStyle(stage.number).dot]" aria-hidden="true" />
+                <span>{{ stage.label }}</span>
+              </span>
+              <span class="rounded-full bg-white px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
+                {{ cardsForStage(stage.number).length }}
+              </span>
             </div>
 
             <div v-if="cardsForStage(stage.number).length" class="space-y-2.5">
-              <article
+              <CommissionCard
                 v-for="card in cardsForStage(stage.number)"
                 :key="card.id"
-                :draggable="signedIn"
-                :class="[
-                  'relative rounded-2xl border-2 bg-white p-3.5 text-zinc-950 shadow-xs transition-opacity dark:bg-zinc-900 dark:text-zinc-50',
-                  stageStyle(card.stageNumber).cardBorder,
-                  signedIn ? 'cursor-grab active:cursor-grabbing' : '',
-                  draggingCardId === card.id ? 'opacity-50' : '',
-                ]"
+                :card="card"
+                :editable="signedIn"
+                :dragging="draggingCardId === card.id"
+                :can-move-prev="Boolean(adjacentStage(card.stageNumber, -1))"
+                :can-move-next="Boolean(adjacentStage(card.stageNumber, 1))"
+                :stage-label="stageLabel(card.stageNumber)"
+                :progress="stageProgress(card.stageNumber)"
+                :formatted-date="formatCardDate(card.updatedAt ?? card.createdAt)"
+                :on-delete="() => deleteCard(card)"
+                @detail="openDetailCard(card)"
+                @edit="openEditCard(card)"
+                @move-prev="() => { const prev = adjacentStage(card.stageNumber, -1); if (prev) void moveCardStage(card, prev) }"
+                @move-next="() => { const next = adjacentStage(card.stageNumber, 1); if (next) void moveCardStage(card, next) }"
                 @dragstart="onCardDragStart(card.id, $event)"
                 @dragend="onCardDragEnd"
-              >
-                <div v-if="signedIn" class="absolute right-2.5 top-2.5 z-10 flex gap-1.5">
-                  <button
-                    type="button"
-                    :aria-label="`${text.home.editCard}: ${card.title}`"
-                    :title="text.home.editCard"
-                    class="flex size-8 items-center justify-center rounded-xl bg-white text-zinc-700 shadow-sm hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                    @click="openEditCard(card)"
-                  >
-                    <Pencil :size="14" aria-hidden="true" />
-                  </button>
-                  <ConfirmDialog
-                    :title="text.home.deleteCardTitle"
-                    :description="text.home.deleteCardDescription"
-                    :cancel-label="text.login.cancel"
-                    :confirm-label="text.home.deleteCard"
-                    :pending-label="text.home.deletingCard"
-                    :error-message="text.home.deleteCardError"
-                    :on-confirm="() => deleteCard(card)"
-                  >
-                    <button
-                      type="button"
-                      :aria-label="`${text.home.deleteCard}: ${card.title}`"
-                      :title="text.home.deleteCard"
-                      class="flex size-8 items-center justify-center rounded-xl bg-white text-red-700 shadow-sm hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-900 dark:text-red-300 dark:hover:bg-red-950"
-                    >
-                      <Trash2 :size="14" aria-hidden="true" />
-                    </button>
-                  </ConfirmDialog>
-                </div>
-
-                <img
-                  v-if="card.imageUrl"
-                  :src="card.imageUrl"
-                  :alt="card.title"
-                  draggable="false"
-                  class="mb-2.5 aspect-4/3 w-full rounded-xl bg-zinc-100 object-cover dark:bg-zinc-800"
-                />
-                <h2 :class="['text-sm', signedIn && !card.imageUrl ? 'pr-16' : '']">{{ card.title }}</h2>
-                <p class="mt-1.5 inline-flex rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                  {{ text.home.commissionTypes[card.commissionType] }}
-                </p>
-                <p class="mt-1.5 text-xs leading-5 text-zinc-600 sm:text-sm dark:text-zinc-300">{{ card.description }}</p>
-                <div class="mt-2.5">
-                  <div class="flex items-center justify-between gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-                    <span>{{ stageLabel(card.stageNumber) }}</span>
-                    <span>{{ stageProgress(card.stageNumber) }}%</span>
-                  </div>
-                  <div
-                    role="progressbar"
-                    :aria-label="text.home.progressLabel"
-                    :aria-valuenow="stageProgress(card.stageNumber)"
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                    class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
-                  >
-                    <div
-                      :class="['h-full rounded-full transition-all duration-300', stageStyle(card.stageNumber).progressBar]"
-                      :style="{ width: `${stageProgress(card.stageNumber)}%` }"
-                    />
-                  </div>
-                </div>
-                <div class="mt-2.5 flex flex-wrap gap-1.5">
-                  <span
-                    v-for="requestor in card.requestors"
-                    :key="requestor"
-                    class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs text-orange-800 dark:bg-zinc-800 dark:text-orange-200"
-                  >
-                    {{ requestor }}
-                  </span>
-                </div>
-                <p
-                  v-if="card.updatedAt || card.createdAt"
-                  class="mt-2.5 border-t border-zinc-100 pt-2 text-[11px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400"
-                >
-                  {{ card.updatedAt ? text.home.updatedAtLabel : text.home.createdAtLabel }}:
-                  {{ formatCardDate(card.updatedAt ?? card.createdAt) }}
-                </p>
-              </article>
+              />
             </div>
           </div>
         </div>

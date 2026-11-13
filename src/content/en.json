@@ -88,6 +88,26 @@
     "typesLabel": "What I draw & animate",
     "previewEmptyCards": "Nothing on the board yet. Suspiciously quiet in here!",
     "previewViewAll": "See the whole board",
+    "stageLabel": "Stage",
+    "moveStagePrev": "Move to previous stage",
+    "moveStageNext": "Move to next stage",
+    "filterAllTypes": "All",
+    "filterTypeLabel": "Filter by commission type",
+    "boardViewLabel": "Board view",
+    "activeBoardTab": "Active board",
+    "completedBoardsTab": "Completed",
+    "selectCompletedBoard": "Completed batch",
+    "viewCardDetails": "View details",
+    "copyCardLink": "Copy link",
+    "copiedCardLink": "Copied!",
+    "noFilteredCards": "No commissions match your search or filter.",
+    "commissionStatusLabel": "Commission status",
+    "commissionStatuses": {
+      "open": "Commissions Open",
+      "waitlist": "Waitlist Open",
+      "closed": "Commissions Closed"
+    },
+    "slotsLabel": "slots open",
     "workflowSections": [
       {
         "id": "queue",
@@ -169,7 +189,15 @@
     "filterInactive": "Inactive",
     "filterCompleted": "Completed",
     "selectAllCards": "Select all",
-    "selectCard": "Select card"
+    "selectCard": "Select card",
+    "commissionStatusTitle": "Commission status",
+    "statusLabel": "Status",
+    "slotsOpenLabel": "Open slots",
+    "slotsTotalLabel": "Total slots",
+    "saveStatus": "Save status",
+    "savingStatus": "Saving…",
+    "savedStatus": "Saved!",
+    "saveStatusError": "Could not update commission status."
   },
   "about": {
     "title": "About.",

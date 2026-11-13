@@ -88,6 +88,26 @@
     "typesLabel": "Yang bisa dipesan",
     "previewEmptyCards": "Belum ada kartu nih. Sepi banget papannya!",
     "previewViewAll": "Lihat semua",
+    "stageLabel": "Tahap",
+    "moveStagePrev": "Geser ke tahap sebelumnya",
+    "moveStageNext": "Geser ke tahap berikutnya",
+    "filterAllTypes": "Semua",
+    "filterTypeLabel": "Filter berdasarkan tipe komisi",
+    "boardViewLabel": "Tampilan papan",
+    "activeBoardTab": "Papan aktif",
+    "completedBoardsTab": "Selesai",
+    "selectCompletedBoard": "Batch selesai",
+    "viewCardDetails": "Lihat detail",
+    "copyCardLink": "Salin tautan",
+    "copiedCardLink": "Tersalin!",
+    "noFilteredCards": "Nggak ada komisi yang cocok sama pencarian atau filtermu.",
+    "commissionStatusLabel": "Status komisi",
+    "commissionStatuses": {
+      "open": "Komisi Buka",
+      "waitlist": "Waitlist Buka",
+      "closed": "Komisi Tutup"
+    },
+    "slotsLabel": "slot tersisa",
     "workflowSections": [
       {
         "id": "queue",
@@ -169,7 +189,15 @@
     "filterInactive": "Tidak aktif",
     "filterCompleted": "Selesai",
     "selectAllCards": "Pilih semua",
-    "selectCard": "Pilih kartu"
+    "selectCard": "Pilih kartu",
+    "commissionStatusTitle": "Status komisi",
+    "statusLabel": "Status",
+    "slotsOpenLabel": "Slot tersedia",
+    "slotsTotalLabel": "Total slot",
+    "saveStatus": "Simpan status",
+    "savingStatus": "Menyimpan…",
+    "savedStatus": "Tersimpan!",
+    "saveStatusError": "Status komisi belum bisa disimpan."
   },
   "about": {
     "title": "Tentang.",

@@ -19,6 +19,13 @@ import {
   DialogRoot,
   DialogTitle,
 } from 'reka-ui'
+import {
+  COMMISSION_STATUSES,
+  COMMISSION_TYPES,
+  type CommissionStatusValue,
+  type CommissionType,
+  fetchCommissionStatus,
+} from '../commissionStatus'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { useLanguage } from '../composables/useLanguage'
 import { kanbanImageExtension, optimizeKanbanImage } from '../kanbanImage'
@@ -32,9 +39,6 @@ interface KanbanBoard {
   is_backlog: boolean
   created_at?: string
 }
-
-const COMMISSION_TYPES = ['Emote', 'GIF', 'Animation', 'Illustration', 'Transition'] as const
-type CommissionType = (typeof COMMISSION_TYPES)[number]
 
 interface KanbanCard {
   id: string
@@ -106,6 +110,7 @@ const cardDialogPending = ref(false)
 const targetCardBoard = ref<KanbanBoard | null>(null)
 const editingCard = ref<KanbanCard | null>(null)
 const removeExistingImage = ref(false)
+const cardStageNumber = ref('01')
 const cardCommissionType = ref<CommissionType>('Illustration')
 const cardTitle = ref('')
 const cardDescription = ref('')
@@ -120,6 +125,14 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const selectedCardIds = ref<string[]>([])
 const draggingCardIds = ref<string[]>([])
 const dragOverBoardId = ref('')
+
+const commissionStatusValue = ref<CommissionStatusValue>('open')
+const slotsOpenInput = ref(3)
+const slotsTotalInput = ref(5)
+const statusSaving = ref(false)
+const statusSaved = ref(false)
+const statusError = ref('')
+let statusSavedTimer: ReturnType<typeof setTimeout> | null = null
 
 function isBoardCompleted(board: KanbanBoard): boolean {
   if (board.is_backlog) return false
@@ -250,11 +263,46 @@ onMounted(() => {
 
 onUnmounted(() => {
   subscription?.data.subscription.unsubscribe()
+  if (statusSavedTimer) clearTimeout(statusSavedTimer)
   revokePreview()
   for (const card of cards.value) {
     if (card.imageUrl?.startsWith('blob:')) URL.revokeObjectURL(card.imageUrl)
   }
 })
+
+async function saveCommissionStatus() {
+  if (statusSaving.value) return
+  statusSaving.value = true
+  statusSaved.value = false
+  statusError.value = ''
+  const slotsOpen = Math.max(0, Math.min(99, Math.trunc(Number(slotsOpenInput.value) || 0)))
+  const slotsTotal = Math.max(0, Math.min(99, Math.trunc(Number(slotsTotalInput.value) || 0)))
+  slotsOpenInput.value = slotsOpen
+  slotsTotalInput.value = slotsTotal
+
+  try {
+    if (supabase) {
+      const { error } = await supabase
+        .from('commission_status')
+        .update({
+          status: commissionStatusValue.value,
+          slots_open: slotsOpen,
+          slots_total: slotsTotal,
+        })
+        .eq('id', 'default')
+      if (error) throw error
+    }
+    statusSaved.value = true
+    if (statusSavedTimer) clearTimeout(statusSavedTimer)
+    statusSavedTimer = setTimeout(() => {
+      statusSaved.value = false
+    }, 2000)
+  } catch {
+    statusError.value = text.value.setting.saveStatusError
+  } finally {
+    statusSaving.value = false
+  }
+}
 
 async function loadBoardsAndCards() {
   loading.value = true
@@ -265,7 +313,7 @@ async function loadBoardsAndCards() {
     return
   }
 
-  const [boardsResult, cardsResult] = await Promise.all([
+  const [boardsResult, cardsResult, statusResult] = await Promise.all([
     supabase
       .from('kanban_boards')
       .select('id,title,description,is_active,is_backlog,created_at')
@@ -275,7 +323,14 @@ async function loadBoardsAndCards() {
       .from('kanban_cards')
       .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path')
       .order('created_at', { ascending: true }),
+    fetchCommissionStatus(),
   ])
+
+  if (statusResult) {
+    commissionStatusValue.value = statusResult.status
+    slotsOpenInput.value = statusResult.slotsOpen
+    slotsTotalInput.value = statusResult.slotsTotal
+  }
 
   if (boardsResult.error) {
     loadError.value = boardsResult.error.message
@@ -613,6 +668,7 @@ function resetCardForm() {
   targetCardBoard.value = null
   editingCard.value = null
   removeExistingImage.value = false
+  cardStageNumber.value = text.value.home.stages[0]?.number ?? '01'
   cardCommissionType.value = 'Illustration'
   cardTitle.value = ''
   cardDescription.value = ''
@@ -635,6 +691,7 @@ function openEditCard(card: KanbanCard, board: KanbanBoard) {
   resetCardForm()
   targetCardBoard.value = board
   editingCard.value = card
+  cardStageNumber.value = card.stageNumber
   cardCommissionType.value = card.commissionType
   cardTitle.value = card.title
   cardDescription.value = card.description
@@ -666,7 +723,9 @@ async function submitCard() {
   }
 
   const editing = editingCard.value
-  const stageNumber = text.value.home.stages[0]?.number ?? '01'
+  const stageNumber = board.is_backlog
+    ? editing?.stageNumber ?? text.value.home.stages[0]?.number ?? '01'
+    : cardStageNumber.value
 
   if (!supabase) {
     if (editing) {
@@ -678,6 +737,7 @@ async function submitCard() {
       if ((imageFile.value || removeExistingImage.value) && editing.imageUrl?.startsWith('blob:')) {
         URL.revokeObjectURL(editing.imageUrl)
       }
+      editing.stageNumber = stageNumber
       editing.commissionType = cardCommissionType.value
       editing.title = trimmedTitle
       editing.description = trimmedDescription
@@ -726,6 +786,7 @@ async function submitCard() {
       const { data, error: updateError } = await supabase
         .from('kanban_cards')
         .update({
+          stage_number: stageNumber,
           commission_type: cardCommissionType.value,
           title: trimmedTitle,
           description: trimmedDescription,
@@ -1077,6 +1138,20 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                     </select>
                   </div>
 
+                  <div v-if="targetCardBoard && !targetCardBoard.is_backlog">
+                    <label for="setting-card-stage" class="block text-sm">{{ text.home.stageLabel }}</label>
+                    <select
+                      id="setting-card-stage"
+                      v-model="cardStageNumber"
+                      required
+                      :class="cardFieldClass"
+                    >
+                      <option v-for="stage in text.home.stages" :key="stage.number" :value="stage.number">
+                        {{ stage.label }}
+                      </option>
+                    </select>
+                  </div>
+
                   <div>
                     <label for="setting-card-description" class="block text-sm">
                       {{ text.home.descriptionLabel }}
@@ -1251,7 +1326,71 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
         </AlertDialogPortal>
       </AlertDialogRoot>
 
-      <form class="mt-8 flex flex-wrap gap-3" role="search" @submit.prevent>
+      <form
+        class="surface-shadow mt-8 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900"
+        @submit.prevent="saveCommissionStatus"
+      >
+        <div class="flex flex-wrap items-end gap-4">
+          <div class="min-w-44 flex-1">
+            <label for="commission-status-select" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
+              {{ text.setting.commissionStatusTitle }}
+            </label>
+            <select
+              id="commission-status-select"
+              v-model="commissionStatusValue"
+              class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
+            >
+              <option v-for="option in COMMISSION_STATUSES" :key="option" :value="option">
+                {{ text.home.commissionStatuses[option] }}
+              </option>
+            </select>
+          </div>
+          <div class="w-28">
+            <label for="slots-open" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
+              {{ text.setting.slotsOpenLabel }}
+            </label>
+            <input
+              id="slots-open"
+              v-model.number="slotsOpenInput"
+              type="number"
+              min="0"
+              max="99"
+              class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
+            />
+          </div>
+          <div class="w-28">
+            <label for="slots-total" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
+              {{ text.setting.slotsTotalLabel }}
+            </label>
+            <input
+              id="slots-total"
+              v-model.number="slotsTotalInput"
+              type="number"
+              min="0"
+              max="99"
+              class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
+            />
+          </div>
+          <button
+            type="submit"
+            :disabled="statusSaving"
+            class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+          >
+            {{
+              statusSaving
+                ? text.setting.savingStatus
+                : statusSaved
+                  ? text.setting.savedStatus
+                  : text.setting.saveStatus
+            }}
+          </button>
+        </div>
+        <p v-if="statusError" role="alert" class="mt-3 text-sm text-red-700 dark:text-red-400">
+          {{ statusError }}
+        </p>
+      </form>
+
+      <form class="mt-6 flex flex-wrap gap-3" role="search" @submit.prevent>
         <label for="board-search" class="sr-only">{{ text.setting.searchBoards }}</label>
         <div class="relative min-w-48 flex-1">
           <Search
