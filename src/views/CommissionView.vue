@@ -447,7 +447,7 @@ onUnmounted(() => {
         <span aria-hidden="true" class="flex size-16 items-center justify-center rounded-2xl bg-orange-100 text-orange-700 dark:bg-zinc-800 dark:text-orange-300">
           <FileText :size="30" />
         </span>
-        <h1 id="page-title" class="mt-6 font-bagel-fat-one text-4xl tracking-tight text-zinc-950 sm:text-5xl dark:text-zinc-50">
+        <h1 id="page-title" class="mt-6 font-sniglet text-4xl tracking-tight text-zinc-950 sm:text-5xl dark:text-zinc-50">
           {{ text.home.noActiveBoardTitle }}
         </h1>
         <p class="mt-3 max-w-sm leading-7 text-zinc-600 dark:text-zinc-300">{{ text.home.noActiveBoardDescription }}</p>
