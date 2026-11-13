@@ -48,14 +48,14 @@ async function signIn() {
 
       <div class="form-wrap">
         <template v-if="checkingSession">
-          <p class="eyebrow">ARTIST'S CORNER</p>
+          <p class="eyebrow">Account access</p>
           <h1 id="page-title">One little moment<span class="heading-dot">.</span></h1>
           <p class="intro" role="status">Checking your session…</p>
         </template>
         <template v-else>
-          <p class="eyebrow">ARTIST'S CORNER</p>
-          <h1 id="page-title">Hello again<span class="heading-dot">!</span></h1>
-          <p class="intro">Sign in to manage your commission progress.</p>
+          <p class="eyebrow">Account access</p>
+          <h1 id="page-title">Welcome back, febrianthomas<span class="heading-dot">.</span></h1>
+          <p class="intro">Only febrianthomas can sign in.</p>
           <p v-if="!supabase" class="error" role="alert">Supabase isn’t configured yet. Add your project URL and publishable key to <code>.env.local</code>.</p>
           <form @submit.prevent="signIn">
             <div class="field"><label for="email">Email address</label><input id="email" v-model="email" type="email" autocomplete="email" placeholder="you@example.com" required /></div>
