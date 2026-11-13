@@ -1,7 +1,16 @@
 <script setup lang="ts">
+import { onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useLanguage } from '../composables/useLanguage'
+import { supabase } from '../supabase'
 
 const { text } = useLanguage()
+const router = useRouter()
+
+const subscription = supabase?.auth.onAuthStateChange((_event, session) => {
+  if (!session) void router.replace('/')
+})
+onUnmounted(() => subscription?.data.subscription.unsubscribe())
 </script>
 
 <template>
