@@ -178,10 +178,21 @@ function cardsForBoard(boardId: string): KanbanCard[] {
   return cards.value.filter((card) => card.boardId === boardId)
 }
 
-function cardStatusLabel(board: KanbanBoard): string {
-  return board.is_backlog
-    ? text.value.setting.backlogStatus
-    : (text.value.home.stages[0]?.label ?? 'To do')
+function cardStatusLabel(board: KanbanBoard, card: KanbanCard): string {
+  if (board.is_backlog) return text.value.setting.backlogStatus
+  return (
+    text.value.home.stages.find((stage) => stage.number === card.stageNumber)?.label ??
+    text.value.home.stages[0]?.label ??
+    'To do'
+  )
+}
+
+function cardProgress(board: KanbanBoard, card: KanbanCard): number {
+  if (board.is_backlog) return 0
+  const stages = text.value.home.stages
+  const index = stages.findIndex((stage) => stage.number === card.stageNumber)
+  if (index <= 0) return 0
+  return Math.round((index / Math.max(stages.length - 1, 1)) * 100)
 }
 
 const subscription = supabase?.auth.onAuthStateChange((_event, session) => {
@@ -1323,7 +1334,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
 
                   <div class="flex shrink-0 items-center gap-2">
                     <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                      {{ cardStatusLabel(board) }} · 0%
+                      {{ cardStatusLabel(board, card) }} · {{ cardProgress(board, card) }}%
                     </span>
 
                     <div class="flex items-center gap-1">
