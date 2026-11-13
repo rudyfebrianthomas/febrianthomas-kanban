@@ -880,7 +880,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
 <template>
   <main class="flex flex-1 flex-col px-6 sm:px-10">
     <section
-      class="flex w-full flex-1 flex-col py-12 sm:py-16"
+      class="mx-auto flex w-full max-w-5xl flex-1 flex-col py-12 sm:py-16"
       aria-labelledby="page-title"
     >
       <div class="flex flex-wrap items-end justify-between gap-4">
