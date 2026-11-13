@@ -59,7 +59,6 @@
     "saveError": "Could not save the card. Check that you’re signed in with the site owner account and try again.",
     "tagsInvalid": "Use up to 10 tags, up to 400 characters total.",
     "progressLabel": "Progress",
-    "selectBoard": "Select board",
     "editCard": "Edit card",
     "editCardTitle": "Edit card",
     "editCardDescription": "Tweak this commission card—update the details or swap its artwork.",
@@ -213,7 +212,6 @@
     "donations": {
       "title": "Support My Work.",
       "description": "If you enjoy what I create, you can support me here.",
-      "unavailable": "Coming soon",
       "enabled": "Visible",
       "disabled": "Hidden",
       "settingsError": "Could not load or save support button settings. Please try again later.",

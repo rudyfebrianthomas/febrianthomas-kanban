@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Check, FileText, Pencil, Plus, Search, Trash2, UploadCloud, X } from '@lucide/vue'
+import { Check, FileText, Pencil, Plus, Search, Trash2, X } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import {
   AlertDialogCancel,
@@ -22,16 +22,20 @@ import {
 import {
   COMMISSION_STATUSES,
   COMMISSION_STATUS_STYLES,
-  COMMISSION_TYPES,
   type CommissionStatusValue,
-  type CommissionType,
   fetchCommissionStatus,
 } from '../commissionStatus'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
+import KanbanCardFormDialog from '../components/KanbanCardFormDialog.vue'
 import SelectField from '../components/SelectField.vue'
 import { useLanguage } from '../composables/useLanguage'
-import { kanbanImageExtension, optimizeKanbanImage } from '../kanbanImage'
-import { stageStyle } from '../kanbanStage'
+import {
+  type KanbanCard,
+  type KanbanCardRow,
+  deleteKanbanCard,
+  toKanbanCard,
+} from '../kanbanCard'
+import { stageLabel, stageProgress } from '../kanbanStage'
 import { supabase } from '../supabase'
 
 interface KanbanBoard {
@@ -43,32 +47,7 @@ interface KanbanBoard {
   created_at?: string
 }
 
-interface KanbanCard {
-  id: string
-  boardId: string
-  stageNumber: string
-  commissionType: CommissionType
-  title: string
-  description: string
-  requestors: string[]
-  imagePath: string | null
-  imageUrl?: string
-}
-
-interface KanbanCardRow {
-  id: string
-  board_id: string
-  stage_number: string
-  commission_type: CommissionType
-  title: string
-  description: string
-  requestors: string[]
-  image_path: string | null
-}
-
 const BACKLOG_BOARD_ID = '00000000-0000-0000-0000-000000000000'
-const cardFieldClass =
-  'mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-base text-zinc-950 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-300'
 
 const { text } = useLanguage()
 const router = useRouter()
@@ -109,21 +88,8 @@ const switchPending = ref(false)
 const switchError = ref('')
 
 const cardDialogOpen = ref(false)
-const cardDialogPending = ref(false)
 const targetCardBoard = ref<KanbanBoard | null>(null)
 const editingCard = ref<KanbanCard | null>(null)
-const removeExistingImage = ref(false)
-const cardStageNumber = ref('01')
-const cardCommissionType = ref<CommissionType>('Illustration')
-const cardTitle = ref('')
-const cardDescription = ref('')
-const requestorInput = ref('')
-const imageFile = ref<File | null>(null)
-const previewUrl = ref('')
-const draggingFile = ref(false)
-const cardError = ref('')
-const imageError = ref('')
-const fileInput = ref<HTMLInputElement | null>(null)
 
 const selectedCardIds = ref<string[]>([])
 const draggingCardIds = ref<string[]>([])
@@ -164,19 +130,6 @@ const filteredBoards = computed(() => {
   })
 })
 
-const commissionTypeOptions = computed(() =>
-  COMMISSION_TYPES.map((typeOption) => ({
-    value: typeOption,
-    label: text.value.home.commissionTypes[typeOption],
-  })),
-)
-const stageOptions = computed(() =>
-  text.value.home.stages.map((stage) => ({
-    value: stage.number,
-    label: stage.label,
-    dotClass: stageStyle(stage.number).dot,
-  })),
-)
 const commissionStatusOptions = computed(() =>
   COMMISSION_STATUSES.map((option) => ({
     value: option,
@@ -190,40 +143,6 @@ const boardFilterOptions = computed<{ value: BoardFilter; label: string }[]>(() 
   { value: 'inactive', label: text.value.setting.filterInactive },
   { value: 'completed', label: text.value.setting.filterCompleted },
 ])
-
-const previewTags = computed(() => parseTags(requestorInput.value))
-const activeImagePreviewUrl = computed(() => {
-  if (imageFile.value && previewUrl.value) return previewUrl.value
-  if (editingCard.value?.imageUrl && !removeExistingImage.value) return editingCard.value.imageUrl
-  return ''
-})
-
-function parseTags(raw: string): string[] {
-  return [...new Set(raw.split(',').map((item) => item.trim()).filter(Boolean))]
-}
-
-function isValidImage(file: File): boolean {
-  return Boolean(kanbanImageExtension(file))
-}
-
-function kanbanImageUrl(path: string | null): string | undefined {
-  if (!path || !supabase) return undefined
-  return supabase.storage.from('kanban-images').getPublicUrl(path).data.publicUrl
-}
-
-function toKanbanCard(row: KanbanCardRow): KanbanCard {
-  return {
-    id: row.id,
-    boardId: row.board_id,
-    stageNumber: row.stage_number,
-    commissionType: row.commission_type,
-    title: row.title,
-    description: row.description,
-    requestors: row.requestors,
-    imagePath: row.image_path,
-    imageUrl: kanbanImageUrl(row.image_path),
-  }
-}
 
 function cardsForBoard(boardId: string): KanbanCard[] {
   return cards.value.filter((card) => card.boardId === boardId)
@@ -268,19 +187,12 @@ function toggleAllBoardCards(boardId: string) {
 
 function cardStatusLabel(board: KanbanBoard, card: KanbanCard): string {
   if (board.is_backlog) return text.value.setting.backlogStatus
-  return (
-    text.value.home.stages.find((stage) => stage.number === card.stageNumber)?.label ??
-    text.value.home.stages[0]?.label ??
-    'To do'
-  )
+  return stageLabel(card.stageNumber, text.value.home.stages)
 }
 
 function cardProgress(board: KanbanBoard, card: KanbanCard): number {
   if (board.is_backlog) return 0
-  const stages = text.value.home.stages
-  const index = stages.findIndex((stage) => stage.number === card.stageNumber)
-  if (index <= 0) return 0
-  return Math.round((index / Math.max(stages.length - 1, 1)) * 100)
+  return stageProgress(card.stageNumber, text.value.home.stages)
 }
 
 const subscription = supabase?.auth.onAuthStateChange((_event, session) => {
@@ -294,7 +206,6 @@ onMounted(() => {
 onUnmounted(() => {
   subscription?.data.subscription.unsubscribe()
   if (statusSavedTimer) clearTimeout(statusSavedTimer)
-  revokePreview()
   for (const card of cards.value) {
     if (card.imageUrl?.startsWith('blob:')) URL.revokeObjectURL(card.imageUrl)
   }
@@ -637,244 +548,29 @@ async function confirmSwitchActive() {
   }
 }
 
-function revokePreview() {
-  if (previewUrl.value) {
-    URL.revokeObjectURL(previewUrl.value)
-    previewUrl.value = ''
-  }
-}
-
-function selectImage(file: File | null) {
-  revokePreview()
-  if (file && !isValidImage(file)) {
-    imageFile.value = null
-    if (fileInput.value) fileInput.value.value = ''
-    imageError.value = text.value.home.imageInvalid
-    return
-  }
-  imageFile.value = file
-  if (file) {
-    previewUrl.value = URL.createObjectURL(file)
-    removeExistingImage.value = false
-  }
-  imageError.value = ''
-  cardError.value = ''
-}
-
-function onFileChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  selectImage(input.files?.[0] ?? null)
-}
-
-function onDragEnter(event: DragEvent) {
-  if (event.dataTransfer?.types.includes('Files')) draggingFile.value = true
-}
-
-function onDragLeave(event: DragEvent) {
-  const currentTarget = event.currentTarget as HTMLElement | null
-  const related = event.relatedTarget as Node | null
-  if (!related || !currentTarget?.contains(related)) draggingFile.value = false
-}
-
-function onFileDrop(event: DragEvent) {
-  draggingFile.value = false
-  const files = event.dataTransfer?.files
-  if (!files || files.length !== 1) {
-    selectImage(null)
-    imageError.value = text.value.home.imageSingle
-    return
-  }
-  if (fileInput.value) fileInput.value.value = ''
-  selectImage(files[0] ?? null)
-}
-
-function clearImage() {
-  if (fileInput.value) fileInput.value.value = ''
-  selectImage(null)
-  if (editingCard.value) removeExistingImage.value = true
-}
-
-function resetCardForm() {
-  targetCardBoard.value = null
-  editingCard.value = null
-  removeExistingImage.value = false
-  cardStageNumber.value = text.value.home.stages[0]?.number ?? '01'
-  cardCommissionType.value = 'Illustration'
-  cardTitle.value = ''
-  cardDescription.value = ''
-  requestorInput.value = ''
-  draggingFile.value = false
-  cardError.value = ''
-  imageError.value = ''
-  if (fileInput.value) fileInput.value.value = ''
-  imageFile.value = null
-  revokePreview()
-}
-
 function openAddCard(board: KanbanBoard) {
-  resetCardForm()
   targetCardBoard.value = board
+  editingCard.value = null
   cardDialogOpen.value = true
 }
 
 function openEditCard(card: KanbanCard, board: KanbanBoard) {
-  resetCardForm()
   targetCardBoard.value = board
   editingCard.value = card
-  cardStageNumber.value = card.stageNumber
-  cardCommissionType.value = card.commissionType
-  cardTitle.value = card.title
-  cardDescription.value = card.description
-  requestorInput.value = card.requestors.join(', ')
   cardDialogOpen.value = true
 }
 
-function onCardDialogOpenChange(open: boolean) {
-  if (cardDialogPending.value) return
-  cardDialogOpen.value = open
-  if (!open) resetCardForm()
-}
-
-async function submitCard() {
-  const board = targetCardBoard.value
-  if (cardDialogPending.value || imageError.value || !board) return
-
-  const trimmedTitle = cardTitle.value.trim()
-  const trimmedDescription = cardDescription.value.trim()
-  const requestors = parseTags(requestorInput.value)
-
-  if (!trimmedTitle || !trimmedDescription || requestors.length === 0) {
-    cardError.value = text.value.home.requiredFields
-    return
-  }
-  if (requestors.length > 10 || requestors.join(',').length > 400) {
-    cardError.value = text.value.home.tagsInvalid
-    return
-  }
-
-  const editing = editingCard.value
-  const stageNumber = board.is_backlog
-    ? editing?.stageNumber ?? text.value.home.stages[0]?.number ?? '01'
-    : cardStageNumber.value
-
-  if (!supabase) {
-    if (editing) {
-      const nextUrl = imageFile.value
-        ? URL.createObjectURL(imageFile.value)
-        : removeExistingImage.value
-          ? undefined
-          : editing.imageUrl
-      if ((imageFile.value || removeExistingImage.value) && editing.imageUrl?.startsWith('blob:')) {
-        URL.revokeObjectURL(editing.imageUrl)
-      }
-      editing.stageNumber = stageNumber
-      editing.commissionType = cardCommissionType.value
-      editing.title = trimmedTitle
-      editing.description = trimmedDescription
-      editing.requestors = requestors
-      editing.imageUrl = nextUrl
-    } else {
-      const cardImageUrl = imageFile.value ? URL.createObjectURL(imageFile.value) : undefined
-      cards.value.push({
-        id: crypto.randomUUID(),
-        boardId: board.id,
-        stageNumber,
-        commissionType: cardCommissionType.value,
-        title: trimmedTitle,
-        description: trimmedDescription,
-        requestors,
-        imagePath: null,
-        imageUrl: cardImageUrl,
-      })
-    }
-    cardDialogOpen.value = false
-    resetCardForm()
-    return
-  }
-
-  cardDialogPending.value = true
-  cardError.value = ''
-  let uploadedPath: string | null = null
-  try {
-    if (imageFile.value) {
-      const optimized = await optimizeKanbanImage(imageFile.value)
-      const ext = kanbanImageExtension(optimized)
-      if (!ext) throw new Error('Invalid image')
-      uploadedPath = `${crypto.randomUUID()}.${ext}`
-      const { error: uploadError } = await supabase.storage
-        .from('kanban-images')
-        .upload(uploadedPath, optimized, { contentType: optimized.type, upsert: false })
-      if (uploadError) {
-        uploadedPath = null
-        throw uploadError
-      }
-    }
-
-    if (editing) {
-      const oldImagePath = editing.imagePath
-      const nextImagePath = uploadedPath ?? (removeExistingImage.value ? null : oldImagePath)
-      const { data, error: updateError } = await supabase
-        .from('kanban_cards')
-        .update({
-          stage_number: stageNumber,
-          commission_type: cardCommissionType.value,
-          title: trimmedTitle,
-          description: trimmedDescription,
-          requestors,
-          image_path: nextImagePath,
-        })
-        .eq('id', editing.id)
-        .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path')
-        .single()
-
-      if (updateError) throw updateError
-      const updated = toKanbanCard(data as KanbanCardRow)
-      const index = cards.value.findIndex((item) => item.id === updated.id)
-      if (index !== -1) cards.value[index] = updated
-      if (oldImagePath && (uploadedPath || removeExistingImage.value)) {
-        await supabase.storage.from('kanban-images').remove([oldImagePath]).catch(() => {})
-      }
-    } else {
-      const { data, error: insertError } = await supabase
-        .from('kanban_cards')
-        .insert({
-          board_id: board.id,
-          stage_number: stageNumber,
-          commission_type: cardCommissionType.value,
-          title: trimmedTitle,
-          description: trimmedDescription,
-          requestors,
-          image_path: uploadedPath,
-        })
-        .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path')
-        .single()
-
-      if (insertError) throw insertError
-      cards.value.push(toKanbanCard(data as KanbanCardRow))
-    }
-
-    cardDialogOpen.value = false
-    resetCardForm()
-  } catch {
-    if (uploadedPath) {
-      await supabase.storage.from('kanban-images').remove([uploadedPath]).catch(() => {})
-    }
-    cardError.value = text.value.home.saveError
-  } finally {
-    cardDialogPending.value = false
+function onCardSaved(savedCard: KanbanCard, isEdit: boolean) {
+  if (isEdit) {
+    const index = cards.value.findIndex((item) => item.id === savedCard.id)
+    if (index !== -1) cards.value[index] = savedCard
+  } else {
+    cards.value.push(savedCard)
   }
 }
 
 async function deleteCard(card: KanbanCard) {
-  if (supabase) {
-    const { error: deleteError } = await supabase.from('kanban_cards').delete().eq('id', card.id)
-    if (deleteError) throw deleteError
-    if (card.imagePath) {
-      await supabase.storage.from('kanban-images').remove([card.imagePath]).catch(() => {})
-    }
-  } else if (card.imageUrl?.startsWith('blob:')) {
-    URL.revokeObjectURL(card.imageUrl)
-  }
+  await deleteKanbanCard(card)
   selectedCardIds.value = selectedCardIds.value.filter((id) => id !== card.id)
   cards.value = cards.value.filter((item) => item.id !== card.id)
 }
@@ -1108,205 +804,14 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
         </DialogPortal>
       </DialogRoot>
 
-      <DialogRoot :open="cardDialogOpen" @update:open="onCardDialogOpenChange">
-        <DialogPortal>
-          <DialogOverlay class="fixed inset-0 z-60 bg-zinc-950/50" />
-          <div class="pointer-events-none fixed inset-0 z-70 flex items-center justify-center p-4 sm:p-6">
-            <DialogContent as-child>
-              <motion.div
-                data-lenis-prevent
-                :initial="prefersReducedMotion ? false : { opacity: 0, scale: 0.97, y: 8 }"
-                :animate="{ opacity: 1, scale: 1, y: 0 }"
-                :transition="{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }"
-                class="surface-shadow pointer-events-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 text-zinc-950 focus:outline-none sm:p-8 dark:bg-zinc-900 dark:text-zinc-50"
-              >
-                <div class="flex items-start justify-between gap-4">
-                  <DialogTitle class="text-3xl font-bold tracking-tight sm:text-4xl">
-                    {{ editingCard ? text.home.editCardTitle : text.home.createCardTitle }}
-                  </DialogTitle>
-                  <DialogClose as-child>
-                    <button
-                      type="button"
-                      :disabled="cardDialogPending"
-                      :aria-label="text.home.close"
-                      class="flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 dark:hover:bg-zinc-800"
-                    >
-                      <X :size="20" aria-hidden="true" />
-                    </button>
-                  </DialogClose>
-                </div>
-                <DialogDescription class="mt-3 text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">
-                  {{ editingCard ? text.home.editCardDescription : text.home.createCardDescription }}
-                </DialogDescription>
-
-                <form class="mt-7 space-y-5" @submit.prevent="submitCard">
-                  <div>
-                    <label for="setting-card-title" class="block text-sm">{{ text.home.titleLabel }}</label>
-                    <input
-                      id="setting-card-title"
-                      v-model="cardTitle"
-                      type="text"
-                      required
-                      maxlength="120"
-                      :class="cardFieldClass"
-                    />
-                  </div>
-
-                  <div>
-                    <label for="setting-card-commission-type" class="block text-sm">
-                      {{ text.home.commissionTypeLabel }}
-                    </label>
-                    <SelectField
-                      id="setting-card-commission-type"
-                      v-model="cardCommissionType"
-                      :options="commissionTypeOptions"
-                      size="lg"
-                      required
-                    />
-                  </div>
-
-                  <div v-if="targetCardBoard && !targetCardBoard.is_backlog">
-                    <label for="setting-card-stage" class="block text-sm">{{ text.home.stageLabel }}</label>
-                    <SelectField
-                      id="setting-card-stage"
-                      v-model="cardStageNumber"
-                      :options="stageOptions"
-                      size="lg"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label for="setting-card-description" class="block text-sm">
-                      {{ text.home.descriptionLabel }}
-                    </label>
-                    <textarea
-                      id="setting-card-description"
-                      v-model="cardDescription"
-                      rows="3"
-                      required
-                      maxlength="240"
-                      :class="cardFieldClass"
-                    />
-                  </div>
-
-                  <div>
-                    <label for="setting-card-requestor" class="block text-sm">
-                      {{ text.home.requestorLabel }}
-                    </label>
-                    <input
-                      id="setting-card-requestor"
-                      v-model="requestorInput"
-                      type="text"
-                      required
-                      :class="cardFieldClass"
-                    />
-                    <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{{ text.home.requestorHelp }}</p>
-                    <div v-if="previewTags.length" class="mt-2.5 flex flex-wrap gap-1.5">
-                      <span
-                        v-for="tag in previewTags"
-                        :key="tag"
-                        class="rounded-full bg-orange-100 px-3 py-1 text-xs text-orange-800 dark:bg-zinc-800 dark:text-orange-200"
-                      >
-                        {{ tag }}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label for="setting-card-image" class="block text-sm">{{ text.home.imageLabel }}</label>
-                    <input
-                      id="setting-card-image"
-                      ref="fileInput"
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/gif"
-                      :aria-describedby="imageError ? 'setting-card-image-error' : 'setting-card-image-help'"
-                      :aria-invalid="Boolean(imageError)"
-                      class="sr-only"
-                      @change="onFileChange"
-                    />
-                    <div
-                      v-if="!activeImagePreviewUrl"
-                      role="button"
-                      tabindex="0"
-                      :class="[
-                        'mt-2 flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-6 py-8 text-center transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:focus-visible:outline-zinc-100',
-                        imageError
-                          ? 'border-red-500 bg-red-50/40 dark:border-red-400 dark:bg-red-950/20'
-                          : draggingFile
-                            ? 'border-zinc-900 bg-zinc-100 dark:border-zinc-100 dark:bg-zinc-800'
-                            : 'border-zinc-300 bg-zinc-50 hover:border-zinc-500 hover:bg-zinc-100/70 dark:border-zinc-600 dark:bg-zinc-800/50 dark:hover:border-zinc-400 dark:hover:bg-zinc-800',
-                      ]"
-                      @click="fileInput?.click()"
-                      @keydown.enter.prevent="fileInput?.click()"
-                      @keydown.space.prevent="fileInput?.click()"
-                      @dragenter="onDragEnter"
-                      @dragover.prevent="onDragEnter"
-                      @dragleave="onDragLeave"
-                      @drop.prevent="onFileDrop"
-                    >
-                      <UploadCloud :size="26" class="text-zinc-500 dark:text-zinc-300" aria-hidden="true" />
-                      <p class="mt-3 text-sm text-zinc-950 dark:text-zinc-50">
-                        <span class="underline underline-offset-4">{{ text.home.chooseImage }}</span>
-                        <span class="text-zinc-600 dark:text-zinc-300"> {{ text.home.dropImage }}</span>
-                      </p>
-                      <p id="setting-card-image-help" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        {{ text.home.imageHelp }}
-                      </p>
-                    </div>
-                    <div
-                      v-else
-                      class="mt-2 flex flex-wrap items-center gap-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-700"
-                    >
-                      <img
-                        :src="activeImagePreviewUrl"
-                        :alt="text.home.imagePreview"
-                        class="size-20 rounded-xl bg-zinc-100 object-cover dark:bg-zinc-800"
-                      />
-                      <div class="min-w-0 flex-1">
-                        <p v-if="imageFile" class="truncate text-sm">{{ imageFile.name }}</p>
-                        <button
-                          type="button"
-                          class="mt-1 text-sm text-zinc-600 underline hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-zinc-50"
-                          @click="clearImage"
-                        >
-                          {{ text.home.removeImage }}
-                        </button>
-                      </div>
-                    </div>
-                    <p
-                      v-if="imageError"
-                      id="setting-card-image-error"
-                      role="alert"
-                      class="mt-2 text-sm text-red-700 dark:text-red-400"
-                    >
-                      {{ imageError }}
-                    </p>
-                  </div>
-
-                  <p v-if="cardError" role="alert" class="text-sm text-red-700 dark:text-red-400">{{ cardError }}</p>
-
-                  <motion.button
-                    type="submit"
-                    :disabled="cardDialogPending"
-                    :while-tap="prefersReducedMotion ? undefined : { scale: 0.98 }"
-                    :transition="{ duration: 0.14 }"
-                    class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
-                  >
-                    {{
-                      cardDialogPending
-                        ? text.home.savingCard
-                        : editingCard
-                          ? text.home.saveChanges
-                          : text.home.submitCard
-                    }}
-                  </motion.button>
-                </form>
-              </motion.div>
-            </DialogContent>
-          </div>
-        </DialogPortal>
-      </DialogRoot>
+      <KanbanCardFormDialog
+        v-model:open="cardDialogOpen"
+        :board-id="targetCardBoard?.id ?? ''"
+        :card="editingCard"
+        :show-stage="!(targetCardBoard?.is_backlog ?? false)"
+        id-prefix="setting-card"
+        @saved="onCardSaved"
+      />
 
       <AlertDialogRoot :open="switchDialogOpen" @update:open="onSwitchDialogOpenChange">
         <AlertDialogPortal>

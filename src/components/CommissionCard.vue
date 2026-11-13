@@ -1,24 +1,12 @@
 <script setup lang="ts">
 import { ChevronLeft, ChevronRight, Pencil, Trash2 } from '@lucide/vue'
-import { type CommissionType } from '../commissionStatus'
 import { useLanguage } from '../composables/useLanguage'
+import { type KanbanCard } from '../kanbanCard'
 import { stageStyle } from '../kanbanStage'
 import ConfirmDialog from './ConfirmDialog.vue'
 
-export interface DisplayCard {
-  id: string
-  stageNumber: string
-  commissionType: CommissionType
-  title: string
-  description: string
-  requestors: string[]
-  imageUrl?: string
-  createdAt?: string
-  updatedAt?: string | null
-}
-
 const props = defineProps<{
-  card: DisplayCard
+  card: KanbanCard
   editable?: boolean
   dragging?: boolean
   canMovePrev?: boolean

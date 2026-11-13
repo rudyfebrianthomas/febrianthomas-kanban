@@ -5,7 +5,8 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { type CommissionStatus, type CommissionType, fetchCommissionStatus } from '../commissionStatus'
 import CommissionStatusBadge from '../components/CommissionStatusBadge.vue'
 import { useLanguage } from '../composables/useLanguage'
-import { stageProgress, stageStyle } from '../kanbanStage'
+import { kanbanImageUrl, latestTimestamp } from '../kanbanCard'
+import { stageLabel, stageProgress, stageStyle } from '../kanbanStage'
 import { supabase } from '../supabase'
 
 interface ActiveBoardSummary {
@@ -68,13 +69,8 @@ function sayHi() {
   }, 2000)
 }
 
-function stageLabel(stageNumber: string): string {
-  return text.value.home.stages.find((stage) => stage.number === stageNumber)?.label ?? ''
-}
-
-function cardImageUrl(path: string | null): string | undefined {
-  if (!path || !supabase) return undefined
-  return supabase.storage.from('kanban-images').getPublicUrl(path).data.publicUrl
+function getStageLabel(stageNumber: string): string {
+  return stageLabel(stageNumber, text.value.home.stages)
 }
 
 onMounted(async () => {
@@ -107,8 +103,8 @@ onMounted(async () => {
       title: row.title,
       description: row.description,
       requestors: row.requestors,
-      imageUrl: cardImageUrl(row.image_path),
-      sortTime: Date.parse(row.updated_at ?? row.created_at ?? '') || 0,
+      imageUrl: kanbanImageUrl(row.image_path),
+      sortTime: latestTimestamp(row.updated_at, row.created_at),
     }))
   } finally {
     if (active) previewLoading.value = false
@@ -322,7 +318,7 @@ onUnmounted(() => {
             </p>
             <div class="mt-auto pt-3">
               <div class="flex items-center justify-between gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-                <span>{{ stageLabel(card.stageNumber) }}</span>
+                <span>{{ getStageLabel(card.stageNumber) }}</span>
                 <span>{{ stageProgress(card.stageNumber, text.home.stages) }}%</span>
               </div>
               <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">

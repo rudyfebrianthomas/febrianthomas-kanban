@@ -59,7 +59,6 @@
     "saveError": "Kartunya belum bisa disimpan. Pastikan kamu masuk pakai akun pemilik situs, lalu coba lagi.",
     "tagsInvalid": "Gunakan maksimal 10 tag, total maksimal 400 karakter.",
     "progressLabel": "Progres",
-    "selectBoard": "Pilih papan",
     "editCard": "Edit kartu",
     "editCardTitle": "Edit kartu",
     "editCardDescription": "Rapikan detail kartu komisi ini atau ganti gambarnya sekalian.",
@@ -213,7 +212,6 @@
     "donations": {
       "title": "Dukung Karyaku.",
       "description": "Suka sama karyaku? Kamu bisa support aku lewat sini!",
-      "unavailable": "Coming soon",
       "enabled": "Tampil",
       "disabled": "Tersembunyi",
       "settingsError": "Pengaturan tombol support belum bisa dimuat atau disimpan. Coba lagi nanti, ya.",

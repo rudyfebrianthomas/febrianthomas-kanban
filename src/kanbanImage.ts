@@ -5,7 +5,7 @@ const imageExtensions: Record<string, string> = {
   'image/gif': 'gif',
 }
 
-export const maxKanbanImageSize = 5 * 1024 * 1024
+const maxKanbanImageSize = 5 * 1024 * 1024
 
 export function kanbanImageExtension(file: Pick<File, 'type' | 'size'>): string | null {
   if (file.size <= 0 || file.size > maxKanbanImageSize || !Object.hasOwn(imageExtensions, file.type)) return null

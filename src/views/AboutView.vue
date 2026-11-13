@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Image as ImageIcon } from '@lucide/vue'
-import { siInstagram, siThreads, siTiktok, siTwitch, siX, siYoutube } from 'simple-icons'
 import { motion, useReducedMotion } from 'motion-v'
 import { useLanguage } from '../composables/useLanguage'
+import { socials as socialCatalog } from '../data/socials'
 import { supabase } from '../supabase'
 
 interface AboutItem {
@@ -25,38 +25,12 @@ type SupportStatus = Partial<Record<ButtonId, boolean>>
 const { text } = useLanguage()
 const reducedMotion = useReducedMotion()
 
-const socials = computed(() => [
-  {
-    ...text.value.about.socials.instagram,
-    icon: siInstagram,
-    color: 'bg-pink-100 text-pink-700 dark:bg-pink-200 dark:text-pink-800',
-  },
-  {
-    ...text.value.about.socials.threads,
-    icon: siThreads,
-    color: 'bg-zinc-200 text-zinc-950 dark:bg-zinc-100 dark:text-zinc-950',
-  },
-  {
-    ...text.value.about.socials.twitter,
-    icon: siX,
-    color: 'bg-zinc-200 text-zinc-950 dark:bg-zinc-100 dark:text-zinc-950',
-  },
-  {
-    ...text.value.about.socials.tiktok,
-    icon: siTiktok,
-    color: 'bg-cyan-100 text-zinc-950 dark:bg-cyan-200 dark:text-zinc-950',
-  },
-  {
-    ...text.value.about.socials.youtube,
-    icon: siYoutube,
-    color: 'bg-red-100 text-red-700 dark:bg-red-200 dark:text-red-800',
-  },
-  {
-    ...text.value.about.socials.twitch,
-    icon: siTwitch,
-    color: 'bg-violet-100 text-violet-700 dark:bg-violet-200 dark:text-violet-800',
-  },
-])
+const socials = computed(() =>
+  socialCatalog.map((item) => ({
+    ...item,
+    ...text.value.about.socials[item.key],
+  })),
+)
 
 const sections = computed<AboutSection[]>(() => [text.value.about.software, text.value.about.tools])
 
@@ -151,7 +125,7 @@ function visibleSupportButtons(status: SupportStatus): ButtonId[] {
               :title="social.name"
               :while-hover="reducedMotion ? undefined : { y: -4, rotate: index % 2 ? 8 : -8, scale: 1.12 }"
               :transition="{ type: 'spring', duration: 0.3, bounce: 0.2 }"
-              :class="`inline-flex size-12 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 ${social.color}`"
+              :class="`inline-flex size-12 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 ${social.colorClass}`"
             >
               <svg aria-hidden="true" viewBox="0 0 24 24" class="size-6 fill-current"><path :d="social.icon.path" /></svg>
             </motion.a>
@@ -162,7 +136,7 @@ function visibleSupportButtons(status: SupportStatus): ButtonId[] {
               :title="social.name"
               :while-hover="reducedMotion ? undefined : { y: -4, rotate: index % 2 ? 8 : -8, scale: 1.12 }"
               :transition="{ type: 'spring', duration: 0.3, bounce: 0.2 }"
-              :class="`inline-flex size-12 items-center justify-center rounded-full ${social.color}`"
+              :class="`inline-flex size-12 items-center justify-center rounded-full ${social.colorClass}`"
             >
               <svg aria-hidden="true" viewBox="0 0 24 24" class="size-6 fill-current"><path :d="social.icon.path" /></svg>
             </motion.span>

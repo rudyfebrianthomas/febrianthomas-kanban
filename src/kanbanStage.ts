@@ -43,6 +43,13 @@ export function stageStyle(stageNumber: string): StageStyle {
   return STAGE_STYLES[stageNumber] ?? DEFAULT_STAGE_STYLE
 }
 
+export function stageLabel(
+  stageNumber: string,
+  stages: ReadonlyArray<{ number: string; label: string }>,
+): string {
+  return stages.find((stage) => stage.number === stageNumber)?.label ?? ''
+}
+
 export function stageProgress(stageNumber: string, stages: ReadonlyArray<{ number: string }>): number {
   const index = stages.findIndex((stage) => stage.number === stageNumber)
   if (index <= 0) return 0
