@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 
-:root { font-family: 'Trebuchet MS', 'Segoe UI', sans-serif; color: #302e2a; background: #faf8f2; font-synthesis: none; text-rendering: optimizeLegibility; }
+:root { font-family: 'Sniglet', sans-serif; color: #302e2a; background: #faf8f2; font-synthesis: none; text-rendering: optimizeLegibility; }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; }
 button, input { font: inherit; }
@@ -13,7 +13,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a84f3b; outline-
 .brand-dot, .heading-dot { color: #c16f56; }
 .form-wrap { width: 100%; }
 .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .14em; color: #77766c; margin: 0 0 18px; }
-h1 { font-family: Georgia, serif; font-size: clamp(48px, 4.7vw, 66px); line-height: 1.1; letter-spacing: -2.5px; margin: 0; font-weight: 500; }
+h1 { font-family: 'Bagel Fat One', sans-serif; font-size: clamp(48px, 4.7vw, 66px); line-height: 1.1; letter-spacing: -1px; margin: 0; font-weight: 400; }
 .intro { color: #69675f; font-size: 15px; margin: 16px 0 36px; line-height: 1.6; }
 form { display: grid; gap: 21px; }
 .field { display: grid; gap: 9px; }
