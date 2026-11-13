@@ -47,14 +47,15 @@ a.submit { text-decoration: none; }
 .auth-icon { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 10px; color: #303030; background: transparent; }
 .auth-icon:hover { background: #eeeeee; }
 .auth-icon:disabled { opacity: .55; cursor: not-allowed; }
+.header-error { margin: 16px clamp(24px, 5vw, 72px) 0; }
 @media (hover: hover) and (pointer: fine) {
   .site-nav a:hover { background: #eaeaea; }
-  .site-nav a, .auth-icon { transition: background-color 150ms, color 150ms, transform 150ms cubic-bezier(0.23, 1, 0.32, 1); }
-  .site-nav a:hover, .auth-icon:hover:not(:disabled) { transform: translateY(-2px); }
+  .auth-icon { transition: background-color 150ms, color 150ms, transform 150ms cubic-bezier(0.23, 1, 0.32, 1); }
+  .auth-icon:hover:not(:disabled) { transform: translateY(-2px); }
 }
 @media (prefers-reduced-motion: reduce) {
   .site-nav a, .auth-icon { transition: none; }
-  .site-nav a:hover, .auth-icon:hover:not(:disabled) { transform: none; }
+  .auth-icon:hover:not(:disabled) { transform: none; }
 }
 .home-page { min-height: calc(100vh - 80px); display: grid; align-items: center; padding: 64px clamp(24px, 5vw, 72px); }
 .home-content { width: 100%; max-width: 1120px; margin: 0 auto; }

@@ -1,48 +1,12 @@
-﻿<script setup lang="ts">
-import { onUnmounted, ref } from 'vue'
-import { LogIn, LogOut } from '@lucide/vue'
+<script setup lang="ts">
+import SiteHeader from '../components/SiteHeader.vue'
 import { useRoute } from 'vue-router'
-import { supabase } from '../supabase'
 
 const route = useRoute()
-const signedIn = ref(false)
-const checkingSession = ref(!!supabase)
-const loading = ref(false)
-const errorMessage = ref('')
-const subscription = supabase?.auth.onAuthStateChange((_event, session) => {
-  signedIn.value = !!session
-  checkingSession.value = false
-})
-onUnmounted(() => subscription?.data.subscription.unsubscribe())
-
-async function signOut() {
-  if (!supabase || loading.value) return
-  loading.value = true
-  errorMessage.value = ''
-  try {
-    const { error } = await supabase.auth.signOut()
-    if (error) errorMessage.value = error.message
-  } catch {
-    errorMessage.value = 'Could not sign out. Check your connection and try again.'
-  } finally {
-    loading.value = false
-  }
-}
 </script>
 
 <template>
-  <header class="site-header">
-    <RouterLink class="site-name" to="/">febrianthomas kanban</RouterLink>
-    <nav class="site-nav" aria-label="Main navigation">
-      <RouterLink to="/">Home</RouterLink>
-      <RouterLink to="/project">Project</RouterLink>
-      <RouterLink to="/about">About</RouterLink>
-    </nav>
-    <div class="auth-control">
-      <button v-if="signedIn" class="auth-icon" type="button" :disabled="loading" :aria-label="loading ? 'Signing out' : 'Sign out'" :title="loading ? 'Signing out' : 'Sign out'" @click="signOut"><LogOut :size="20" aria-hidden="true" /></button>
-      <RouterLink v-else-if="!checkingSession" class="auth-icon" to="/login" aria-label="Sign in" title="Sign in"><LogIn :size="20" aria-hidden="true" /></RouterLink>
-    </div>
-  </header>
+  <SiteHeader />
   <main class="home-page">
     <section v-if="route.path === '/'" class="home-content" aria-labelledby="page-title">
       <div class="home-heading">
@@ -59,13 +23,11 @@ async function signOut() {
         </div>
         <p class="preview-message">The board is being prepared. Check back soon for updates.</p>
       </div>
-      <p v-if="errorMessage" class="error" role="alert">{{ errorMessage }}</p>
     </section>
     <section v-else class="home-content secondary-page" aria-labelledby="page-title">
       <p class="eyebrow">{{ route.path === '/project' ? 'PROJECT' : 'ABOUT' }}</p>
       <h1 id="page-title">Coming soon<span class="heading-dot">.</span></h1>
       <p class="home-intro">This page is on its way.</p>
-      <p v-if="errorMessage" class="error" role="alert">{{ errorMessage }}</p>
     </section>
   </main>
 </template>
