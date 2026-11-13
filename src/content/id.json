@@ -15,19 +15,19 @@
     "changeLanguage": "Ganti bahasa ke Inggris"
   },
   "home": {
-    "eyebrow": "FEBRIANTHOMAS / KOMISI",
-    "titleLine1": "Tahap demi tahap.",
-    "titleLine2": "Dari sketsa sampai beres.",
-    "intro": "Intip proses ilustrasimu dari sketsa awal sampai kelar!",
-    "boardHeading": "PAPAN KOMISI",
+    "eyebrow": "FEBRIANTHOMAS / COMMISSION",
+    "titleLine1": "Satu per satu.",
+    "titleLine2": "Dari sketsa sampai jadi.",
+    "intro": "Ikuti progres ilustrasimu dari ide awal sampai karya final.",
+    "boardHeading": "PAPAN COMMISSION",
     "comingSoon": "Segera hadir",
-    "stagesLabel": "Tahap komisi",
+    "stagesLabel": "Tahap commission",
     "stages": [
       { "number": "01", "label": "Antrean" },
-      { "number": "02", "label": "Dikerjakan" },
+      { "number": "02", "label": "Lagi dikerjain" },
       { "number": "03", "label": "Selesai" }
     ],
-    "boardMessage": "Papannya lagi disiapkan. Cek lagi nanti buat update terbaru, ya."
+    "boardMessage": "Papannya lagi disiapin, ya. Cek lagi nanti buat lihat updatenya."
   },
   "about": {
     "eyebrow": "Kenalan dulu, yuk",
