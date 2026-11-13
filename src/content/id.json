@@ -48,7 +48,8 @@
     "imageSingle": "Pilih satu gambar sekaligus.",
     "imageInvalid": "Pilih PNG, JPEG, WebP, atau GIF tidak lebih dari 5 MB.",
     "requiredFields": "Isi judul, deskripsi, dan requestor dulu, ya.",
-    "submitCard": "Tambah kartu"
+    "submitCard": "Tambah kartu",
+    "progressLabel": "Progres"
   },
   "about": {
     "eyebrow": "Kenalan dulu, yuk",

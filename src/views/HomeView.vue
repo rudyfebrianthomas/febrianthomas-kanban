@@ -147,8 +147,60 @@ function submitCard() {
   resetForm()
 }
 
+const draggingCardId = ref('')
+const dragOverStage = ref('')
+
 function cardsForStage(stageNumber: string): KanbanCard[] {
   return cards.value.filter((card) => card.stageNumber === stageNumber)
+}
+
+function stageLabel(stageNumber: string): string {
+  return text.value.home.stages.find((stage) => stage.number === stageNumber)?.label ?? ''
+}
+
+function stageProgress(stageNumber: string): number {
+  const stages = text.value.home.stages
+  const index = stages.findIndex((stage) => stage.number === stageNumber)
+  if (index <= 0) return 0
+  return Math.round((index / Math.max(stages.length - 1, 1)) * 100)
+}
+
+function onCardDragStart(cardId: string, event: DragEvent) {
+  draggingCardId.value = cardId
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', cardId)
+  }
+}
+
+function onCardDragEnd() {
+  draggingCardId.value = ''
+  dragOverStage.value = ''
+}
+
+function onColumnDragOver(stageNumber: string, event: DragEvent) {
+  if (!draggingCardId.value) return
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  dragOverStage.value = stageNumber
+}
+
+function onColumnDragLeave(stageNumber: string, event: DragEvent) {
+  if (dragOverStage.value !== stageNumber) return
+  const currentTarget = event.currentTarget as HTMLElement | null
+  const related = event.relatedTarget as Node | null
+  if (!related || !currentTarget?.contains(related)) dragOverStage.value = ''
+}
+
+function onColumnDrop(stageNumber: string, event: DragEvent) {
+  const cardId = draggingCardId.value || event.dataTransfer?.getData('text/plain') || ''
+  onCardDragEnd()
+  if (!cardId) return
+  const index = cards.value.findIndex((card) => card.id === cardId)
+  if (index === -1) return
+  const [card] = cards.value.splice(index, 1)
+  if (!card) return
+  card.stageNumber = stageNumber
+  cards.value.push(card)
 }
 
 onUnmounted(() => {
@@ -327,7 +379,14 @@ onUnmounted(() => {
           <div
             v-for="stage in text.home.stages"
             :key="stage.number"
-            class="flex min-w-60 flex-1 flex-col gap-3 rounded-xl bg-zinc-100 p-4 text-base text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+            :class="[
+              'flex min-w-60 flex-1 flex-col gap-3 rounded-xl p-4 text-base text-zinc-900 transition-colors dark:text-zinc-100',
+              dragOverStage === stage.number ? 'bg-orange-50/60 ring-2 ring-orange-500 dark:bg-zinc-800/80 dark:ring-orange-400' : 'bg-zinc-100 dark:bg-zinc-800',
+            ]"
+            @dragover.prevent="onColumnDragOver(stage.number, $event)"
+            @dragenter.prevent="onColumnDragOver(stage.number, $event)"
+            @dragleave="onColumnDragLeave(stage.number, $event)"
+            @drop.prevent="onColumnDrop(stage.number, $event)"
           >
             <div class="flex items-center gap-3">
               <span class="grid size-8 flex-none place-items-center rounded-full bg-zinc-200 text-xs font-medium text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">
@@ -340,16 +399,42 @@ onUnmounted(() => {
               <article
                 v-for="card in cardsForStage(stage.number)"
                 :key="card.id"
-                class="rounded-2xl bg-white p-4 text-zinc-950 shadow-xs dark:bg-zinc-900 dark:text-zinc-50"
+                draggable="true"
+                :class="[
+                  'cursor-grab rounded-2xl bg-white p-4 text-zinc-950 shadow-xs transition-opacity active:cursor-grabbing dark:bg-zinc-900 dark:text-zinc-50',
+                  draggingCardId === card.id ? 'opacity-50' : '',
+                ]"
+                @dragstart="onCardDragStart(card.id, $event)"
+                @dragend="onCardDragEnd"
               >
                 <img
                   v-if="card.imageUrl"
                   :src="card.imageUrl"
                   :alt="card.title"
+                  draggable="false"
                   class="mb-3 aspect-4/3 w-full rounded-xl bg-zinc-100 object-cover dark:bg-zinc-800"
                 />
                 <h2 class="text-base font-medium">{{ card.title }}</h2>
                 <p class="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{{ card.description }}</p>
+                <div class="mt-3">
+                  <div class="flex items-center justify-between gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                    <span>{{ stageLabel(card.stageNumber) }}</span>
+                    <span>{{ stageProgress(card.stageNumber) }}%</span>
+                  </div>
+                  <div
+                    role="progressbar"
+                    :aria-label="text.home.progressLabel"
+                    :aria-valuenow="stageProgress(card.stageNumber)"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
+                  >
+                    <div
+                      class="h-full rounded-full bg-orange-500 transition-all duration-300 dark:bg-orange-400"
+                      :style="{ width: `${stageProgress(card.stageNumber)}%` }"
+                    />
+                  </div>
+                </div>
                 <div class="mt-3 flex flex-wrap gap-1.5">
                   <span
                     v-for="requestor in card.requestors"

@@ -48,7 +48,8 @@
     "imageSingle": "Choose one image at a time.",
     "imageInvalid": "Choose a PNG, JPEG, WebP, or GIF no larger than 5 MB.",
     "requiredFields": "Please fill in title, description, and requestor.",
-    "submitCard": "Add card"
+    "submitCard": "Add card",
+    "progressLabel": "Progress"
   },
   "about": {
     "eyebrow": "A little introduction",
