@@ -1,8 +1,12 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useLanguage } from '../composables/useLanguage'
 import { socials } from '../data/socials'
 
+const { text } = useLanguage()
 const year = new Date().getFullYear()
 const starters = ['bulba', 'ivy', 'venu']
+const copyright = computed(() => text.value.site.copyright.replace(/\d{4}/, String(year)))
 </script>
 
 <template>
@@ -10,12 +14,12 @@ const starters = ['bulba', 'ivy', 'venu']
     <div class="mx-auto max-w-6xl py-6 text-center sm:text-left">
       <div class="flex w-full flex-col items-center gap-4 sm:flex-row sm:justify-between">
         <div class="flex flex-wrap items-center justify-center gap-3">
-          <span class="text-sm text-zinc-500">© febrianthomas - {{ year }}</span>
+          <span class="text-sm text-zinc-500">{{ copyright }}</span>
           <div class="flex items-end gap-1" aria-hidden="true">
             <img v-for="name in starters" :key="name" :src="`/images/${name}.gif`" alt="" width="32" height="32" class="size-8 object-contain" />
           </div>
         </div>
-        <nav aria-label="Social profiles" class="flex flex-wrap justify-center gap-2">
+        <nav :aria-label="text.about.socialLabel" class="flex flex-wrap justify-center gap-2">
           <a
             v-for="social in socials"
             :key="social.name"

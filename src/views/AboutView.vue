@@ -1,52 +1,36 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { motion, useReducedMotion } from 'motion-v'
+import { useLanguage } from '../composables/useLanguage'
 import { socials } from '../data/socials'
 
+const { text } = useLanguage()
 const reducedMotion = useReducedMotion()
 
-const sections = [
-  {
-    title: 'Software I use',
-    items: [
-      { name: 'Adobe Animate CC', image: '/images/icons/an.png' },
-      { name: 'Adobe Audition CC', image: '/images/icons/au.png' },
-      { name: 'Clip Studio Paint EX', image: '/images/icons/csp.png' },
-      { name: 'My small brain', image: '/images/icons/brain.png' },
-      { name: 'DaVinci Resolve', image: '/images/icons/dr.png' },
-      { name: 'OBS Studio', image: '/images/icons/obs.png' },
-    ],
-  },
-  {
-    title: 'Tools I use',
-    items: [
-      { name: 'XP Pen Artist 13.3 Pro', image: '/images/icons/xppen.png' },
-      {
-        name: 'PC',
-        image: '/images/icons/pc.png',
-        details: ['AMD Ryzen 7 5700X', 'AMD Radeon RX 9060 XT 16GB', 'KLEVV BOLT XR DDR4 3600 16GB'],
-      },
-    ],
-  },
-]
+interface AboutItem {
+  name: string
+  image: string
+  details?: string[]
+}
 
-const donations = [
-  { name: 'Streamlabs', url: 'https://streamlabs.com/febrianthomas/tip', image: '/images/donatedollar.gif' },
-  { name: 'Saweria', url: 'https://saweria.co/donate/febrianthomas', image: '/images/donaterp.gif' },
-  { name: 'Ko-fi', url: 'https://ko-fi.com/febrianthomas', image: '/images/donatedollar.gif' },
-  { name: 'Trakteer', url: 'https://trakteer.id/febrianthomas', image: '/images/donaterp.gif' },
-]
+interface AboutSection {
+  title: string
+  items: AboutItem[]
+}
+
+const sections = computed<AboutSection[]>(() => [text.value.about.software, text.value.about.tools])
 </script>
 
 <template>
   <main class="flex-1 px-6 sm:px-10">
     <div class="mx-auto grid min-h-[calc(100svh-140px)] max-w-5xl content-center items-center gap-10 py-12 md:min-h-[calc(100svh-76px)] md:grid-cols-2 md:gap-16 md:py-16">
-      <img src="/images/follow.gif" alt="Illustration of febrianthomas" width="500" height="500" class="mx-auto aspect-square w-full max-w-md object-contain" />
+      <img src="/images/follow.gif" :alt="text.about.imageAlt" width="500" height="500" class="mx-auto aspect-square w-full max-w-md object-contain" />
       <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">A little introduction</p>
-        <h1 class="mt-5 font-bagel-fat-one text-6xl leading-none sm:text-8xl">About.</h1>
-        <p class="mt-6 text-xl leading-8 text-zinc-800">Hi, I’m Febrian—a self-taught illustrator and 2D animator who loves bringing characters and ideas to life.</p>
-        <p class="mt-4 text-lg leading-8 text-zinc-600">When I’m not drawing or learning web development, you’ll probably find me watching anime, playing games, or enjoying another cup of coffee.</p>
-        <nav aria-label="Social profiles" class="mt-8 flex flex-wrap gap-3">
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ text.about.eyebrow }}</p>
+        <h1 class="mt-5 font-bagel-fat-one text-6xl leading-none sm:text-8xl">{{ text.about.title }}</h1>
+        <p class="mt-6 text-xl leading-8 text-zinc-800">{{ text.about.description }}</p>
+        <p class="mt-4 text-lg leading-8 text-zinc-600">{{ text.about.details }}</p>
+        <nav :aria-label="text.about.socialLabel" class="mt-8 flex flex-wrap gap-3">
           <motion.a
             v-for="(social, index) in socials"
             :key="social.name"
@@ -82,11 +66,11 @@ const donations = [
       </div>
 
       <section id="support" class="mx-auto mt-24 max-w-3xl scroll-mt-24 text-center sm:mt-32">
-        <h2 class="font-bagel-fat-one text-4xl sm:text-5xl">Support My Work.</h2>
-        <p class="mx-auto mt-5 max-w-md text-lg leading-8 text-zinc-600">If you enjoy what I create, you can support me here.</p>
+        <h2 class="font-bagel-fat-one text-4xl sm:text-5xl">{{ text.about.donations.title }}</h2>
+        <p class="mx-auto mt-5 max-w-md text-lg leading-8 text-zinc-600">{{ text.about.donations.description }}</p>
         <div class="mt-8 flex flex-wrap justify-center gap-4">
           <motion.a
-            v-for="donation in donations"
+            v-for="donation in text.about.donations.items"
             :key="donation.name"
             :href="donation.url"
             target="_blank"

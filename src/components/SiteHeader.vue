@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { onUnmounted, ref } from 'vue'
 import { LogOut, UserRound } from '@lucide/vue'
+import { useLanguage } from '../composables/useLanguage'
 import { supabase } from '../supabase'
 import AnimatedLink from './AnimatedLink.vue'
+import LanguageToggle from './LanguageToggle.vue'
 
+const { text } = useLanguage()
 const signedIn = ref(false)
 const checkingSession = ref(!!supabase)
 const loading = ref(false)
@@ -22,7 +25,7 @@ async function signOut() {
     const { error } = await supabase.auth.signOut({ scope: 'local' })
     if (error) errorMessage.value = error.message
   } catch {
-    errorMessage.value = 'Could not sign out. Check your connection and try again.'
+    errorMessage.value = text.value.navigation.signOutError
   } finally {
     loading.value = false
   }
@@ -36,19 +39,20 @@ const controlClass = 'inline-flex size-11 items-center justify-center text-zinc-
     <div class="mx-auto flex max-w-6xl flex-col items-center gap-3 py-5 md:grid md:grid-cols-[1fr_auto_1fr] md:gap-4 md:py-4">
       <RouterLink to="/" class="inline-flex min-h-11 items-center gap-2 self-start text-lg text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-4">
         <img src="/images/lick.gif" alt="" width="32" height="32" class="size-8 object-contain" />
-        <span>febrianthomas · Kanban</span>
+        <span>{{ text.site.brand }}</span>
       </RouterLink>
-      <nav aria-label="Main navigation">
+      <nav :aria-label="text.navigation.label">
         <ul class="flex items-center justify-center gap-6 text-base font-medium text-zinc-600 sm:gap-8">
-          <li><AnimatedLink to="/" :while-hover="{ y: -3, rotate: -4, scale: 1.08 }" class="inline-flex min-h-11 items-center hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-4">Home</AnimatedLink></li>
-          <li><AnimatedLink to="/about" :while-hover="{ y: -3, rotate: 4, scale: 1.08 }" class="inline-flex min-h-11 items-center hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-4">About</AnimatedLink></li>
+          <li><AnimatedLink to="/" :while-hover="{ y: -3, rotate: -4, scale: 1.08 }" class="inline-flex min-h-11 items-center hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-4">{{ text.navigation.home }}</AnimatedLink></li>
+          <li><AnimatedLink to="/about" :while-hover="{ y: -3, rotate: 4, scale: 1.08 }" class="inline-flex min-h-11 items-center hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-4">{{ text.navigation.about }}</AnimatedLink></li>
         </ul>
       </nav>
-      <div class="absolute right-4 top-5 flex items-center gap-2 md:static md:justify-self-end">
-        <button v-if="signedIn" type="button" :disabled="loading" :aria-label="loading ? 'Signing out' : 'Sign out'" :title="loading ? 'Signing out' : 'Sign out'" :class="controlClass" @click="signOut">
+      <div class="absolute right-4 top-5 flex items-center gap-0 sm:gap-2 md:static md:justify-self-end">
+        <LanguageToggle />
+        <button v-if="signedIn" type="button" :disabled="loading" :aria-label="loading ? text.navigation.signingOut : text.navigation.signOut" :title="loading ? text.navigation.signingOut : text.navigation.signOut" :class="controlClass" @click="signOut">
           <LogOut :size="18" :stroke-width="1.75" aria-hidden="true" />
         </button>
-        <AnimatedLink v-else-if="!checkingSession" to="/login" aria-label="Sign in" title="Sign in" :class="controlClass">
+        <AnimatedLink v-else-if="!checkingSession" to="/login" :aria-label="text.navigation.signIn" :title="text.navigation.signIn" :class="controlClass">
           <UserRound :size="18" :stroke-width="1.75" aria-hidden="true" />
         </AnimatedLink>
       </div>

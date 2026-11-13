@@ -1,0 +1,90 @@
+{
+  "site": {
+    "brand": "febrianthomas · Kanban",
+    "copyright": "© febrianthomas - 2026"
+  },
+  "navigation": {
+    "label": "Navigasi utama",
+    "home": "Beranda",
+    "about": "Tentang",
+    "signIn": "Masuk",
+    "signOut": "Keluar",
+    "signingOut": "Sedang keluar…",
+    "signOutError": "Belum bisa keluar. Coba lagi, ya.",
+    "changeLanguage": "Ganti bahasa ke Inggris"
+  },
+  "home": {
+    "eyebrow": "FEBRIANTHOMAS / KOMISI",
+    "titleLine1": "Sedikit progres.",
+    "titleLine2": "Banyak cinta.",
+    "intro": "Ikuti perkembangan ilustrasimu dari ide awal hingga karya akhir.",
+    "boardHeading": "PAPAN KOMISI",
+    "comingSoon": "Segera hadir",
+    "stagesLabel": "Tahap komisi",
+    "stages": [
+      { "number": "01", "label": "Antrean" },
+      { "number": "02", "label": "Dikerjakan" },
+      { "number": "03", "label": "Selesai" }
+    ],
+    "boardMessage": "Papannya lagi disiapkan. Cek lagi nanti buat update terbaru, ya."
+  },
+  "about": {
+    "eyebrow": "Kenalan dulu, yuk",
+    "title": "Tentang.",
+    "description": "Hai, aku Febrian! Aku suka gambar karakter dan bikin animasi 2D. Semuanya aku pelajari sendiri, dari coba-coba sampai jadi karya.",
+    "details": "Kalau lagi nggak gambar atau belajar web development, biasanya aku lagi nonton anime, main game, atau ngopi lagi.",
+    "imageAlt": "Ilustrasi febrianthomas",
+    "socialLabel": "Media sosial",
+    "software": {
+      "title": "Software yang Aku Pakai",
+      "items": [
+        { "name": "Adobe Animate CC", "image": "/images/icons/an.png" },
+        { "name": "Adobe Audition CC", "image": "/images/icons/au.png" },
+        { "name": "Clip Studio Paint EX", "image": "/images/icons/csp.png" },
+        { "name": "Otak kecilku", "image": "/images/icons/brain.png" },
+        { "name": "DaVinci Resolve", "image": "/images/icons/dr.png" },
+        { "name": "OBS Studio", "image": "/images/icons/obs.png" }
+      ]
+    },
+    "tools": {
+      "title": "Tools yang Aku Pakai",
+      "items": [
+        { "name": "XP Pen Artist 13.3 Pro", "image": "/images/icons/xppen.png" },
+        {
+          "name": "PC",
+          "image": "/images/icons/pc.png",
+          "details": [
+            "AMD Ryzen 7 5700X",
+            "AMD Radeon RX 9060 XT 16GB",
+            "KLEVV BOLT XR DDR4 3600 16GB"
+          ]
+        }
+      ]
+    },
+    "donations": {
+      "title": "Dukung Karyaku.",
+      "description": "Suka sama karyaku? Kamu bisa support aku lewat sini!",
+      "items": [
+        { "name": "Streamlabs", "url": "https://streamlabs.com/febrianthomas/tip", "image": "/images/donatedollar.gif" },
+        { "name": "Saweria", "url": "https://saweria.co/donate/febrianthomas", "image": "/images/donaterp.gif" },
+        { "name": "Ko-fi", "url": "https://ko-fi.com/febrianthomas", "image": "/images/donatedollar.gif" },
+        { "name": "Trakteer", "url": "https://trakteer.id/febrianthomas", "image": "/images/donaterp.gif" }
+      ]
+    }
+  },
+  "login": {
+    "eyebrow": "Akses akun",
+    "checkingTitle": "Sebentar, ya.",
+    "checkingStatus": "Memeriksa sesi…",
+    "title": "Welcome back, febrianthomas.",
+    "description": "Cuma febrianthomas yang bisa masuk.",
+    "missingConfig": "Supabase belum dikonfigurasi. Tambahkan project URL dan publishable key ke",
+    "email": "Alamat email",
+    "password": "Kata sandi",
+    "showPassword": "Tampilkan kata sandi",
+    "hidePassword": "Sembunyikan kata sandi",
+    "signingIn": "Sedang masuk…",
+    "signIn": "Masuk",
+    "connectionError": "Belum bisa terhubung. Coba lagi nanti, ya."
+  }
+}
