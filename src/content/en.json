@@ -104,7 +104,9 @@
     "switchActiveConfirm": "Yes",
     "switchActiveCancel": "No",
     "switchingActive": "Switching...",
-    "switchActiveError": "Could not switch active board. Please try again."
+    "switchActiveError": "Could not switch active board. Please try again.",
+    "backlogStatus": "Backlog",
+    "emptyBoardCards": "No cards in this board. Add a card or drag one here."
   },
   "about": {
     "eyebrow": "A little introduction",

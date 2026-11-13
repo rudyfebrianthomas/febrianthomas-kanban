@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Check, FileText, Pencil, Plus, Search, Trash2, X } from '@lucide/vue'
+import { Check, FileText, Pencil, Plus, Search, Trash2, UploadCloud, X } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import {
   AlertDialogCancel,
@@ -28,15 +28,61 @@ interface KanbanBoard {
   title: string
   description: string | null
   is_active: boolean
+  is_backlog: boolean
   created_at?: string
 }
+
+interface KanbanCard {
+  id: string
+  boardId: string
+  stageNumber: string
+  title: string
+  description: string
+  requestors: string[]
+  imagePath: string | null
+  imageUrl?: string
+}
+
+interface KanbanCardRow {
+  id: string
+  board_id: string
+  stage_number: string
+  title: string
+  description: string
+  requestors: string[]
+  image_path: string | null
+}
+
+const BACKLOG_BOARD_ID = '00000000-0000-0000-0000-000000000000'
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+}
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const cardFieldClass =
+  'mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-base text-zinc-950 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-300'
 
 const { text } = useLanguage()
 const router = useRouter()
 const prefersReducedMotion = useReducedMotion()
 
-const boards = ref<KanbanBoard[]>([])
-const loading = ref(true)
+const boards = ref<KanbanBoard[]>(
+  supabase
+    ? []
+    : [
+        {
+          id: BACKLOG_BOARD_ID,
+          title: 'Backlog',
+          description: 'Cards waiting to be assigned to a board.',
+          is_active: false,
+          is_backlog: true,
+        },
+      ],
+)
+const cards = ref<KanbanCard[]>([])
+const loading = ref(!!supabase)
 const loadError = ref('')
 const query = ref('')
 
@@ -53,6 +99,24 @@ const switchDialogOpen = ref(false)
 const switchPending = ref(false)
 const switchError = ref('')
 
+const cardDialogOpen = ref(false)
+const cardDialogPending = ref(false)
+const targetCardBoard = ref<KanbanBoard | null>(null)
+const editingCard = ref<KanbanCard | null>(null)
+const removeExistingImage = ref(false)
+const cardTitle = ref('')
+const cardDescription = ref('')
+const requestorInput = ref('')
+const imageFile = ref<File | null>(null)
+const previewUrl = ref('')
+const draggingFile = ref(false)
+const cardError = ref('')
+const imageError = ref('')
+const fileInput = ref<HTMLInputElement | null>(null)
+
+const draggingCardId = ref('')
+const dragOverBoardId = ref('')
+
 const filteredBoards = computed(() => {
   const q = query.value.trim().toLowerCase()
   if (!q) return boards.value
@@ -63,17 +127,66 @@ const filteredBoards = computed(() => {
   )
 })
 
+const previewTags = computed(() => parseTags(requestorInput.value))
+const activeImagePreviewUrl = computed(() => {
+  if (imageFile.value && previewUrl.value) return previewUrl.value
+  if (editingCard.value?.imageUrl && !removeExistingImage.value) return editingCard.value.imageUrl
+  return ''
+})
+
+function parseTags(raw: string): string[] {
+  return [...new Set(raw.split(',').map((item) => item.trim()).filter(Boolean))]
+}
+
+function isValidImage(file: File): boolean {
+  return Object.hasOwn(IMAGE_EXTENSIONS, file.type) && file.size > 0 && file.size <= MAX_IMAGE_BYTES
+}
+
+function kanbanImageUrl(path: string | null): string | undefined {
+  if (!path || !supabase) return undefined
+  return supabase.storage.from('kanban-images').getPublicUrl(path).data.publicUrl
+}
+
+function toKanbanCard(row: KanbanCardRow): KanbanCard {
+  return {
+    id: row.id,
+    boardId: row.board_id,
+    stageNumber: row.stage_number,
+    title: row.title,
+    description: row.description,
+    requestors: row.requestors,
+    imagePath: row.image_path,
+    imageUrl: kanbanImageUrl(row.image_path),
+  }
+}
+
+function cardsForBoard(boardId: string): KanbanCard[] {
+  return cards.value.filter((card) => card.boardId === boardId)
+}
+
+function cardStatusLabel(board: KanbanBoard): string {
+  return board.is_backlog
+    ? text.value.setting.backlogStatus
+    : (text.value.home.stages[0]?.label ?? 'To do')
+}
+
 const subscription = supabase?.auth.onAuthStateChange((_event, session) => {
   if (!session) void router.replace('/')
 })
 
 onMounted(() => {
-  void loadBoards()
+  void loadBoardsAndCards()
 })
 
-onUnmounted(() => subscription?.data.subscription.unsubscribe())
+onUnmounted(() => {
+  subscription?.data.subscription.unsubscribe()
+  revokePreview()
+  for (const card of cards.value) {
+    if (card.imageUrl?.startsWith('blob:')) URL.revokeObjectURL(card.imageUrl)
+  }
+})
 
-async function loadBoards() {
+async function loadBoardsAndCards() {
   loading.value = true
   loadError.value = ''
 
@@ -82,16 +195,30 @@ async function loadBoards() {
     return
   }
 
-  const { data, error } = await supabase
-    .from('kanban_boards')
-    .select('id,title,description,is_active,created_at')
-    .order('created_at', { ascending: false })
+  const [boardsResult, cardsResult] = await Promise.all([
+    supabase
+      .from('kanban_boards')
+      .select('id,title,description,is_active,is_backlog,created_at')
+      .order('is_backlog', { ascending: false })
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('kanban_cards')
+      .select('id,board_id,stage_number,title,description,requestors,image_path')
+      .order('created_at', { ascending: true }),
+  ])
 
-  if (error) {
-    loadError.value = error.message
+  if (boardsResult.error) {
+    loadError.value = boardsResult.error.message
   } else {
-    boards.value = (data ?? []) as KanbanBoard[]
+    boards.value = (boardsResult.data ?? []) as KanbanBoard[]
   }
+
+  if (cardsResult.error && !loadError.value) {
+    loadError.value = cardsResult.error.message
+  } else if (cardsResult.data) {
+    cards.value = (cardsResult.data as KanbanCardRow[]).map(toKanbanCard)
+  }
+
   loading.value = false
 }
 
@@ -143,14 +270,18 @@ async function handleSaveBoard() {
           : item,
       )
     } else {
+      const backlog = boards.value.filter((item) => item.is_backlog)
+      const regular = boards.value.filter((item) => !item.is_backlog)
       boards.value = [
+        ...backlog,
         {
           id: crypto.randomUUID(),
           title: trimmedTitle,
           description: nextDescription,
           is_active: false,
+          is_backlog: false,
         },
-        ...boards.value,
+        ...regular,
       ]
     }
     saving.value = false
@@ -166,7 +297,7 @@ async function handleSaveBoard() {
         description: nextDescription,
       })
       .eq('id', editing.id)
-      .select('id,title,description,is_active,created_at')
+      .select('id,title,description,is_active,is_backlog,created_at')
       .single()
 
     saving.value = false
@@ -189,7 +320,7 @@ async function handleSaveBoard() {
       description: nextDescription,
       is_active: false,
     })
-    .select('id,title,description,is_active,created_at')
+    .select('id,title,description,is_active,is_backlog,created_at')
     .single()
 
   saving.value = false
@@ -199,11 +330,16 @@ async function handleSaveBoard() {
     return
   }
 
-  boards.value = [data as KanbanBoard, ...boards.value]
+  const created = data as KanbanBoard
+  const backlog = boards.value.filter((item) => item.is_backlog)
+  const regular = boards.value.filter((item) => !item.is_backlog)
+  boards.value = [...backlog, created, ...regular]
   onDialogOpenChange(false)
 }
 
 async function deleteBoard(board: KanbanBoard) {
+  if (board.is_backlog) return
+
   if (supabase) {
     const { data: cardRows } = await supabase
       .from('kanban_cards')
@@ -222,6 +358,12 @@ async function deleteBoard(board: KanbanBoard) {
     }
   }
 
+  for (const card of cards.value) {
+    if (card.boardId === board.id && card.imageUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(card.imageUrl)
+    }
+  }
+  cards.value = cards.value.filter((item) => item.boardId !== board.id)
   boards.value = boards.value.filter((item) => item.id !== board.id)
 }
 
@@ -271,7 +413,7 @@ async function deactivateBoard(board: KanbanBoard) {
 }
 
 async function handleActiveClick(board: KanbanBoard) {
-  if (activeBusyId.value) return
+  if (board.is_backlog || activeBusyId.value) return
   if (board.is_active) {
     await deactivateBoard(board)
     return
@@ -321,12 +463,298 @@ async function confirmSwitchActive() {
     switchPending.value = false
   }
 }
+
+function revokePreview() {
+  if (previewUrl.value) {
+    URL.revokeObjectURL(previewUrl.value)
+    previewUrl.value = ''
+  }
+}
+
+function selectImage(file: File | null) {
+  revokePreview()
+  if (file && !isValidImage(file)) {
+    imageFile.value = null
+    if (fileInput.value) fileInput.value.value = ''
+    imageError.value = text.value.home.imageInvalid
+    return
+  }
+  imageFile.value = file
+  if (file) {
+    previewUrl.value = URL.createObjectURL(file)
+    removeExistingImage.value = false
+  }
+  imageError.value = ''
+  cardError.value = ''
+}
+
+function onFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  selectImage(input.files?.[0] ?? null)
+}
+
+function onDragEnter(event: DragEvent) {
+  if (event.dataTransfer?.types.includes('Files')) draggingFile.value = true
+}
+
+function onDragLeave(event: DragEvent) {
+  const currentTarget = event.currentTarget as HTMLElement | null
+  const related = event.relatedTarget as Node | null
+  if (!related || !currentTarget?.contains(related)) draggingFile.value = false
+}
+
+function onFileDrop(event: DragEvent) {
+  draggingFile.value = false
+  const files = event.dataTransfer?.files
+  if (!files || files.length !== 1) {
+    selectImage(null)
+    imageError.value = text.value.home.imageSingle
+    return
+  }
+  if (fileInput.value) fileInput.value.value = ''
+  selectImage(files[0] ?? null)
+}
+
+function clearImage() {
+  if (fileInput.value) fileInput.value.value = ''
+  selectImage(null)
+  if (editingCard.value) removeExistingImage.value = true
+}
+
+function resetCardForm() {
+  targetCardBoard.value = null
+  editingCard.value = null
+  removeExistingImage.value = false
+  cardTitle.value = ''
+  cardDescription.value = ''
+  requestorInput.value = ''
+  draggingFile.value = false
+  cardError.value = ''
+  imageError.value = ''
+  if (fileInput.value) fileInput.value.value = ''
+  imageFile.value = null
+  revokePreview()
+}
+
+function openAddCard(board: KanbanBoard) {
+  resetCardForm()
+  targetCardBoard.value = board
+  cardDialogOpen.value = true
+}
+
+function openEditCard(card: KanbanCard, board: KanbanBoard) {
+  resetCardForm()
+  targetCardBoard.value = board
+  editingCard.value = card
+  cardTitle.value = card.title
+  cardDescription.value = card.description
+  requestorInput.value = card.requestors.join(', ')
+  cardDialogOpen.value = true
+}
+
+function onCardDialogOpenChange(open: boolean) {
+  if (cardDialogPending.value) return
+  cardDialogOpen.value = open
+  if (!open) resetCardForm()
+}
+
+async function submitCard() {
+  const board = targetCardBoard.value
+  if (cardDialogPending.value || imageError.value || !board) return
+
+  const trimmedTitle = cardTitle.value.trim()
+  const trimmedDescription = cardDescription.value.trim()
+  const requestors = parseTags(requestorInput.value)
+
+  if (!trimmedTitle || !trimmedDescription || requestors.length === 0) {
+    cardError.value = text.value.home.requiredFields
+    return
+  }
+  if (requestors.length > 10 || requestors.join(',').length > 400) {
+    cardError.value = text.value.home.tagsInvalid
+    return
+  }
+
+  const editing = editingCard.value
+  const stageNumber = text.value.home.stages[0]?.number ?? '01'
+
+  if (!supabase) {
+    if (editing) {
+      const nextUrl = imageFile.value
+        ? URL.createObjectURL(imageFile.value)
+        : removeExistingImage.value
+          ? undefined
+          : editing.imageUrl
+      if ((imageFile.value || removeExistingImage.value) && editing.imageUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(editing.imageUrl)
+      }
+      editing.title = trimmedTitle
+      editing.description = trimmedDescription
+      editing.requestors = requestors
+      editing.imageUrl = nextUrl
+    } else {
+      const cardImageUrl = imageFile.value ? URL.createObjectURL(imageFile.value) : undefined
+      cards.value.push({
+        id: crypto.randomUUID(),
+        boardId: board.id,
+        stageNumber,
+        title: trimmedTitle,
+        description: trimmedDescription,
+        requestors,
+        imagePath: null,
+        imageUrl: cardImageUrl,
+      })
+    }
+    cardDialogOpen.value = false
+    resetCardForm()
+    return
+  }
+
+  cardDialogPending.value = true
+  cardError.value = ''
+  let uploadedPath: string | null = null
+  try {
+    if (imageFile.value) {
+      const ext = IMAGE_EXTENSIONS[imageFile.value.type]
+      if (!ext) throw new Error('Invalid image')
+      uploadedPath = `${crypto.randomUUID()}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('kanban-images')
+        .upload(uploadedPath, imageFile.value, { contentType: imageFile.value.type, upsert: false })
+      if (uploadError) {
+        uploadedPath = null
+        throw uploadError
+      }
+    }
+
+    if (editing) {
+      const oldImagePath = editing.imagePath
+      const nextImagePath = uploadedPath ?? (removeExistingImage.value ? null : oldImagePath)
+      const { data, error: updateError } = await supabase
+        .from('kanban_cards')
+        .update({
+          title: trimmedTitle,
+          description: trimmedDescription,
+          requestors,
+          image_path: nextImagePath,
+        })
+        .eq('id', editing.id)
+        .select('id,board_id,stage_number,title,description,requestors,image_path')
+        .single()
+
+      if (updateError) throw updateError
+      const updated = toKanbanCard(data as KanbanCardRow)
+      const index = cards.value.findIndex((item) => item.id === updated.id)
+      if (index !== -1) cards.value[index] = updated
+      if (oldImagePath && (uploadedPath || removeExistingImage.value)) {
+        await supabase.storage.from('kanban-images').remove([oldImagePath]).catch(() => {})
+      }
+    } else {
+      const { data, error: insertError } = await supabase
+        .from('kanban_cards')
+        .insert({
+          board_id: board.id,
+          stage_number: stageNumber,
+          title: trimmedTitle,
+          description: trimmedDescription,
+          requestors,
+          image_path: uploadedPath,
+        })
+        .select('id,board_id,stage_number,title,description,requestors,image_path')
+        .single()
+
+      if (insertError) throw insertError
+      cards.value.push(toKanbanCard(data as KanbanCardRow))
+    }
+
+    cardDialogOpen.value = false
+    resetCardForm()
+  } catch {
+    if (uploadedPath) {
+      await supabase.storage.from('kanban-images').remove([uploadedPath]).catch(() => {})
+    }
+    cardError.value = text.value.home.saveError
+  } finally {
+    cardDialogPending.value = false
+  }
+}
+
+async function deleteCard(card: KanbanCard) {
+  if (supabase) {
+    const { error: deleteError } = await supabase.from('kanban_cards').delete().eq('id', card.id)
+    if (deleteError) throw deleteError
+    if (card.imagePath) {
+      await supabase.storage.from('kanban-images').remove([card.imagePath]).catch(() => {})
+    }
+  } else if (card.imageUrl?.startsWith('blob:')) {
+    URL.revokeObjectURL(card.imageUrl)
+  }
+  cards.value = cards.value.filter((item) => item.id !== card.id)
+}
+
+function onCardDragStart(cardId: string, event: DragEvent) {
+  draggingCardId.value = cardId
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', cardId)
+  }
+}
+
+function onCardDragEnd() {
+  draggingCardId.value = ''
+  dragOverBoardId.value = ''
+}
+
+function onBoardDragOver(boardId: string, event: DragEvent) {
+  if (!draggingCardId.value) return
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  dragOverBoardId.value = boardId
+}
+
+function onBoardDragLeave(boardId: string, event: DragEvent) {
+  if (dragOverBoardId.value !== boardId) return
+  const currentTarget = event.currentTarget as HTMLElement | null
+  const related = event.relatedTarget as Node | null
+  if (!related || !currentTarget?.contains(related)) dragOverBoardId.value = ''
+}
+
+async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
+  const cardId = draggingCardId.value || event.dataTransfer?.getData('text/plain') || ''
+  onCardDragEnd()
+  if (!cardId) return
+
+  const card = cards.value.find((item) => item.id === cardId)
+  if (!card || card.boardId === targetBoard.id) return
+
+  const previousBoardId = card.boardId
+  const previousStage = card.stageNumber
+  const nextStage = text.value.home.stages[0]?.number ?? '01'
+
+  card.boardId = targetBoard.id
+  card.stageNumber = nextStage
+
+  if (supabase) {
+    const { error } = await supabase
+      .from('kanban_cards')
+      .update({
+        board_id: targetBoard.id,
+        stage_number: nextStage,
+      })
+      .eq('id', card.id)
+
+    if (error) {
+      card.boardId = previousBoardId
+      card.stageNumber = previousStage
+      loadError.value = error.message
+    }
+  }
+}
 </script>
 
 <template>
   <main class="flex flex-1 flex-col px-6 sm:px-10">
     <section
-      class="mx-auto flex w-full max-w-6xl flex-1 flex-col py-12 sm:py-16"
+      class="flex w-full flex-1 flex-col py-12 sm:py-16"
       aria-labelledby="page-title"
     >
       <div class="flex flex-wrap items-end justify-between gap-4">
@@ -463,6 +891,182 @@ async function confirmSwitchActive() {
         </DialogPortal>
       </DialogRoot>
 
+      <DialogRoot :open="cardDialogOpen" @update:open="onCardDialogOpenChange">
+        <DialogPortal>
+          <DialogOverlay class="fixed inset-0 z-60 bg-zinc-950/50" />
+          <div class="pointer-events-none fixed inset-0 z-70 flex items-center justify-center p-4 sm:p-6">
+            <DialogContent as-child>
+              <motion.div
+                data-lenis-prevent
+                :initial="prefersReducedMotion ? false : { opacity: 0, scale: 0.97, y: 8 }"
+                :animate="{ opacity: 1, scale: 1, y: 0 }"
+                :transition="{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }"
+                class="surface-shadow pointer-events-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 text-zinc-950 focus:outline-none sm:p-8 dark:bg-zinc-900 dark:text-zinc-50"
+              >
+                <div class="flex items-start justify-between gap-4">
+                  <DialogTitle class="text-3xl font-semibold tracking-tight sm:text-4xl">
+                    {{ editingCard ? text.home.editCardTitle : text.home.createCardTitle }}
+                  </DialogTitle>
+                  <DialogClose as-child>
+                    <button
+                      type="button"
+                      :disabled="cardDialogPending"
+                      :aria-label="text.home.close"
+                      class="flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 dark:hover:bg-zinc-800"
+                    >
+                      <X :size="20" aria-hidden="true" />
+                    </button>
+                  </DialogClose>
+                </div>
+                <DialogDescription class="mt-3 text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">
+                  {{ editingCard ? text.home.editCardDescription : text.home.createCardDescription }}
+                </DialogDescription>
+
+                <form class="mt-7 space-y-5" @submit.prevent="submitCard">
+                  <div>
+                    <label for="setting-card-title" class="block text-sm font-medium">{{ text.home.titleLabel }}</label>
+                    <input
+                      id="setting-card-title"
+                      v-model="cardTitle"
+                      type="text"
+                      required
+                      maxlength="120"
+                      :class="cardFieldClass"
+                    />
+                  </div>
+
+                  <div>
+                    <label for="setting-card-description" class="block text-sm font-medium">
+                      {{ text.home.descriptionLabel }}
+                    </label>
+                    <textarea
+                      id="setting-card-description"
+                      v-model="cardDescription"
+                      rows="3"
+                      required
+                      maxlength="240"
+                      :class="cardFieldClass"
+                    />
+                  </div>
+
+                  <div>
+                    <label for="setting-card-requestor" class="block text-sm font-medium">
+                      {{ text.home.requestorLabel }}
+                    </label>
+                    <input
+                      id="setting-card-requestor"
+                      v-model="requestorInput"
+                      type="text"
+                      required
+                      :class="cardFieldClass"
+                    />
+                    <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{{ text.home.requestorHelp }}</p>
+                    <div v-if="previewTags.length" class="mt-2.5 flex flex-wrap gap-1.5">
+                      <span
+                        v-for="tag in previewTags"
+                        :key="tag"
+                        class="rounded-full bg-orange-100 px-3 py-1 text-xs text-orange-800 dark:bg-zinc-800 dark:text-orange-200"
+                      >
+                        {{ tag }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label for="setting-card-image" class="block text-sm font-medium">{{ text.home.imageLabel }}</label>
+                    <input
+                      id="setting-card-image"
+                      ref="fileInput"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      :aria-describedby="imageError ? 'setting-card-image-error' : 'setting-card-image-help'"
+                      :aria-invalid="Boolean(imageError)"
+                      class="sr-only"
+                      @change="onFileChange"
+                    />
+                    <div
+                      v-if="!activeImagePreviewUrl"
+                      role="button"
+                      tabindex="0"
+                      :class="[
+                        'mt-2 flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-6 py-8 text-center transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:focus-visible:outline-zinc-100',
+                        imageError
+                          ? 'border-red-500 bg-red-50/40 dark:border-red-400 dark:bg-red-950/20'
+                          : draggingFile
+                            ? 'border-zinc-900 bg-zinc-100 dark:border-zinc-100 dark:bg-zinc-800'
+                            : 'border-zinc-300 bg-zinc-50 hover:border-zinc-500 hover:bg-zinc-100/70 dark:border-zinc-600 dark:bg-zinc-800/50 dark:hover:border-zinc-400 dark:hover:bg-zinc-800',
+                      ]"
+                      @click="fileInput?.click()"
+                      @keydown.enter.prevent="fileInput?.click()"
+                      @keydown.space.prevent="fileInput?.click()"
+                      @dragenter="onDragEnter"
+                      @dragover.prevent="onDragEnter"
+                      @dragleave="onDragLeave"
+                      @drop.prevent="onFileDrop"
+                    >
+                      <UploadCloud :size="26" class="text-zinc-500 dark:text-zinc-300" aria-hidden="true" />
+                      <p class="mt-3 text-sm font-medium text-zinc-950 dark:text-zinc-50">
+                        <span class="underline underline-offset-4">{{ text.home.chooseImage }}</span>
+                        <span class="font-normal text-zinc-600 dark:text-zinc-300"> {{ text.home.dropImage }}</span>
+                      </p>
+                      <p id="setting-card-image-help" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        {{ text.home.imageHelp }}
+                      </p>
+                    </div>
+                    <div
+                      v-else
+                      class="mt-2 flex flex-wrap items-center gap-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-700"
+                    >
+                      <img
+                        :src="activeImagePreviewUrl"
+                        :alt="text.home.imagePreview"
+                        class="size-20 rounded-xl bg-zinc-100 object-cover dark:bg-zinc-800"
+                      />
+                      <div class="min-w-0 flex-1">
+                        <p v-if="imageFile" class="truncate text-sm font-medium">{{ imageFile.name }}</p>
+                        <button
+                          type="button"
+                          class="mt-1 text-sm text-zinc-600 underline hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-zinc-50"
+                          @click="clearImage"
+                        >
+                          {{ text.home.removeImage }}
+                        </button>
+                      </div>
+                    </div>
+                    <p
+                      v-if="imageError"
+                      id="setting-card-image-error"
+                      role="alert"
+                      class="mt-2 text-sm text-red-700 dark:text-red-400"
+                    >
+                      {{ imageError }}
+                    </p>
+                  </div>
+
+                  <p v-if="cardError" role="alert" class="text-sm text-red-700 dark:text-red-400">{{ cardError }}</p>
+
+                  <motion.button
+                    type="submit"
+                    :disabled="cardDialogPending"
+                    :while-tap="prefersReducedMotion ? undefined : { scale: 0.98 }"
+                    :transition="{ duration: 0.14 }"
+                    class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
+                  >
+                    {{
+                      cardDialogPending
+                        ? text.home.savingCard
+                        : editingCard
+                          ? text.home.saveChanges
+                          : text.home.submitCard
+                    }}
+                  </motion.button>
+                </form>
+              </motion.div>
+            </DialogContent>
+          </div>
+        </DialogPortal>
+      </DialogRoot>
+
       <AlertDialogRoot :open="switchDialogOpen" @update:open="onSwitchDialogOpenChange">
         <AlertDialogPortal>
           <AlertDialogOverlay class="fixed inset-0 z-60 bg-zinc-950/50" />
@@ -531,11 +1135,11 @@ async function confirmSwitchActive() {
           {{ loadError }}
         </p>
 
-        <div v-if="loading" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div v-if="loading" class="flex flex-col gap-4">
           <div
             v-for="n in 3"
             :key="n"
-            class="h-28 animate-pulse rounded-2xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
+            class="h-40 w-full animate-pulse rounded-2xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
           />
         </div>
 
@@ -564,18 +1168,61 @@ async function confirmSwitchActive() {
           {{ text.setting.noSearchResults }}
         </p>
 
-        <ul v-else class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ul v-else class="flex flex-col gap-4">
           <li
             v-for="board in filteredBoards"
             :key="board.id"
-            class="surface-shadow flex flex-col justify-between gap-4 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
+            :class="[
+              'surface-shadow flex w-full flex-col gap-4 rounded-2xl border bg-white p-5 transition-colors sm:p-6 dark:bg-zinc-900',
+              dragOverBoardId === board.id
+                ? 'border-orange-500 bg-orange-50/40 ring-2 ring-orange-500 dark:border-orange-400 dark:bg-zinc-800/80 dark:ring-orange-400'
+                : 'border-zinc-200 dark:border-zinc-800',
+            ]"
+            @dragover.prevent="onBoardDragOver(board.id, $event)"
+            @dragenter.prevent="onBoardDragOver(board.id, $event)"
+            @dragleave="onBoardDragLeave(board.id, $event)"
+            @drop.prevent="onBoardDrop(board, $event)"
           >
-            <div>
-              <div class="flex items-start justify-between gap-3">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div>
                 <h2 class="text-xl text-zinc-950 dark:text-zinc-50">
                   {{ board.title }}
                 </h2>
-                <div class="flex shrink-0 items-center gap-1">
+                <p
+                  v-if="board.description"
+                  class="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400"
+                >
+                  {{ board.description }}
+                </p>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  class="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-zinc-900 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                  @click="openAddCard(board)"
+                >
+                  <Plus :size="14" aria-hidden="true" />
+                  {{ text.home.addCard }}
+                </button>
+
+                <template v-if="!board.is_backlog">
+                  <button
+                    type="button"
+                    :disabled="activeBusyId === board.id"
+                    :aria-pressed="board.is_active"
+                    :class="[
+                      'inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50',
+                      board.is_active
+                        ? 'bg-orange-500/15 text-orange-700 hover:bg-orange-500/25 dark:bg-orange-400/15 dark:text-orange-300 dark:hover:bg-orange-400/25'
+                        : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700',
+                    ]"
+                    @click="handleActiveClick(board)"
+                  >
+                    <Check v-if="board.is_active" :size="14" aria-hidden="true" />
+                    {{ board.is_active ? text.setting.activeBadge : text.setting.makeActive }}
+                  </button>
+
                   <button
                     type="button"
                     :aria-label="`${text.setting.editBoard}: ${board.title}`"
@@ -585,6 +1232,7 @@ async function confirmSwitchActive() {
                   >
                     <Pencil :size="16" aria-hidden="true" />
                   </button>
+
                   <ConfirmDialog
                     :title="text.setting.deleteBoardTitle"
                     :description="text.setting.deleteBoardDescription"
@@ -603,32 +1251,92 @@ async function confirmSwitchActive() {
                       <Trash2 :size="16" aria-hidden="true" />
                     </button>
                   </ConfirmDialog>
-                </div>
+                </template>
               </div>
-              <p
-                v-if="board.description"
-                class="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400"
-              >
-                {{ board.description }}
-              </p>
             </div>
 
-            <div class="flex items-center justify-end">
-              <button
-                type="button"
-                :disabled="activeBusyId === board.id"
-                :aria-pressed="board.is_active"
-                :class="[
-                  'inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50',
-                  board.is_active
-                    ? 'bg-orange-500/15 text-orange-700 hover:bg-orange-500/25 dark:bg-orange-400/15 dark:text-orange-300 dark:hover:bg-orange-400/25'
-                    : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700',
-                ]"
-                @click="handleActiveClick(board)"
-              >
-                <Check v-if="board.is_active" :size="14" aria-hidden="true" />
-                {{ board.is_active ? text.setting.activeBadge : text.setting.makeActive }}
-              </button>
+            <div class="rounded-xl bg-zinc-100 p-3 dark:bg-zinc-800/70">
+              <div v-if="cardsForBoard(board.id).length" class="flex gap-3 overflow-x-auto pb-1">
+                <article
+                  v-for="card in cardsForBoard(board.id)"
+                  :key="card.id"
+                  draggable="true"
+                  :class="[
+                    'relative w-72 shrink-0 cursor-grab rounded-2xl bg-white p-4 text-zinc-950 shadow-xs transition-opacity active:cursor-grabbing dark:bg-zinc-900 dark:text-zinc-50',
+                    draggingCardId === card.id ? 'opacity-50' : '',
+                  ]"
+                  @dragstart="onCardDragStart(card.id, $event)"
+                  @dragend="onCardDragEnd"
+                >
+                  <div class="absolute right-3 top-3 z-10 flex gap-1.5">
+                    <button
+                      type="button"
+                      :aria-label="`${text.home.editCard}: ${card.title}`"
+                      :title="text.home.editCard"
+                      class="flex size-9 items-center justify-center rounded-xl bg-white text-zinc-700 shadow-sm hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                      @click="openEditCard(card, board)"
+                    >
+                      <Pencil :size="16" aria-hidden="true" />
+                    </button>
+                    <ConfirmDialog
+                      :title="text.home.deleteCardTitle"
+                      :description="text.home.deleteCardDescription"
+                      :cancel-label="text.login.cancel"
+                      :confirm-label="text.home.deleteCard"
+                      :pending-label="text.home.deletingCard"
+                      :error-message="text.home.deleteCardError"
+                      :on-confirm="() => deleteCard(card)"
+                    >
+                      <button
+                        type="button"
+                        :aria-label="`${text.home.deleteCard}: ${card.title}`"
+                        :title="text.home.deleteCard"
+                        class="flex size-9 items-center justify-center rounded-xl bg-white text-red-700 shadow-sm hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-900 dark:text-red-300 dark:hover:bg-red-950"
+                      >
+                        <Trash2 :size="16" aria-hidden="true" />
+                      </button>
+                    </ConfirmDialog>
+                  </div>
+
+                  <img
+                    v-if="card.imageUrl"
+                    :src="card.imageUrl"
+                    :alt="card.title"
+                    draggable="false"
+                    class="mb-3 aspect-4/3 w-full rounded-xl bg-zinc-100 object-cover dark:bg-zinc-800"
+                  />
+                  <h3 :class="['text-base font-medium', !card.imageUrl ? 'pr-20' : '']">{{ card.title }}</h3>
+                  <p class="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{{ card.description }}</p>
+                  <div class="mt-3">
+                    <div class="flex items-center justify-between gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                      <span>{{ cardStatusLabel(board) }}</span>
+                      <span>0%</span>
+                    </div>
+                    <div
+                      role="progressbar"
+                      :aria-label="text.home.progressLabel"
+                      aria-valuenow="0"
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                      class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
+                    >
+                      <div class="h-full w-0 rounded-full bg-orange-500 transition-all duration-300 dark:bg-orange-400" />
+                    </div>
+                  </div>
+                  <div class="mt-3 flex flex-wrap gap-1.5">
+                    <span
+                      v-for="requestor in card.requestors"
+                      :key="requestor"
+                      class="rounded-full bg-orange-100 px-3 py-1 text-xs text-orange-800 dark:bg-zinc-800 dark:text-orange-200"
+                    >
+                      {{ requestor }}
+                    </span>
+                  </div>
+                </article>
+              </div>
+              <p v-else class="px-2 py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                {{ text.setting.emptyBoardCards }}
+              </p>
             </div>
           </li>
         </ul>

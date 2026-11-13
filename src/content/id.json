@@ -104,7 +104,9 @@
     "switchActiveConfirm": "Ya",
     "switchActiveCancel": "Tidak",
     "switchingActive": "Mengganti...",
-    "switchActiveError": "Gagal mengganti papan aktif. Coba lagi."
+    "switchActiveError": "Gagal mengganti papan aktif. Coba lagi.",
+    "backlogStatus": "Backlog",
+    "emptyBoardCards": "Belum ada kartu di papan ini. Tambah kartu atau geser kartu ke sini."
   },
   "about": {
     "eyebrow": "Kenalan dulu, yuk",
