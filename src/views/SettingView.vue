@@ -885,7 +885,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
     >
       <div class="flex flex-wrap items-end justify-between gap-4">
         <div class="max-w-3xl">
-          <p class="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+          <p class="mb-4 text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
             {{ text.setting.eyebrow }}
           </p>
           <h1
@@ -901,7 +901,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
 
         <button
           type="button"
-          class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:ring-zinc-300"
+          class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:ring-zinc-300"
           @click="openCreateBoard"
         >
           <Plus class="size-4" aria-hidden="true" />
@@ -924,7 +924,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
             >
               <div class="flex items-start justify-between gap-4">
                 <div>
-                  <DialogTitle class="text-lg font-medium">
+                  <DialogTitle class="text-lg font-bold">
                     {{ editingBoard ? text.setting.editBoardTitle : text.setting.createBoardTitle }}
                   </DialogTitle>
                   <DialogDescription class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
@@ -947,7 +947,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                 <div>
                   <label
                     for="board-title"
-                    class="mb-1.5 block text-sm font-medium text-zinc-800 dark:text-zinc-200"
+                    class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200"
                   >
                     {{ text.setting.titleLabel }}
                   </label>
@@ -964,7 +964,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                 <div>
                   <label
                     for="board-description"
-                    class="mb-1.5 block text-sm font-medium text-zinc-800 dark:text-zinc-200"
+                    class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200"
                   >
                     {{ text.setting.descriptionLabel }}
                   </label>
@@ -990,7 +990,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                     <button
                       type="button"
                       :disabled="saving"
-                      class="inline-flex min-h-11 items-center justify-center rounded-xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                      class="inline-flex min-h-11 items-center justify-center rounded-xl border border-zinc-300 px-4 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
                     >
                       {{ text.setting.close }}
                     </button>
@@ -998,7 +998,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                   <button
                     type="submit"
                     :disabled="saving"
-                    class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                    class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
                   >
                     {{
                       editingBoard
@@ -1030,7 +1030,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                 class="surface-shadow pointer-events-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 text-zinc-950 focus:outline-none sm:p-8 dark:bg-zinc-900 dark:text-zinc-50"
               >
                 <div class="flex items-start justify-between gap-4">
-                  <DialogTitle class="text-3xl font-semibold tracking-tight sm:text-4xl">
+                  <DialogTitle class="text-3xl font-bold tracking-tight sm:text-4xl">
                     {{ editingCard ? text.home.editCardTitle : text.home.createCardTitle }}
                   </DialogTitle>
                   <DialogClose as-child>
@@ -1050,7 +1050,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
 
                 <form class="mt-7 space-y-5" @submit.prevent="submitCard">
                   <div>
-                    <label for="setting-card-title" class="block text-sm font-medium">{{ text.home.titleLabel }}</label>
+                    <label for="setting-card-title" class="block text-sm">{{ text.home.titleLabel }}</label>
                     <input
                       id="setting-card-title"
                       v-model="cardTitle"
@@ -1062,7 +1062,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                   </div>
 
                   <div>
-                    <label for="setting-card-commission-type" class="block text-sm font-medium">
+                    <label for="setting-card-commission-type" class="block text-sm">
                       {{ text.home.commissionTypeLabel }}
                     </label>
                     <select
@@ -1078,7 +1078,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                   </div>
 
                   <div>
-                    <label for="setting-card-description" class="block text-sm font-medium">
+                    <label for="setting-card-description" class="block text-sm">
                       {{ text.home.descriptionLabel }}
                     </label>
                     <textarea
@@ -1092,7 +1092,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                   </div>
 
                   <div>
-                    <label for="setting-card-requestor" class="block text-sm font-medium">
+                    <label for="setting-card-requestor" class="block text-sm">
                       {{ text.home.requestorLabel }}
                     </label>
                     <input
@@ -1115,7 +1115,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                   </div>
 
                   <div>
-                    <label for="setting-card-image" class="block text-sm font-medium">{{ text.home.imageLabel }}</label>
+                    <label for="setting-card-image" class="block text-sm">{{ text.home.imageLabel }}</label>
                     <input
                       id="setting-card-image"
                       ref="fileInput"
@@ -1147,9 +1147,9 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                       @drop.prevent="onFileDrop"
                     >
                       <UploadCloud :size="26" class="text-zinc-500 dark:text-zinc-300" aria-hidden="true" />
-                      <p class="mt-3 text-sm font-medium text-zinc-950 dark:text-zinc-50">
+                      <p class="mt-3 text-sm text-zinc-950 dark:text-zinc-50">
                         <span class="underline underline-offset-4">{{ text.home.chooseImage }}</span>
-                        <span class="font-normal text-zinc-600 dark:text-zinc-300"> {{ text.home.dropImage }}</span>
+                        <span class="text-zinc-600 dark:text-zinc-300"> {{ text.home.dropImage }}</span>
                       </p>
                       <p id="setting-card-image-help" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                         {{ text.home.imageHelp }}
@@ -1165,7 +1165,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                         class="size-20 rounded-xl bg-zinc-100 object-cover dark:bg-zinc-800"
                       />
                       <div class="min-w-0 flex-1">
-                        <p v-if="imageFile" class="truncate text-sm font-medium">{{ imageFile.name }}</p>
+                        <p v-if="imageFile" class="truncate text-sm">{{ imageFile.name }}</p>
                         <button
                           type="button"
                           class="mt-1 text-sm text-zinc-600 underline hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-zinc-50"
@@ -1192,7 +1192,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                     :disabled="cardDialogPending"
                     :while-tap="prefersReducedMotion ? undefined : { scale: 0.98 }"
                     :transition="{ duration: 0.14 }"
-                    class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
+                    class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
                   >
                     {{
                       cardDialogPending
@@ -1220,7 +1220,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                 :transition="{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }"
                 class="surface-shadow pointer-events-auto w-full max-w-sm rounded-3xl bg-white p-7 text-zinc-950 focus:outline-none dark:bg-zinc-900 dark:text-zinc-50"
               >
-                <AlertDialogTitle class="text-3xl">
+                <AlertDialogTitle class="text-3xl font-bold">
                   {{ text.setting.switchActiveTitle }}
                 </AlertDialogTitle>
                 <AlertDialogDescription class="mt-3 leading-6 text-zinc-600 dark:text-zinc-300">
@@ -1232,14 +1232,14 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                 <div class="mt-7 flex flex-wrap justify-end gap-3">
                   <AlertDialogCancel
                     :disabled="switchPending"
-                    class="min-h-11 rounded-full px-5 text-sm font-medium hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 dark:hover:bg-zinc-800"
+                    class="min-h-11 rounded-full px-5 text-sm hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 dark:hover:bg-zinc-800"
                   >
                     {{ text.setting.switchActiveCancel }}
                   </AlertDialogCancel>
                   <button
                     type="button"
                     :disabled="switchPending"
-                    class="min-h-11 rounded-full bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                    class="min-h-11 rounded-full bg-zinc-900 px-5 text-sm text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
                     @click="confirmSwitchActive"
                   >
                     {{ switchPending ? text.setting.switchingActive : text.setting.switchActiveConfirm }}
@@ -1306,7 +1306,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
           >
             <FileText :size="30" />
           </span>
-          <h2 class="mt-6 font-sniglet text-3xl text-zinc-950 dark:text-zinc-50">
+          <h2 class="mt-6 font-sniglet text-3xl font-bold text-zinc-950 dark:text-zinc-50">
             {{ text.setting.emptyTitle }}
           </h2>
           <p class="mt-3 max-w-sm leading-7 text-zinc-600 dark:text-zinc-300">
@@ -1339,10 +1339,10 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
             <div class="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div class="flex flex-wrap items-center gap-2.5">
-                  <h2 class="text-xl text-zinc-950 dark:text-zinc-50">
+                  <h2 class="text-xl font-bold text-zinc-950 dark:text-zinc-50">
                     {{ board.title }}
                   </h2>
-                  <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                  <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                     {{ cardsForBoard(board.id).length }}
                   </span>
                 </div>
@@ -1357,7 +1357,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
               <div class="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  class="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-zinc-900 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                  class="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-zinc-900 px-3.5 py-1.5 text-xs text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
                   @click="openAddCard(board)"
                 >
                   <Plus :size="14" aria-hidden="true" />
@@ -1370,7 +1370,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                     :disabled="activeBusyId === board.id"
                     :aria-pressed="board.is_active"
                     :class="[
-                      'inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50',
+                      'inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50',
                       board.is_active
                         ? 'bg-orange-500/15 text-orange-700 hover:bg-orange-500/25 dark:bg-orange-400/15 dark:text-orange-300 dark:hover:bg-orange-400/25'
                         : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700',
@@ -1416,7 +1416,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
             <div class="rounded-xl bg-zinc-100 p-2.5 dark:bg-zinc-800/70">
               <div v-if="cardsForBoard(board.id).length" class="flex flex-col gap-2">
                 <div class="flex items-center px-3 py-1">
-                  <label class="inline-flex cursor-pointer select-none items-center gap-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                  <label class="inline-flex cursor-pointer select-none items-center gap-2.5 text-xs text-zinc-600 dark:text-zinc-300">
                     <input
                       type="checkbox"
                       :checked="isAllBoardCardsSelected(board.id)"
@@ -1456,8 +1456,8 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
 
                   <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-1.5">
-                      <h3 class="truncate text-sm font-medium">{{ card.title }}</h3>
-                      <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                      <h3 class="truncate text-sm">{{ card.title }}</h3>
+                      <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
                         {{ text.home.commissionTypes[card.commissionType] }}
                       </span>
                       <span
@@ -1472,7 +1472,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                   </div>
 
                   <div class="flex shrink-0 items-center gap-2">
-                    <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                    <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                       {{ cardStatusLabel(board, card) }} · {{ cardProgress(board, card) }}%
                     </span>
 

@@ -499,7 +499,7 @@ onUnmounted(() => {
     <section class="flex w-full flex-1 flex-col py-12 sm:py-16" aria-labelledby="page-title">
       <div class="mx-auto w-full max-w-6xl">
         <div class="max-w-3xl">
-          <p class="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+          <p class="mb-4 text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
             {{ text.home.commissionEyebrow }}
           </p>
           <h1
@@ -518,16 +518,16 @@ onUnmounted(() => {
         <span aria-hidden="true" class="flex size-16 items-center justify-center rounded-2xl bg-orange-100 text-orange-700 dark:bg-zinc-800 dark:text-orange-300">
           <FileText :size="30" />
         </span>
-        <h2 class="mt-6 font-sniglet text-3xl text-zinc-950 dark:text-zinc-50">
+        <h2 class="mt-6 font-sniglet text-3xl font-bold text-zinc-950 dark:text-zinc-50">
           {{ text.home.noActiveBoardTitle }}
         </h2>
         <p class="mt-3 max-w-sm leading-7 text-zinc-600 dark:text-zinc-300">{{ text.home.noActiveBoardDescription }}</p>
       </div>
 
-      <div v-else-if="activeBoard" class="surface-shadow mx-auto mt-8 w-full max-w-[96rem] rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
+      <div v-else-if="activeBoard" class="surface-shadow mx-auto mt-8 w-full max-w-384 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 class="text-xl text-zinc-950 sm:text-2xl dark:text-zinc-50">
+            <h2 class="text-xl font-bold text-zinc-950 sm:text-2xl dark:text-zinc-50">
               {{ activeBoard.title }}
             </h2>
             <p
@@ -569,7 +569,7 @@ onUnmounted(() => {
                   class="surface-shadow pointer-events-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 text-zinc-950 focus:outline-none sm:p-8 dark:bg-zinc-900 dark:text-zinc-50"
                 >
                   <div class="flex items-start justify-between gap-4">
-                    <DialogTitle class="text-3xl font-semibold tracking-tight sm:text-4xl">
+                    <DialogTitle class="text-3xl font-bold tracking-tight sm:text-4xl">
                       {{ editingCard ? text.home.editCardTitle : text.home.createCardTitle }}
                     </DialogTitle>
                     <DialogClose as-child>
@@ -589,12 +589,12 @@ onUnmounted(() => {
 
                   <form class="mt-7 space-y-5" @submit.prevent="submitCard">
                     <div>
-                      <label for="card-title" class="block text-sm font-medium">{{ text.home.titleLabel }}</label>
+                      <label for="card-title" class="block text-sm">{{ text.home.titleLabel }}</label>
                       <input id="card-title" v-model="title" type="text" required maxlength="120" :class="fieldClass" />
                     </div>
 
                     <div>
-                      <label for="card-commission-type" class="block text-sm font-medium">{{ text.home.commissionTypeLabel }}</label>
+                      <label for="card-commission-type" class="block text-sm">{{ text.home.commissionTypeLabel }}</label>
                       <select id="card-commission-type" v-model="commissionType" required :class="fieldClass">
                         <option v-for="typeOption in COMMISSION_TYPES" :key="typeOption" :value="typeOption">
                           {{ text.home.commissionTypes[typeOption] }}
@@ -603,12 +603,12 @@ onUnmounted(() => {
                     </div>
 
                     <div>
-                      <label for="card-description" class="block text-sm font-medium">{{ text.home.descriptionLabel }}</label>
+                      <label for="card-description" class="block text-sm">{{ text.home.descriptionLabel }}</label>
                       <textarea id="card-description" v-model="description" required maxlength="240" rows="3" :class="fieldClass" />
                     </div>
 
                     <div>
-                      <label for="card-requestor" class="block text-sm font-medium">{{ text.home.requestorLabel }}</label>
+                      <label for="card-requestor" class="block text-sm">{{ text.home.requestorLabel }}</label>
                       <input
                         id="card-requestor"
                         v-model="requestorInput"
@@ -630,7 +630,7 @@ onUnmounted(() => {
                     </div>
 
                     <div>
-                      <p id="card-image-label" class="block text-sm font-medium">{{ text.home.imageLabel }}</p>
+                      <p id="card-image-label" class="block text-sm">{{ text.home.imageLabel }}</p>
                       <div
                         :class="[
                           'mt-2 rounded-xl border-2 border-dashed p-5 focus-within:ring-2 focus-within:ring-zinc-900 dark:focus-within:ring-zinc-300',
@@ -656,7 +656,7 @@ onUnmounted(() => {
                           <UploadCloud :size="22" aria-hidden="true" class="text-zinc-500 dark:text-zinc-400" />
                           <label
                             for="card-image"
-                            class="cursor-pointer rounded-xl bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-600"
+                            class="cursor-pointer rounded-xl bg-zinc-100 px-4 py-2 text-sm text-zinc-900 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-600"
                           >
                             {{ text.home.chooseImage }}
                           </label>
@@ -694,7 +694,7 @@ onUnmounted(() => {
                       :disabled="pending"
                       :while-tap="reducedMotion ? undefined : { scale: 0.98 }"
                       :transition="{ duration: 0.14 }"
-                      class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
+                      class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
                     >
                       {{ pending ? text.home.savingCard : editingCard ? text.home.saveChanges : text.home.submitCard }}
                     </motion.button>
@@ -719,7 +719,7 @@ onUnmounted(() => {
             @drop.prevent="onColumnDrop(stage.number, $event)"
           >
             <div class="flex items-center">
-              <span class="font-medium">{{ stage.label }}</span>
+              <span>{{ stage.label }}</span>
             </div>
 
             <div v-if="cardsForStage(stage.number).length" class="space-y-2.5">
@@ -772,13 +772,13 @@ onUnmounted(() => {
                   draggable="false"
                   class="mb-2.5 aspect-4/3 w-full rounded-xl bg-zinc-100 object-cover dark:bg-zinc-800"
                 />
-                <h2 :class="['text-sm font-medium', signedIn && !card.imageUrl ? 'pr-16' : '']">{{ card.title }}</h2>
-                <p class="mt-1.5 inline-flex rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                <h2 :class="['text-sm', signedIn && !card.imageUrl ? 'pr-16' : '']">{{ card.title }}</h2>
+                <p class="mt-1.5 inline-flex rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
                   {{ text.home.commissionTypes[card.commissionType] }}
                 </p>
                 <p class="mt-1.5 text-xs leading-5 text-zinc-600 sm:text-sm dark:text-zinc-300">{{ card.description }}</p>
                 <div class="mt-2.5">
-                  <div class="flex items-center justify-between gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                  <div class="flex items-center justify-between gap-2 text-xs text-zinc-600 dark:text-zinc-300">
                     <span>{{ stageLabel(card.stageNumber) }}</span>
                     <span>{{ stageProgress(card.stageNumber) }}%</span>
                   </div>

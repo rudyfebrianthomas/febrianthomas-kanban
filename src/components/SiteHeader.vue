@@ -32,11 +32,11 @@ const controlClass = 'inline-flex size-11 items-center justify-center text-zinc-
         <span>{{ text.site.brand }}</span>
       </RouterLink>
       <nav :aria-label="text.navigation.label">
-        <ul class="flex items-center justify-center gap-6 text-base font-medium sm:gap-8">
+        <ul class="flex items-center justify-center gap-6 text-base sm:gap-8">
           <li><AnimatedLink to="/" :while-hover="{ y: -3, rotate: -4, scale: 1.08 }" class="inline-flex min-h-11 items-center hover:text-zinc-500 dark:hover:text-zinc-300 focus-visible:outline-2 focus-visible:outline-offset-4">{{ text.navigation.home }}</AnimatedLink></li>
           <li><AnimatedLink to="/commission" :while-hover="{ y: -3, rotate: 4, scale: 1.08 }" class="inline-flex min-h-11 items-center hover:text-zinc-500 dark:hover:text-zinc-300 focus-visible:outline-2 focus-visible:outline-offset-4">{{ text.navigation.commission }}</AnimatedLink></li>
-          <li><AnimatedLink to="/about" :while-hover="{ y: -3, rotate: -4, scale: 1.08 }" class="inline-flex min-h-11 items-center hover:text-zinc-500 dark:hover:text-zinc-300 focus-visible:outline-2 focus-visible:outline-offset-4">{{ text.navigation.about }}</AnimatedLink></li>
           <li v-if="signedIn"><AnimatedLink to="/setting" :while-hover="{ y: -3, rotate: 4, scale: 1.08 }" class="inline-flex min-h-11 items-center hover:text-zinc-500 dark:hover:text-zinc-300 focus-visible:outline-2 focus-visible:outline-offset-4">{{ text.navigation.setting }}</AnimatedLink></li>
+          <li><AnimatedLink to="/about" :while-hover="{ y: -3, rotate: -4, scale: 1.08 }" class="inline-flex min-h-11 items-center hover:text-zinc-500 dark:hover:text-zinc-300 focus-visible:outline-2 focus-visible:outline-offset-4">{{ text.navigation.about }}</AnimatedLink></li>
         </ul>
       </nav>
       <div class="absolute right-4 top-5 flex items-center gap-0 sm:gap-2 md:static md:justify-self-end">
