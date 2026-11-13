@@ -71,7 +71,22 @@
   "setting": {
     "eyebrow": "PREFERENSI",
     "title": "Pengaturan.",
-    "description": "Atur papan dan pengaturan aplikasi."
+    "description": "Atur papan dan pengaturan aplikasi.",
+    "searchBoards": "Cari papan",
+    "searchBoardsPlaceholder": "Cari papan berdasarkan judul atau deskripsi...",
+    "noSearchResults": "Tidak ada papan yang cocok.",
+    "emptyBoards": "Belum ada papan. Buat papan baru untuk memulai.",
+    "activeBadge": "Aktif",
+    "addBoard": "Tambah papan",
+    "createBoardTitle": "Papan baru",
+    "createBoardDescription": "Buat papan kanban baru.",
+    "close": "Tutup",
+    "titleLabel": "Judul",
+    "descriptionLabel": "Deskripsi (opsional)",
+    "requiredTitle": "Judul wajib diisi.",
+    "submitBoard": "Buat papan",
+    "savingBoard": "Membuat...",
+    "saveBoardError": "Gagal membuat papan."
   },
   "about": {
     "eyebrow": "Kenalan dulu, yuk",

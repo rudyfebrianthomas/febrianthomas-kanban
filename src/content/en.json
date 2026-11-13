@@ -71,7 +71,22 @@
   "setting": {
     "eyebrow": "PREFERENCES",
     "title": "Setting.",
-    "description": "Manage board and application settings."
+    "description": "Manage board and application settings.",
+    "searchBoards": "Search boards",
+    "searchBoardsPlaceholder": "Search boards by title or description...",
+    "noSearchResults": "No boards match your search.",
+    "emptyBoards": "No boards yet. Create one to get started.",
+    "activeBadge": "Active",
+    "addBoard": "Add board",
+    "createBoardTitle": "New board",
+    "createBoardDescription": "Create a new kanban board.",
+    "close": "Close",
+    "titleLabel": "Title",
+    "descriptionLabel": "Description (optional)",
+    "requiredTitle": "Title is required.",
+    "submitBoard": "Create board",
+    "savingBoard": "Creating...",
+    "saveBoardError": "Failed to create board."
   },
   "about": {
     "eyebrow": "A little introduction",
@@ -125,7 +140,7 @@
     "description": "Only febrianthomas can sign in.",
     "missingConfig": "Supabase isn’t configured yet. Add your project URL and publishable key to",
     "email": "Email address",
-    "emailPlaceholder": "name@example.com",
+    "emailPlaceholder": "you@example.com",
     "password": "Password",
     "passwordPlaceholder": "Enter your password",
     "showPassword": "Show password",
