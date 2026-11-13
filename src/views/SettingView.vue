@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { FileText, Plus, Search, X } from '@lucide/vue'
+import { Check, FileText, Pencil, Plus, Search, Trash2, X } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import {
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogOverlay,
+  AlertDialogPortal,
+  AlertDialogRoot,
+  AlertDialogTitle,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -11,8 +18,8 @@ import {
   DialogPortal,
   DialogRoot,
   DialogTitle,
-  DialogTrigger,
 } from 'reka-ui'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { useLanguage } from '../composables/useLanguage'
 import { supabase } from '../supabase'
 
@@ -34,10 +41,17 @@ const loadError = ref('')
 const query = ref('')
 
 const dialogOpen = ref(false)
+const editingBoard = ref<KanbanBoard | null>(null)
 const titleInput = ref('')
 const descriptionInput = ref('')
 const saving = ref(false)
 const formError = ref('')
+
+const activeBusyId = ref('')
+const switchTargetBoard = ref<KanbanBoard | null>(null)
+const switchDialogOpen = ref(false)
+const switchPending = ref(false)
+const switchError = ref('')
 
 const filteredBoards = computed(() => {
   const q = query.value.trim().toLowerCase()
@@ -81,16 +95,33 @@ async function loadBoards() {
   loading.value = false
 }
 
-function onDialogOpenChange(open: boolean) {
-  dialogOpen.value = open
-  if (!open) {
-    titleInput.value = ''
-    descriptionInput.value = ''
-    formError.value = ''
-  }
+function resetBoardDialog() {
+  editingBoard.value = null
+  titleInput.value = ''
+  descriptionInput.value = ''
+  formError.value = ''
 }
 
-async function handleCreateBoard() {
+function onDialogOpenChange(open: boolean) {
+  if (saving.value) return
+  dialogOpen.value = open
+  if (!open) resetBoardDialog()
+}
+
+function openCreateBoard() {
+  resetBoardDialog()
+  dialogOpen.value = true
+}
+
+function openEditBoard(board: KanbanBoard) {
+  resetBoardDialog()
+  editingBoard.value = board
+  titleInput.value = board.title
+  descriptionInput.value = board.description ?? ''
+  dialogOpen.value = true
+}
+
+async function handleSaveBoard() {
   const trimmedTitle = titleInput.value.trim()
   if (!trimmedTitle) {
     formError.value = text.value.setting.requiredTitle
@@ -98,20 +129,55 @@ async function handleCreateBoard() {
   }
 
   const trimmedDescription = descriptionInput.value.trim()
+  const nextDescription = trimmedDescription || null
+  const editing = editingBoard.value
+
   saving.value = true
   formError.value = ''
 
   if (!supabase) {
-    boards.value = [
-      {
-        id: crypto.randomUUID(),
-        title: trimmedTitle,
-        description: trimmedDescription || null,
-        is_active: false,
-      },
-      ...boards.value,
-    ]
+    if (editing) {
+      boards.value = boards.value.map((item) =>
+        item.id === editing.id
+          ? { ...item, title: trimmedTitle, description: nextDescription }
+          : item,
+      )
+    } else {
+      boards.value = [
+        {
+          id: crypto.randomUUID(),
+          title: trimmedTitle,
+          description: nextDescription,
+          is_active: false,
+        },
+        ...boards.value,
+      ]
+    }
     saving.value = false
+    onDialogOpenChange(false)
+    return
+  }
+
+  if (editing) {
+    const { data, error } = await supabase
+      .from('kanban_boards')
+      .update({
+        title: trimmedTitle,
+        description: nextDescription,
+      })
+      .eq('id', editing.id)
+      .select('id,title,description,is_active,created_at')
+      .single()
+
+    saving.value = false
+
+    if (error || !data) {
+      formError.value = error?.message || text.value.setting.saveBoardError
+      return
+    }
+
+    const updated = data as KanbanBoard
+    boards.value = boards.value.map((item) => (item.id === updated.id ? updated : item))
     onDialogOpenChange(false)
     return
   }
@@ -120,7 +186,7 @@ async function handleCreateBoard() {
     .from('kanban_boards')
     .insert({
       title: trimmedTitle,
-      description: trimmedDescription || null,
+      description: nextDescription,
       is_active: false,
     })
     .select('id,title,description,is_active,created_at')
@@ -135,6 +201,125 @@ async function handleCreateBoard() {
 
   boards.value = [data as KanbanBoard, ...boards.value]
   onDialogOpenChange(false)
+}
+
+async function deleteBoard(board: KanbanBoard) {
+  if (supabase) {
+    const { data: cardRows } = await supabase
+      .from('kanban_cards')
+      .select('image_path')
+      .eq('board_id', board.id)
+
+    const { error } = await supabase.from('kanban_boards').delete().eq('id', board.id)
+    if (error) throw error
+
+    const imagePaths = ((cardRows ?? []) as Array<{ image_path: string | null }>)
+      .map((row) => row.image_path)
+      .filter((path): path is string => Boolean(path))
+
+    if (imagePaths.length > 0) {
+      await supabase.storage.from('kanban-images').remove(imagePaths).catch(() => {})
+    }
+  }
+
+  boards.value = boards.value.filter((item) => item.id !== board.id)
+}
+
+async function activateBoard(board: KanbanBoard) {
+  if (supabase) {
+    const { error: clearError } = await supabase
+      .from('kanban_boards')
+      .update({ is_active: false })
+      .eq('is_active', true)
+
+    if (clearError) throw clearError
+
+    const { error: activateError } = await supabase
+      .from('kanban_boards')
+      .update({ is_active: true })
+      .eq('id', board.id)
+
+    if (activateError) throw activateError
+  }
+
+  boards.value = boards.value.map((item) => ({
+    ...item,
+    is_active: item.id === board.id,
+  }))
+}
+
+async function deactivateBoard(board: KanbanBoard) {
+  activeBusyId.value = board.id
+  loadError.value = ''
+  try {
+    if (supabase) {
+      const { error } = await supabase
+        .from('kanban_boards')
+        .update({ is_active: false })
+        .eq('id', board.id)
+
+      if (error) throw error
+    }
+    boards.value = boards.value.map((item) =>
+      item.id === board.id ? { ...item, is_active: false } : item,
+    )
+  } catch (err) {
+    loadError.value = err instanceof Error ? err.message : text.value.setting.switchActiveError
+  } finally {
+    activeBusyId.value = ''
+  }
+}
+
+async function handleActiveClick(board: KanbanBoard) {
+  if (activeBusyId.value) return
+  if (board.is_active) {
+    await deactivateBoard(board)
+    return
+  }
+
+  const hasOtherActive = boards.value.some((item) => item.is_active && item.id !== board.id)
+  if (hasOtherActive) {
+    switchTargetBoard.value = board
+    switchError.value = ''
+    switchDialogOpen.value = true
+    return
+  }
+
+  activeBusyId.value = board.id
+  loadError.value = ''
+  try {
+    await activateBoard(board)
+  } catch (err) {
+    loadError.value = err instanceof Error ? err.message : text.value.setting.switchActiveError
+  } finally {
+    activeBusyId.value = ''
+  }
+}
+
+function onSwitchDialogOpenChange(open: boolean) {
+  if (switchPending.value) return
+  switchDialogOpen.value = open
+  if (!open) {
+    switchTargetBoard.value = null
+    switchError.value = ''
+  }
+}
+
+async function confirmSwitchActive() {
+  const target = switchTargetBoard.value
+  if (!target || switchPending.value) return
+
+  switchPending.value = true
+  switchError.value = ''
+  try {
+    await activateBoard(target)
+    switchDialogOpen.value = false
+    switchTargetBoard.value = null
+  } catch {
+    switchError.value = text.value.setting.switchActiveError
+  } finally {
+    switchPending.value = false
+  }
 }
 </script>
 
@@ -160,114 +345,165 @@ async function handleCreateBoard() {
           </p>
         </div>
 
-        <DialogRoot :open="dialogOpen" @update:open="onDialogOpenChange">
-          <DialogTrigger as-child>
-            <button
-              type="button"
-              class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:ring-zinc-300"
-            >
-              <Plus class="size-4" aria-hidden="true" />
-              {{ text.setting.addBoard }}
-            </button>
-          </DialogTrigger>
+        <button
+          type="button"
+          class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:ring-zinc-300"
+          @click="openCreateBoard"
+        >
+          <Plus class="size-4" aria-hidden="true" />
+          {{ text.setting.addBoard }}
+        </button>
+      </div>
 
-          <DialogPortal>
-            <DialogOverlay class="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px]" />
-            <DialogContent
-              class="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 outline-none"
+      <DialogRoot :open="dialogOpen" @update:open="onDialogOpenChange">
+        <DialogPortal>
+          <DialogOverlay class="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px]" />
+          <DialogContent
+            class="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 outline-none"
+          >
+            <motion.div
+              data-lenis-prevent
+              :initial="prefersReducedMotion ? false : { opacity: 0, scale: 0.96 }"
+              :animate="{ opacity: 1, scale: 1 }"
+              :transition="prefersReducedMotion ? { duration: 0 } : { duration: 0.16, ease: 'easeOut' }"
+              class="surface-shadow max-h-[85dvh] overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-6 text-zinc-950 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
             >
-              <motion.div
-                data-lenis-prevent
-                :initial="prefersReducedMotion ? false : { opacity: 0, scale: 0.96 }"
-                :animate="{ opacity: 1, scale: 1 }"
-                :transition="prefersReducedMotion ? { duration: 0 } : { duration: 0.16, ease: 'easeOut' }"
-                class="surface-shadow max-h-[85dvh] overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-6 text-zinc-950 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-              >
-                <div class="flex items-start justify-between gap-4">
-                  <div>
-                    <DialogTitle class="text-lg font-semibold">
-                      {{ text.setting.createBoardTitle }}
-                    </DialogTitle>
-                    <DialogDescription class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                      {{ text.setting.createBoardDescription }}
-                    </DialogDescription>
-                  </div>
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <DialogTitle class="text-lg font-medium">
+                    {{ editingBoard ? text.setting.editBoardTitle : text.setting.createBoardTitle }}
+                  </DialogTitle>
+                  <DialogDescription class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                    {{ editingBoard ? text.setting.editBoardDescription : text.setting.createBoardDescription }}
+                  </DialogDescription>
+                </div>
+                <DialogClose as-child>
+                  <button
+                    type="button"
+                    :disabled="saving"
+                    :aria-label="text.setting.close"
+                    class="inline-flex size-9 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-50 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                  >
+                    <X class="size-4" aria-hidden="true" />
+                  </button>
+                </DialogClose>
+              </div>
+
+              <form class="mt-5 space-y-4" @submit.prevent="handleSaveBoard">
+                <div>
+                  <label
+                    for="board-title"
+                    class="mb-1.5 block text-sm font-medium text-zinc-800 dark:text-zinc-200"
+                  >
+                    {{ text.setting.titleLabel }}
+                  </label>
+                  <input
+                    id="board-title"
+                    v-model="titleInput"
+                    type="text"
+                    maxlength="120"
+                    required
+                    class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    for="board-description"
+                    class="mb-1.5 block text-sm font-medium text-zinc-800 dark:text-zinc-200"
+                  >
+                    {{ text.setting.descriptionLabel }}
+                  </label>
+                  <textarea
+                    id="board-description"
+                    v-model="descriptionInput"
+                    rows="3"
+                    maxlength="240"
+                    class="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
+                  />
+                </div>
+
+                <p
+                  v-if="formError"
+                  role="alert"
+                  class="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
+                >
+                  {{ formError }}
+                </p>
+
+                <div class="flex justify-end gap-2 pt-1">
                   <DialogClose as-child>
                     <button
                       type="button"
-                      :aria-label="text.setting.close"
-                      class="inline-flex size-9 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                      :disabled="saving"
+                      class="inline-flex min-h-11 items-center justify-center rounded-xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
                     >
-                      <X class="size-4" aria-hidden="true" />
+                      {{ text.setting.close }}
                     </button>
                   </DialogClose>
-                </div>
-
-                <form class="mt-5 space-y-4" @submit.prevent="handleCreateBoard">
-                  <div>
-                    <label
-                      for="board-title"
-                      class="mb-1.5 block text-sm font-medium text-zinc-800 dark:text-zinc-200"
-                    >
-                      {{ text.setting.titleLabel }}
-                    </label>
-                    <input
-                      id="board-title"
-                      v-model="titleInput"
-                      type="text"
-                      maxlength="120"
-                      required
-                      class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      for="board-description"
-                      class="mb-1.5 block text-sm font-medium text-zinc-800 dark:text-zinc-200"
-                    >
-                      {{ text.setting.descriptionLabel }}
-                    </label>
-                    <textarea
-                      id="board-description"
-                      v-model="descriptionInput"
-                      rows="3"
-                      maxlength="240"
-                      class="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
-                    />
-                  </div>
-
-                  <p
-                    v-if="formError"
-                    role="alert"
-                    class="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
+                  <button
+                    type="submit"
+                    :disabled="saving"
+                    class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
                   >
-                    {{ formError }}
-                  </p>
+                    {{
+                      editingBoard
+                        ? saving
+                          ? text.setting.savingChanges
+                          : text.setting.saveChanges
+                        : saving
+                          ? text.setting.savingBoard
+                          : text.setting.submitBoard
+                    }}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </DialogContent>
+        </DialogPortal>
+      </DialogRoot>
 
-                  <div class="flex justify-end gap-2 pt-1">
-                    <DialogClose as-child>
-                      <button
-                        type="button"
-                        class="inline-flex min-h-11 items-center justify-center rounded-xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                      >
-                        {{ text.setting.close }}
-                      </button>
-                    </DialogClose>
-                    <button
-                      type="submit"
-                      :disabled="saving"
-                      class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-                    >
-                      {{ saving ? text.setting.savingBoard : text.setting.submitBoard }}
-                    </button>
-                  </div>
-                </form>
+      <AlertDialogRoot :open="switchDialogOpen" @update:open="onSwitchDialogOpenChange">
+        <AlertDialogPortal>
+          <AlertDialogOverlay class="fixed inset-0 z-60 bg-zinc-950/50" />
+          <div class="pointer-events-none fixed inset-0 z-70 flex items-center justify-center p-6">
+            <AlertDialogContent as-child>
+              <motion.div
+                :initial="prefersReducedMotion ? false : { opacity: 0, scale: 0.96, y: 8 }"
+                :animate="{ opacity: 1, scale: 1, y: 0 }"
+                :transition="{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }"
+                class="surface-shadow pointer-events-auto w-full max-w-sm rounded-3xl bg-white p-7 text-zinc-950 focus:outline-none dark:bg-zinc-900 dark:text-zinc-50"
+              >
+                <AlertDialogTitle class="text-3xl">
+                  {{ text.setting.switchActiveTitle }}
+                </AlertDialogTitle>
+                <AlertDialogDescription class="mt-3 leading-6 text-zinc-600 dark:text-zinc-300">
+                  {{ text.setting.switchActiveDescription }}
+                </AlertDialogDescription>
+                <p v-if="switchError" role="alert" class="mt-4 text-sm text-red-700 dark:text-red-400">
+                  {{ switchError }}
+                </p>
+                <div class="mt-7 flex flex-wrap justify-end gap-3">
+                  <AlertDialogCancel
+                    :disabled="switchPending"
+                    class="min-h-11 rounded-full px-5 text-sm font-medium hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 dark:hover:bg-zinc-800"
+                  >
+                    {{ text.setting.switchActiveCancel }}
+                  </AlertDialogCancel>
+                  <button
+                    type="button"
+                    :disabled="switchPending"
+                    class="min-h-11 rounded-full bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                    @click="confirmSwitchActive"
+                  >
+                    {{ switchPending ? text.setting.switchingActive : text.setting.switchActiveConfirm }}
+                  </button>
+                </div>
               </motion.div>
-            </DialogContent>
-          </DialogPortal>
-        </DialogRoot>
-      </div>
+            </AlertDialogContent>
+          </div>
+        </AlertDialogPortal>
+      </AlertDialogRoot>
 
       <form class="mt-8" role="search" @submit.prevent>
         <label for="board-search" class="sr-only">{{ text.setting.searchBoards }}</label>
@@ -290,12 +526,12 @@ async function handleCreateBoard() {
         <p
           v-if="loadError"
           role="alert"
-          class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
+          class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
         >
           {{ loadError }}
         </p>
 
-        <div v-else-if="loading" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div v-if="loading" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div
             v-for="n in 3"
             :key="n"
@@ -332,25 +568,68 @@ async function handleCreateBoard() {
           <li
             v-for="board in filteredBoards"
             :key="board.id"
-            class="surface-shadow rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
+            class="surface-shadow flex flex-col justify-between gap-4 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
           >
-            <div class="flex items-start justify-between gap-2">
-              <h2 class="text-base font-semibold text-zinc-950 dark:text-zinc-50">
-                {{ board.title }}
-              </h2>
-              <span
-                v-if="board.is_active"
-                class="shrink-0 rounded-full bg-orange-500/15 px-2.5 py-0.5 text-xs font-medium text-orange-600 dark:bg-orange-400/15 dark:text-orange-300"
+            <div>
+              <div class="flex items-start justify-between gap-3">
+                <h2 class="text-xl text-zinc-950 dark:text-zinc-50">
+                  {{ board.title }}
+                </h2>
+                <div class="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    :aria-label="`${text.setting.editBoard}: ${board.title}`"
+                    :title="text.setting.editBoard"
+                    class="flex size-9 items-center justify-center rounded-xl text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
+                    @click="openEditBoard(board)"
+                  >
+                    <Pencil :size="16" aria-hidden="true" />
+                  </button>
+                  <ConfirmDialog
+                    :title="text.setting.deleteBoardTitle"
+                    :description="text.setting.deleteBoardDescription"
+                    :cancel-label="text.login.cancel"
+                    :confirm-label="text.setting.deleteBoard"
+                    :pending-label="text.setting.deletingBoard"
+                    :error-message="text.setting.deleteBoardError"
+                    :on-confirm="() => deleteBoard(board)"
+                  >
+                    <button
+                      type="button"
+                      :aria-label="`${text.setting.deleteBoard}: ${board.title}`"
+                      :title="text.setting.deleteBoard"
+                      class="flex size-9 items-center justify-center rounded-xl text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-red-300 dark:hover:bg-red-950"
+                    >
+                      <Trash2 :size="16" aria-hidden="true" />
+                    </button>
+                  </ConfirmDialog>
+                </div>
+              </div>
+              <p
+                v-if="board.description"
+                class="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400"
               >
-                {{ text.setting.activeBadge }}
-              </span>
+                {{ board.description }}
+              </p>
             </div>
-            <p
-              v-if="board.description"
-              class="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400"
-            >
-              {{ board.description }}
-            </p>
+
+            <div class="flex items-center justify-end">
+              <button
+                type="button"
+                :disabled="activeBusyId === board.id"
+                :aria-pressed="board.is_active"
+                :class="[
+                  'inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50',
+                  board.is_active
+                    ? 'bg-orange-500/15 text-orange-700 hover:bg-orange-500/25 dark:bg-orange-400/15 dark:text-orange-300 dark:hover:bg-orange-400/25'
+                    : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700',
+                ]"
+                @click="handleActiveClick(board)"
+              >
+                <Check v-if="board.is_active" :size="14" aria-hidden="true" />
+                {{ board.is_active ? text.setting.activeBadge : text.setting.makeActive }}
+              </button>
+            </div>
           </li>
         </ul>
       </div>
