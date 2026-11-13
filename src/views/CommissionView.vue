@@ -419,6 +419,35 @@ function cardsForStage(stageNumber: string): KanbanCard[] {
   })
 }
 
+const DEFAULT_STAGE_STYLE = {
+  cardBorder: 'border-zinc-300 dark:border-zinc-600',
+  progressBar: 'bg-zinc-400 dark:bg-zinc-500',
+}
+
+const STAGE_STYLES: Record<string, { cardBorder: string; progressBar: string }> = {
+  '01': DEFAULT_STAGE_STYLE,
+  '02': {
+    cardBorder: 'border-sky-400 dark:border-sky-500',
+    progressBar: 'bg-sky-500 dark:bg-sky-400',
+  },
+  '03': {
+    cardBorder: 'border-amber-400 dark:border-amber-500',
+    progressBar: 'bg-amber-500 dark:bg-amber-400',
+  },
+  '04': {
+    cardBorder: 'border-orange-400 dark:border-orange-500',
+    progressBar: 'bg-orange-500 dark:bg-orange-400',
+  },
+  '05': {
+    cardBorder: 'border-teal-400 dark:border-teal-500',
+    progressBar: 'bg-teal-500 dark:bg-teal-400',
+  },
+  '06': {
+    cardBorder: 'border-emerald-500 dark:border-emerald-500',
+    progressBar: 'bg-emerald-500 dark:bg-emerald-400',
+  },
+}
+
 function stageLabel(stageNumber: string): string {
   return text.value.home.stages.find((stage) => stage.number === stageNumber)?.label ?? ''
 }
@@ -428,6 +457,10 @@ function stageProgress(stageNumber: string): number {
   const index = stages.findIndex((stage) => stage.number === stageNumber)
   if (index <= 0) return 0
   return Math.round((index / Math.max(stages.length - 1, 1)) * 100)
+}
+
+function stageStyle(stageNumber: string) {
+  return STAGE_STYLES[stageNumber] ?? DEFAULT_STAGE_STYLE
 }
 
 function onCardDragStart(cardId: string, event: DragEvent) {
@@ -728,7 +761,8 @@ onUnmounted(() => {
                 :key="card.id"
                 :draggable="signedIn"
                 :class="[
-                  'relative rounded-2xl border border-zinc-200 bg-white p-3.5 text-zinc-950 shadow-xs transition-opacity dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50',
+                  'relative rounded-2xl border-2 bg-white p-3.5 text-zinc-950 shadow-xs transition-opacity dark:bg-zinc-900 dark:text-zinc-50',
+                  stageStyle(card.stageNumber).cardBorder,
                   signedIn ? 'cursor-grab active:cursor-grabbing' : '',
                   draggingCardId === card.id ? 'opacity-50' : '',
                 ]"
@@ -791,7 +825,7 @@ onUnmounted(() => {
                     class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
                   >
                     <div
-                      class="h-full rounded-full bg-orange-500 transition-all duration-300 dark:bg-orange-400"
+                      :class="['h-full rounded-full transition-all duration-300', stageStyle(card.stageNumber).progressBar]"
                       :style="{ width: `${stageProgress(card.stageNumber)}%` }"
                     />
                   </div>
