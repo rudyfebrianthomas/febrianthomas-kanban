@@ -805,17 +805,13 @@ onUnmounted(() => {
                     {{ requestor }}
                   </span>
                 </div>
-                <div
-                  v-if="card.createdAt || card.updatedAt"
-                  class="mt-2.5 flex flex-col gap-0.5 border-t border-zinc-100 pt-2 text-[11px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400"
+                <p
+                  v-if="card.updatedAt || card.createdAt"
+                  class="mt-2.5 border-t border-zinc-100 pt-2 text-[11px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400"
                 >
-                  <p v-if="card.createdAt">
-                    {{ text.home.createdAtLabel }}: {{ formatCardDate(card.createdAt) }}
-                  </p>
-                  <p v-if="card.updatedAt || card.createdAt">
-                    {{ text.home.updatedAtLabel }}: {{ formatCardDate(card.updatedAt ?? card.createdAt) }}
-                  </p>
-                </div>
+                  {{ card.updatedAt ? text.home.updatedAtLabel : text.home.createdAtLabel }}:
+                  {{ formatCardDate(card.updatedAt ?? card.createdAt) }}
+                </p>
               </article>
             </div>
           </div>
