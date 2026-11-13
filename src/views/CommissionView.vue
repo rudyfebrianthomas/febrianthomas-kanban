@@ -1134,7 +1134,7 @@ onUnmounted(() => {
             <FileText :size="26" />
           </span>
           <h3 class="mt-5 font-sniglet text-2xl font-bold text-zinc-950 dark:text-zinc-50">
-            {{ text.home.emptyBoardTitle }}
+            {{ text.home.previewEmptyCards }}
           </h3>
           <p class="mt-2 max-w-sm text-sm leading-6 text-zinc-600 dark:text-zinc-300">
             {{ text.home.emptyBoardDescription }}
