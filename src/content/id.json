@@ -106,7 +106,12 @@
     "switchingActive": "Mengganti...",
     "switchActiveError": "Gagal mengganti papan aktif. Coba lagi.",
     "backlogStatus": "Backlog",
-    "emptyBoardCards": "Belum ada kartu di papan ini. Tambah kartu atau geser kartu ke sini."
+    "emptyBoardCards": "Belum ada kartu di papan ini. Tambah kartu atau geser kartu ke sini.",
+    "filterBoards": "Filter papan",
+    "filterAll": "Semua",
+    "filterActive": "Aktif",
+    "filterInactive": "Tidak aktif",
+    "filterCompleted": "Selesai"
   },
   "about": {
     "eyebrow": "Kenalan dulu, yuk",

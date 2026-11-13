@@ -106,7 +106,12 @@
     "switchingActive": "Switching...",
     "switchActiveError": "Could not switch active board. Please try again.",
     "backlogStatus": "Backlog",
-    "emptyBoardCards": "No cards in this board. Add a card or drag one here."
+    "emptyBoardCards": "No cards in this board. Add a card or drag one here.",
+    "filterBoards": "Filter boards",
+    "filterAll": "All",
+    "filterActive": "Active",
+    "filterInactive": "Inactive",
+    "filterCompleted": "Completed"
   },
   "about": {
     "eyebrow": "A little introduction",

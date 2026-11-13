@@ -75,10 +75,13 @@ const boards = ref<KanbanBoard[]>(
         },
       ],
 )
+type BoardFilter = 'all' | 'active' | 'inactive' | 'completed'
+
 const cards = ref<KanbanCard[]>([])
 const loading = ref(!!supabase)
 const loadError = ref('')
 const query = ref('')
+const statusFilter = ref<BoardFilter>('active')
 
 const dialogOpen = ref(false)
 const editingBoard = ref<KanbanBoard | null>(null)
@@ -111,14 +114,31 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const draggingCardId = ref('')
 const dragOverBoardId = ref('')
 
+function isBoardCompleted(board: KanbanBoard): boolean {
+  if (board.is_backlog) return false
+  const boardCards = cardsForBoard(board.id)
+  return boardCards.length > 0 && boardCards.every((card) => card.stageNumber === '06')
+}
+
 const filteredBoards = computed(() => {
   const q = query.value.trim().toLowerCase()
-  if (!q) return boards.value
-  return boards.value.filter(
-    (board) =>
+  return boards.value.filter((board) => {
+    const matchesStatus =
+      statusFilter.value === 'all'
+        ? true
+        : statusFilter.value === 'active'
+          ? board.is_backlog || board.is_active
+          : statusFilter.value === 'inactive'
+            ? board.is_backlog || !board.is_active
+            : !board.is_backlog && isBoardCompleted(board)
+
+    if (!matchesStatus) return false
+    if (!q) return true
+    return (
       board.title.toLowerCase().includes(q) ||
-      (board.description?.toLowerCase().includes(q) ?? false),
-  )
+      (board.description?.toLowerCase().includes(q) ?? false)
+    )
+  })
 })
 
 const previewTags = computed(() => parseTags(requestorInput.value))
@@ -193,7 +213,7 @@ async function loadBoardsAndCards() {
     supabase
       .from('kanban_boards')
       .select('id,title,description,is_active,is_backlog,created_at')
-      .order('is_backlog', { ascending: false })
+      .order('is_backlog', { ascending: true })
       .order('created_at', { ascending: false }),
     supabase
       .from('kanban_cards')
@@ -267,7 +287,6 @@ async function handleSaveBoard() {
       const backlog = boards.value.filter((item) => item.is_backlog)
       const regular = boards.value.filter((item) => !item.is_backlog)
       boards.value = [
-        ...backlog,
         {
           id: crypto.randomUUID(),
           title: trimmedTitle,
@@ -276,6 +295,7 @@ async function handleSaveBoard() {
           is_backlog: false,
         },
         ...regular,
+        ...backlog,
       ]
     }
     saving.value = false
@@ -327,7 +347,7 @@ async function handleSaveBoard() {
   const created = data as KanbanBoard
   const backlog = boards.value.filter((item) => item.is_backlog)
   const regular = boards.value.filter((item) => !item.is_backlog)
-  boards.value = [...backlog, created, ...regular]
+  boards.value = [created, ...regular, ...backlog]
   onDialogOpenChange(false)
 }
 
@@ -1104,9 +1124,9 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
         </AlertDialogPortal>
       </AlertDialogRoot>
 
-      <form class="mt-8" role="search" @submit.prevent>
+      <form class="mt-8 flex flex-wrap gap-3" role="search" @submit.prevent>
         <label for="board-search" class="sr-only">{{ text.setting.searchBoards }}</label>
-        <div class="relative">
+        <div class="relative min-w-48 flex-1">
           <Search
             class="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
             aria-hidden="true"
@@ -1119,6 +1139,17 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
             class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-4 text-sm text-zinc-950 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-zinc-300"
           />
         </div>
+        <label for="board-filter" class="sr-only">{{ text.setting.filterBoards }}</label>
+        <select
+          id="board-filter"
+          v-model="statusFilter"
+          class="min-h-11 rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
+        >
+          <option value="all">{{ text.setting.filterAll }}</option>
+          <option value="active">{{ text.setting.filterActive }}</option>
+          <option value="inactive">{{ text.setting.filterInactive }}</option>
+          <option value="completed">{{ text.setting.filterCompleted }}</option>
+        </select>
       </form>
 
       <div class="mt-6">
