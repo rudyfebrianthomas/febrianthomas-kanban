@@ -13,6 +13,7 @@ import { motion, useReducedMotion } from 'motion-v'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { useLanguage } from '../composables/useLanguage'
+import { kanbanImageExtension, optimizeKanbanImage } from '../kanbanImage'
 import { supabase } from '../supabase'
 
 interface KanbanBoard {
@@ -44,13 +45,6 @@ interface KanbanCardRow {
 }
 
 const DEFAULT_BOARD_ID = '00000000-0000-0000-0000-000000000001'
-const IMAGE_EXTENSIONS: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/gif': 'gif',
-}
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 const fieldClass =
   'mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-base text-zinc-950 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-300'
 
@@ -93,7 +87,7 @@ const activeImagePreviewUrl = computed(() => {
 })
 
 function isValidImage(file: File): boolean {
-  return Object.hasOwn(IMAGE_EXTENSIONS, file.type) && file.size > 0 && file.size <= MAX_IMAGE_BYTES
+  return Boolean(kanbanImageExtension(file))
 }
 
 function kanbanImageUrl(path: string | null): string | undefined {
@@ -287,12 +281,13 @@ async function submitCard() {
   let uploadedPath: string | null = null
   try {
     if (imageFile.value) {
-      const ext = IMAGE_EXTENSIONS[imageFile.value.type]
+      const optimized = await optimizeKanbanImage(imageFile.value)
+      const ext = kanbanImageExtension(optimized)
       if (!ext) throw new Error('Invalid image')
       uploadedPath = `${crypto.randomUUID()}.${ext}`
       const { error: uploadError } = await supabase.storage
         .from('kanban-images')
-        .upload(uploadedPath, imageFile.value, { contentType: imageFile.value.type, upsert: false })
+        .upload(uploadedPath, optimized, { contentType: optimized.type, upsert: false })
       if (uploadError) {
         uploadedPath = null
         throw uploadError
