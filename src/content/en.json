@@ -80,7 +80,48 @@
     },
     "createdAtLabel": "Created",
     "updatedAtLabel": "Updated",
-    "noActiveBoardDescription": "There is no active commission board right now. Check back soon!"
+    "noActiveBoardDescription": "There is no active commission board right now. Check back soon!",
+    "viewBoardCta": "View commission board",
+    "aboutCta": "About me",
+    "pipelineTitle": "Workflow & Types.",
+    "pipelineDescription": "Every commission moves through six clear stages, from queue to final delivery.",
+    "typesLabel": "What I make",
+    "previewEmptyCards": "No cards on this board yet.",
+    "previewViewAll": "Open full board",
+    "workflowSections": [
+      {
+        "id": "queue",
+        "title": "Start in the Queue.",
+        "description": "Every request—from emotes and GIFs to full illustrations and stream transitions—starts on the active board so you can see your spot right away.",
+        "image": "/images/hero-section-1.gif",
+        "imageAlt": "Character illustration representing commission queue",
+        "imagePosition": "left"
+      },
+      {
+        "id": "sketch-lineart",
+        "title": "Sketch to Lineart.",
+        "description": "Once your slot starts, the card moves through Sketch and Lineart so you can track rough composition and clean line work step by step.",
+        "image": "/images/hero-section-2.gif",
+        "imageAlt": "Character illustration representing sketching and lineart",
+        "imagePosition": "right"
+      },
+      {
+        "id": "rendering",
+        "title": "Color, Shading & Motion.",
+        "description": "Colors, lighting, and 2D animation frames come together during Rendering before anything goes out.",
+        "image": "/images/hero-section-3.gif",
+        "imageAlt": "Character illustration representing rendering and animation",
+        "imagePosition": "left"
+      },
+      {
+        "id": "review-complete",
+        "title": "Review & Finish.",
+        "description": "A final check in Review catches every detail before the card moves to Completed and your artwork is ready.",
+        "image": "/images/hero-section-4.gif",
+        "imageAlt": "Character illustration representing completed delivery",
+        "imagePosition": "right"
+      }
+    ]
   },
   "setting": {
     "eyebrow": "BOARD MANAGEMENT",

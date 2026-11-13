@@ -80,7 +80,48 @@
     },
     "createdAtLabel": "Dibuat",
     "updatedAtLabel": "Diperbarui",
-    "noActiveBoardDescription": "Saat ini belum ada papan komisi yang aktif. Cek lagi nanti, ya!"
+    "noActiveBoardDescription": "Saat ini belum ada papan komisi yang aktif. Cek lagi nanti, ya!",
+    "viewBoardCta": "Lihat papan komisi",
+    "aboutCta": "Tentang aku",
+    "pipelineTitle": "Alur & Tipe Komisi.",
+    "pipelineDescription": "Setiap komisi melewati enam tahap yang jelas, dari antrean sampai karya selesai.",
+    "typesLabel": "Yang bisa dipesan",
+    "previewEmptyCards": "Belum ada kartu di papan ini.",
+    "previewViewAll": "Buka papan lengkap",
+    "workflowSections": [
+      {
+        "id": "queue",
+        "title": "Mulai dari Antrean.",
+        "description": "Setiap pesanan—mulai dari emote, GIF, ilustrasi, sampai transisi—langsung masuk ke papan aktif biar kamu bisa cek posisi antreanmu.",
+        "image": "/images/hero-section-1.gif",
+        "imageAlt": "Ilustrasi karakter untuk tahap antrean",
+        "imagePosition": "left"
+      },
+      {
+        "id": "sketch-lineart",
+        "title": "Sketsa ke Lineart.",
+        "description": "Begitu giliranmu mulai dikerjakan, kartu pindah ke Sketsa lalu Lineart supaya progres komposisi dan garisnya kelihatan jelas.",
+        "image": "/images/hero-section-2.gif",
+        "imageAlt": "Ilustrasi karakter untuk tahap sketsa dan lineart",
+        "imagePosition": "right"
+      },
+      {
+        "id": "rendering",
+        "title": "Warna, Shading & Gerak.",
+        "description": "Pewarnaan, pencahayaan, dan frame animasi 2D dirapikan di tahap Rendering sebelum masuk pengecekan akhir.",
+        "image": "/images/hero-section-3.gif",
+        "imageAlt": "Ilustrasi karakter untuk tahap rendering dan animasi",
+        "imagePosition": "left"
+      },
+      {
+        "id": "review-complete",
+        "title": "Review & Selesai.",
+        "description": "Tahap Review memastikan semua detail sudah pas sebelum kartu dipindahkan ke Selesai dan karyamu siap dikirim.",
+        "image": "/images/hero-section-4.gif",
+        "imageAlt": "Ilustrasi karakter untuk tahap selesai",
+        "imagePosition": "right"
+      }
+    ]
   },
   "setting": {
     "eyebrow": "MANAJEMEN PAPAN",
