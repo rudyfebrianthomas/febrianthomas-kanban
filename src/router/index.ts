@@ -4,6 +4,7 @@ import AboutView from '../views/AboutView.vue'
 import CommissionView from '../views/CommissionView.vue'
 import HomeView from '../views/HomeView.vue'
 import LoginView from '../views/LoginView.vue'
+import RequestView from '../views/RequestView.vue'
 import SettingView from '../views/SettingView.vue'
 import TosView from '../views/TosView.vue'
 
@@ -18,6 +19,7 @@ export const router = createRouter({
   routes: [
     { path: '/', component: HomeView },
     { path: '/commission', component: CommissionView, meta: { title: 'Commission' } },
+    { path: '/request', component: RequestView, meta: { title: 'Request Commission' } },
     { path: '/about', component: AboutView, meta: { title: 'About' } },
     { path: '/tos', alias: ['/terms'], component: TosView, meta: { title: 'Terms of Service' } },
     { path: '/setting', alias: ['/settings', '/manage'], component: SettingView, meta: { title: 'Manage' } },

@@ -30,9 +30,10 @@ import KanbanCardFormDialog from '../components/commission/KanbanCardFormDialog.
 import SelectField from '../components/ui/SelectField.vue'
 import { useLanguage } from '../composables/useLanguage'
 import {
+  deleteKanbanCard,
+  formatCardDate,
   type KanbanCard,
   type KanbanCardRow,
-  deleteKanbanCard,
   toKanbanCard,
 } from '../lib/kanbanCard'
 import { stageLabel, stageProgress } from '../lib/kanbanStage'
@@ -49,7 +50,7 @@ interface KanbanBoard {
 
 const BACKLOG_BOARD_ID = '00000000-0000-0000-0000-000000000000'
 
-const { text } = useLanguage()
+const { language, text } = useLanguage()
 const router = useRouter()
 const prefersReducedMotion = useReducedMotion()
 
@@ -67,12 +68,14 @@ const boards = ref<KanbanBoard[]>(
       ],
 )
 type BoardFilter = 'all' | 'active' | 'inactive' | 'completed'
+type BacklogSortOrder = 'newest' | 'oldest'
 
 const cards = ref<KanbanCard[]>([])
 const loading = ref(!!supabase)
 const loadError = ref('')
 const query = ref('')
 const statusFilter = ref<BoardFilter>('active')
+const backlogSortOrder = ref<BacklogSortOrder>('newest')
 
 const dialogOpen = ref(false)
 const editingBoard = ref<KanbanBoard | null>(null)
@@ -143,9 +146,20 @@ const boardFilterOptions = computed<{ value: BoardFilter; label: string }[]>(() 
   { value: 'inactive', label: text.value.setting.filterInactive },
   { value: 'completed', label: text.value.setting.filterCompleted },
 ])
+const backlogSortOptions = computed<{ value: BacklogSortOrder; label: string }[]>(() => [
+  { value: 'newest', label: text.value.setting.backlogSortNewest },
+  { value: 'oldest', label: text.value.setting.backlogSortOldest },
+])
 
 function cardsForBoard(boardId: string): KanbanCard[] {
-  return cards.value.filter((card) => card.boardId === boardId)
+  const boardCards = cards.value.filter((card) => card.boardId === boardId)
+  const board = boards.value.find((item) => item.id === boardId)
+  if (!board?.is_backlog) return boardCards
+  return [...boardCards].sort((a, b) => {
+    const timeA = Date.parse(a.createdAt ?? '') || 0
+    const timeB = Date.parse(b.createdAt ?? '') || 0
+    return backlogSortOrder.value === 'newest' ? timeB - timeA : timeA - timeB
+  })
 }
 
 function isCardSelected(cardId: string): boolean {
@@ -262,7 +276,7 @@ async function loadBoardsAndCards() {
       .order('created_at', { ascending: false }),
     supabase
       .from('kanban_cards')
-      .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path')
+      .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path,created_at,updated_at')
       .order('created_at', { ascending: true }),
     fetchCommissionStatus(),
   ])
@@ -1017,6 +1031,15 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
               </div>
 
               <div class="flex flex-wrap items-center gap-2">
+                <div v-if="board.is_backlog" class="w-44">
+                  <label for="backlog-sort" class="sr-only">{{ text.setting.backlogSortLabel }}</label>
+                  <SelectField
+                    id="backlog-sort"
+                    v-model="backlogSortOrder"
+                    :options="backlogSortOptions"
+                    :aria-label="text.setting.backlogSortLabel"
+                  />
+                </div>
                 <button
                   type="button"
                   class="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-zinc-900 px-3.5 py-1.5 text-xs text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
@@ -1134,6 +1157,12 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                   </div>
 
                   <div class="flex shrink-0 items-center gap-2">
+                    <span
+                      v-if="board.is_backlog && card.createdAt"
+                      class="hidden text-[11px] text-zinc-500 sm:inline dark:text-zinc-400"
+                    >
+                      {{ formatCardDate(card.createdAt, language) }}
+                    </span>
                     <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                       {{ cardStatusLabel(board, card) }} · {{ cardProgress(board, card) }}%
                     </span>

@@ -82,6 +82,7 @@
     "updatedAtLabel": "Diperbarui",
     "noActiveBoardDescription": "Belum ada papan komisi yang aktif nih. Ngopi dulu aja, nanti cek lagi ya!",
     "viewBoardCta": "Cek antrean",
+    "requestCta": "Pesan komisi",
     "aboutCta": "Kenalan dulu",
     "pipelineTitle": "Enam Langkah Simpel.",
     "pipelineDescription": "Setiap karya jalan di jalur yang sama, dari antrean sampai beres.",
@@ -200,7 +201,10 @@
     "saveStatus": "Simpan status",
     "savingStatus": "Menyimpan…",
     "savedStatus": "Tersimpan!",
-    "saveStatusError": "Status komisi belum bisa disimpan."
+    "saveStatusError": "Status komisi belum bisa disimpan.",
+    "backlogSortLabel": "Urutkan backlog",
+    "backlogSortNewest": "Terbaru ke terlama",
+    "backlogSortOldest": "Terlama ke terbaru"
   },
   "about": {
     "title": "Tentang.",
@@ -333,6 +337,46 @@
     "confirmSignOut": "Yakin ingin keluar?",
     "signOutDescription": "Kamu bisa masuk lagi kapan saja.",
     "cancel": "Batal"
+  },
+  "request": {
+    "eyebrow": "FEBRIANTHOMAS / PERMINTAAN",
+    "title": "Pesan Komisi.",
+    "description": "Tulis idemu dan kontak yang bisa dihubungi. Permintaan yang masuk akan tampil di backlog untuk dicek.",
+    "adminClosedNotice": "Komisi sedang tutup untuk pengunjung. Kamu tetap bisa membuka halaman ini sebagai admin.",
+    "closedTitle": "Komisi lagi tutup sekarang.",
+    "closedDescription": "Permintaan baru lagi dijeda dulu. Cek papan komisi buat lihat progres yang sedang jalan, atau balik lagi pas slot buka.",
+    "backToBoard": "Lihat Papan Komisi",
+    "typeLabel": "Tipe komisi",
+    "titleLabel": "Judul",
+    "titlePlaceholder": "cth. Emote chibi melambai",
+    "descriptionLabel": "Detail permintaan",
+    "descriptionPlaceholder": "Jelaskan ide, karakter, gaya, atau tempel tautan referensi",
+    "contactChannelLabel": "Kontak lewat",
+    "contactChannels": {
+      "email": "Email",
+      "discord": "Discord",
+      "twitter": "X / Twitter",
+      "instagram": "Instagram"
+    },
+    "contactValueLabel": "Alamat / username kontak",
+    "contactPlaceholders": {
+      "email": "nama@example.com",
+      "discord": "username",
+      "twitter": "@username",
+      "instagram": "@username"
+    },
+    "tosPrefix": "Saya sudah membaca dan menyetujui",
+    "tosLink": "Ketentuan Layanan",
+    "tosRequired": "Baca dan setujui Ketentuan Layanan dulu, ya.",
+    "tosAgreeAndClose": "Saya setuju",
+    "requiredFields": "Isi judul, detail permintaan, dan kontak dulu, ya.",
+    "invalidEmail": "Masukkan alamat email yang valid, ya.",
+    "submit": "Kirim permintaan",
+    "submitting": "Mengirim…",
+    "submitError": "Permintaan belum bisa dikirim. Cek lagi isianmu dan coba lagi, ya.",
+    "successTitle": "Permintaan masuk ke Backlog!",
+    "successDescription": "Makasih! Permintaanmu sudah masuk ke daftar backlog dan bakal aku hubungi lewat kontak pilihanmu setelah dicek.",
+    "submitAnother": "Kirim permintaan lagi"
   },
   "tos": {
     "eyebrow": "FEBRIANTHOMAS / KETENTUAN",

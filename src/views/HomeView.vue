@@ -45,9 +45,19 @@ let timer: ReturnType<typeof setTimeout> | null = null
 let active = true
 
 const previewLoading = ref(!!supabase)
+const signedIn = ref(false)
+const authSubscription = supabase?.auth.onAuthStateChange((_event, session) => {
+  signedIn.value = !!session
+})
 const commissionStatus = ref<CommissionStatus | null>(supabase ? null : { status: 'open', slotsOpen: 3, slotsTotal: 5 })
 const activeBoard = ref<ActiveBoardSummary | null>(null)
 const boardCards = ref<PreviewCard[]>([])
+
+const canRequestCommission = computed(
+  () =>
+    signedIn.value ||
+    (commissionStatus.value !== null && commissionStatus.value.status !== 'closed'),
+)
 
 const recentCards = computed(() =>
   [...boardCards.value].sort((a, b) => b.sortTime - a.sortTime).slice(0, 3),
@@ -76,7 +86,8 @@ function getStageLabel(stageNumber: string): string {
 onMounted(async () => {
   if (!supabase) return
   try {
-    const [statusData, { data: boardData }] = await Promise.all([
+    const [{ data: sessionData }, statusData, { data: boardData }] = await Promise.all([
+      supabase.auth.getSession(),
       fetchCommissionStatus(),
       supabase
         .from('kanban_boards')
@@ -86,6 +97,7 @@ onMounted(async () => {
     ])
     if (!active) return
 
+    signedIn.value = Boolean(sessionData.session)
     commissionStatus.value = statusData
     activeBoard.value = (boardData as ActiveBoardSummary | null) ?? null
     if (!activeBoard.value) return
@@ -113,6 +125,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   active = false
+  authSubscription?.data.subscription.unsubscribe()
   if (timer) clearTimeout(timer)
 })
 </script>
@@ -147,6 +160,13 @@ onUnmounted(() => {
             >
               <span>{{ text.home.viewBoardCta }}</span>
               <ArrowRight :size="16" aria-hidden="true" />
+            </RouterLink>
+            <RouterLink
+              v-if="canRequestCommission"
+              to="/request"
+              class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-zinc-300 bg-white px-5 py-2.5 text-sm text-zinc-900 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:hover:bg-zinc-800"
+            >
+              <span>{{ text.home.requestCta }}</span>
             </RouterLink>
             <RouterLink
               to="/about"

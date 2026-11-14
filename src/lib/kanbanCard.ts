@@ -1,3 +1,4 @@
+import { type Language } from '../composables/useLanguage'
 import { type CommissionType } from './commissionStatus'
 import { supabase } from './supabase'
 
@@ -55,6 +56,19 @@ export function parseRequestorTags(raw: string): string[] {
 
 export function latestTimestamp(updatedAt?: string | null, createdAt?: string): number {
   return Date.parse(updatedAt ?? createdAt ?? '') || 0
+}
+
+export function formatCardDate(iso: string | null | undefined, language: Language): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat(language === 'id' ? 'id-ID' : 'en-US', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
 }
 
 export async function deleteKanbanCard(card: KanbanCard): Promise<void> {

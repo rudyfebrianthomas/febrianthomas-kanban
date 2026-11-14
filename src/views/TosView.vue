@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeft } from '@lucide/vue'
+import TosSections from '../components/tos/TosSections.vue'
 import { useLanguage } from '../composables/useLanguage'
 
 const { text } = useLanguage()
@@ -24,22 +25,7 @@ const { text } = useLanguage()
         {{ text.tos.updated }}
       </p>
 
-      <div class="mt-10 space-y-6">
-        <section
-          v-for="section in text.tos.sections"
-          :key="section.id"
-          class="surface-shadow rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900"
-        >
-          <h2 class="text-xl font-bold text-zinc-950 dark:text-zinc-50">
-            {{ section.title }}
-          </h2>
-          <ul class="mt-3 list-disc space-y-2 pl-5 text-base leading-7 text-zinc-600 dark:text-zinc-300">
-            <li v-for="item in section.items" :key="item">
-              {{ item }}
-            </li>
-          </ul>
-        </section>
-      </div>
+      <TosSections class="mt-10" />
 
       <div class="mt-10">
         <RouterLink

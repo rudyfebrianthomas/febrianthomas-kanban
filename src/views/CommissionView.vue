@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FileText, Plus, Search } from '@lucide/vue'
+import { ArrowRight, FileText, Plus, Search } from '@lucide/vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { COMMISSION_TYPES, type CommissionStatus, type CommissionType, fetchCommissionStatus } from '../lib/commissionStatus'
@@ -11,6 +11,7 @@ import SelectField from '../components/ui/SelectField.vue'
 import { useLanguage } from '../composables/useLanguage'
 import {
   deleteKanbanCard,
+  formatCardDate as formatCardDateForLanguage,
   type KanbanCard,
   type KanbanCardRow,
   latestTimestamp,
@@ -60,17 +61,14 @@ const detailCard = ref<KanbanCard | null>(null)
 const draggingCardId = ref('')
 const dragOverStage = ref('')
 
+const canRequestCommission = computed(
+  () =>
+    signedIn.value ||
+    (commissionStatus.value !== null && commissionStatus.value.status !== 'closed'),
+)
+
 function formatCardDate(iso?: string | null): string {
-  if (!iso) return ''
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  return new Intl.DateTimeFormat(language.value === 'id' ? 'id-ID' : 'en-US', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
+  return formatCardDateForLanguage(iso, language.value)
 }
 
 function boardSortTime(board: KanbanBoard): number {
@@ -367,13 +365,23 @@ async function onColumnDrop(targetStage: string, event: DragEvent) {
           <p class="mt-4 text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">
             {{ text.home.commissionDescription }}
           </p>
-          <RouterLink
-            to="/tos"
-            class="mt-3 inline-flex items-center gap-1.5 text-sm text-zinc-600 underline decoration-zinc-300 underline-offset-4 transition-colors hover:text-zinc-950 hover:decoration-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-300 dark:decoration-zinc-600 dark:hover:text-zinc-50 dark:hover:decoration-zinc-50"
-          >
-            <FileText :size="15" aria-hidden="true" />
-            <span>{{ text.home.tosLink }}</span>
-          </RouterLink>
+          <div class="mt-4 flex flex-wrap items-center gap-4">
+            <RouterLink
+              v-if="canRequestCommission"
+              to="/request"
+              class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
+            >
+              <span>{{ text.home.requestCta }}</span>
+              <ArrowRight :size="15" aria-hidden="true" />
+            </RouterLink>
+            <RouterLink
+              to="/tos"
+              class="inline-flex min-h-11 items-center gap-1.5 text-sm text-zinc-600 underline decoration-zinc-300 underline-offset-4 transition-colors hover:text-zinc-950 hover:decoration-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-300 dark:decoration-zinc-600 dark:hover:text-zinc-50 dark:hover:decoration-zinc-50"
+            >
+              <FileText :size="15" aria-hidden="true" />
+              <span>{{ text.home.tosLink }}</span>
+            </RouterLink>
+          </div>
         </div>
       </div>
 

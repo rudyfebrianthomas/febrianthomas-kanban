@@ -82,6 +82,7 @@
     "updatedAtLabel": "Updated",
     "noActiveBoardDescription": "No active commission board right now. Grab a coffee and check back soon!",
     "viewBoardCta": "Check the queue",
+    "requestCta": "Request commission",
     "aboutCta": "Meet Febrian",
     "pipelineTitle": "Six Simple Steps.",
     "pipelineDescription": "Every piece follows the same friendly track from queue to finish.",
@@ -200,7 +201,10 @@
     "saveStatus": "Save status",
     "savingStatus": "Saving…",
     "savedStatus": "Saved!",
-    "saveStatusError": "Could not update commission status."
+    "saveStatusError": "Could not update commission status.",
+    "backlogSortLabel": "Sort backlog",
+    "backlogSortNewest": "Newest to oldest",
+    "backlogSortOldest": "Oldest to newest"
   },
   "about": {
     "title": "About.",
@@ -333,6 +337,46 @@
     "confirmSignOut": "Are you sure you want to sign out?",
     "signOutDescription": "You can sign in again whenever you’re ready.",
     "cancel": "Cancel"
+  },
+  "request": {
+    "eyebrow": "FEBRIANTHOMAS / REQUEST",
+    "title": "Request a Commission.",
+    "description": "Share your idea and how to reach you. Submitted requests go into the backlog queue for review.",
+    "adminClosedNotice": "Commissions are currently closed to visitors. You can still access this page as admin.",
+    "closedTitle": "Commissions are closed right now.",
+    "closedDescription": "New requests are paused for the moment. Check the commission board for ongoing progress or check back when slots reopen.",
+    "backToBoard": "View Commission Board",
+    "typeLabel": "Commission type",
+    "titleLabel": "Title",
+    "titlePlaceholder": "e.g. Chibi waving emote",
+    "descriptionLabel": "Request details",
+    "descriptionPlaceholder": "Describe your idea, character, mood, or paste a reference link",
+    "contactChannelLabel": "Contact platform",
+    "contactChannels": {
+      "email": "Email",
+      "discord": "Discord",
+      "twitter": "X / Twitter",
+      "instagram": "Instagram"
+    },
+    "contactValueLabel": "Contact info",
+    "contactPlaceholders": {
+      "email": "you@example.com",
+      "discord": "username",
+      "twitter": "@username",
+      "instagram": "@username"
+    },
+    "tosPrefix": "I have read and agree to the",
+    "tosLink": "Terms of Service",
+    "tosRequired": "Please read and agree to the Terms of Service first.",
+    "tosAgreeAndClose": "I agree",
+    "requiredFields": "Please fill in title, request details, and contact info.",
+    "invalidEmail": "Please enter a valid email address.",
+    "submit": "Submit request",
+    "submitting": "Submitting…",
+    "submitError": "Could not submit your request. Please check your entries and try again.",
+    "successTitle": "Request sent to Backlog!",
+    "successDescription": "Thanks! Your request is now in the backlog queue. I’ll reach out via your selected contact once reviewed.",
+    "submitAnother": "Send another request"
   },
   "tos": {
     "eyebrow": "FEBRIANTHOMAS / TERMS",
