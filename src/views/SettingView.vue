@@ -26,6 +26,7 @@ import {
   fetchCommissionStatus,
 } from '../lib/commissionStatus'
 import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
+import CommissionOffersManager from '../components/commission/CommissionOffersManager.vue'
 import KanbanCardFormDialog from '../components/commission/KanbanCardFormDialog.vue'
 import SelectField from '../components/ui/SelectField.vue'
 import { useLanguage } from '../composables/useLanguage'
@@ -928,6 +929,8 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
           {{ statusError }}
         </p>
       </form>
+
+      <CommissionOffersManager />
 
       <form class="mt-6 flex flex-wrap gap-3" role="search" @submit.prevent>
         <label for="board-search" class="sr-only">{{ text.setting.searchBoards }}</label>
