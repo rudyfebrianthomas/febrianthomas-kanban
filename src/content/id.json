@@ -8,7 +8,7 @@
     "home": "Beranda",
     "commission": "Komisi",
     "about": "Tentang",
-    "setting": "Pengaturan",
+    "setting": "Kelola",
     "signIn": "Masuk",
     "signOut": "Keluar",
     "signingOut": "Sedang keluar…",
@@ -146,7 +146,7 @@
   },
   "setting": {
     "eyebrow": "MANAJEMEN PAPAN",
-    "title": "Pengaturan.",
+    "title": "Kelola.",
     "description": "Atur papan komisi, papan aktif, dan kartu di satu tempat biar tetap rapi.",
     "searchBoards": "Cari papan",
     "searchBoardsPlaceholder": "Cari papan berdasarkan judul atau deskripsi...",

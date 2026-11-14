@@ -14,13 +14,13 @@ export const router = createRouter({
     { path: '/', component: HomeView },
     { path: '/commission', component: CommissionView, meta: { title: 'Commission' } },
     { path: '/about', component: AboutView, meta: { title: 'About' } },
-    { path: '/setting', alias: '/settings', component: SettingView, meta: { title: 'Setting' } },
+    { path: '/setting', alias: ['/settings', '/manage'], component: SettingView, meta: { title: 'Manage' } },
     { path: '/login', component: LoginView, meta: { title: 'Sign in' } },
   ],
 })
 
 router.beforeEach(async (to) => {
-  if (to.path !== '/setting' && to.path !== '/settings') return true
+  if (to.path !== '/setting' && to.path !== '/settings' && to.path !== '/manage') return true
   if (!supabase) return '/'
   const { data } = await supabase.auth.getSession()
   if (!data.session) return '/'

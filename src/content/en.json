@@ -8,7 +8,7 @@
     "home": "Home",
     "commission": "Commission",
     "about": "About",
-    "setting": "Setting",
+    "setting": "Manage",
     "signIn": "Sign in",
     "signOut": "Sign out",
     "signingOut": "Signing out…",
@@ -146,7 +146,7 @@
   },
   "setting": {
     "eyebrow": "BOARD MANAGEMENT",
-    "title": "Setting.",
+    "title": "Manage.",
     "description": "Keep your commission boards, active queue, and cards tidy in one place.",
     "searchBoards": "Search boards",
     "searchBoardsPlaceholder": "Search boards by title or description...",
