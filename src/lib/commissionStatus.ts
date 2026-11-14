@@ -14,6 +14,7 @@ export interface CommissionStatus {
 
 export interface OfferSlotSummaryInput {
   isOpen: boolean
+  boardStatus?: 'active' | 'waitlist' | 'inactive'
   maxRequests: number | null
   requestCount: number
 }
@@ -23,8 +24,14 @@ interface CommissionStatusRow {
 }
 
 interface OfferQuotaRow {
+  board_id: string
   max_requests: number | null
   request_count: number | null
+}
+
+interface VisibleBoardRow {
+  id: string
+  status: 'active' | 'waitlist'
 }
 
 export const DEFAULT_COMMISSION_STATUS: CommissionStatus = {
@@ -55,7 +62,14 @@ export function summarizeOfferSlots(
   let slotsOpen = 0
   let slotsTotal = 0
   for (const offer of offers) {
-    if (!offer.isOpen || offer.maxRequests === null || offer.maxRequests <= 0) continue
+    if (
+      !offer.isOpen ||
+      offer.boardStatus === 'inactive' ||
+      offer.maxRequests === null ||
+      offer.maxRequests <= 0
+    ) {
+      continue
+    }
     slotsOpen += Math.max(offer.maxRequests - Math.max(0, offer.requestCount), 0)
     slotsTotal += offer.maxRequests
   }
@@ -64,22 +78,29 @@ export function summarizeOfferSlots(
 
 export async function fetchCommissionStatus(): Promise<CommissionStatus | null> {
   if (!supabase) return { ...DEFAULT_COMMISSION_STATUS }
-  const [statusResult, offersResult] = await Promise.all([
+  const [statusResult, boardsResult, offersResult] = await Promise.all([
     supabase.from('commission_status').select('status').eq('id', 'default').maybeSingle(),
+    supabase.from('commission_offer_boards').select('id,status').in('status', ['active', 'waitlist']),
     supabase
       .from('commission_offers')
-      .select('max_requests,request_count')
+      .select('board_id,max_requests,request_count')
       .eq('is_open', true)
       .not('max_requests', 'is', null),
   ])
 
   if (!statusResult.data) return null
   const row = statusResult.data as CommissionStatusRow
-  const offers = ((offersResult.data ?? []) as OfferQuotaRow[]).map((offer) => ({
-    isOpen: true,
-    maxRequests: offer.max_requests,
-    requestCount: Number(offer.request_count) || 0,
-  }))
+  const visibleBoardStatusById = new Map(
+    ((boardsResult.data ?? []) as VisibleBoardRow[]).map((board) => [board.id, board.status]),
+  )
+  const offers = ((offersResult.data ?? []) as OfferQuotaRow[])
+    .filter((offer) => visibleBoardStatusById.has(offer.board_id))
+    .map((offer) => ({
+      isOpen: true,
+      boardStatus: visibleBoardStatusById.get(offer.board_id),
+      maxRequests: offer.max_requests,
+      requestCount: Number(offer.request_count) || 0,
+    }))
   return {
     status: row.status,
     ...summarizeOfferSlots(offers),

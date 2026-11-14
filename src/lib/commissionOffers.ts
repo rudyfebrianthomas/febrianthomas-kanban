@@ -1,10 +1,37 @@
 import { type Language } from '../composables/useLanguage'
-import { type CommissionType } from './commissionStatus'
+import { type CommissionStatus, type CommissionType, summarizeOfferSlots } from './commissionStatus'
 import { kanbanImageUrl } from './kanbanCard'
 import { supabase } from './supabase'
 
+export const OFFER_BOARD_STATUSES = ['active', 'waitlist', 'inactive'] as const
+export type OfferBoardStatus = (typeof OFFER_BOARD_STATUSES)[number]
+export const MAX_ACTIVE_OFFER_BOARDS = 2
+
+export const OFFER_BOARD_STATUS_DOTS: Record<OfferBoardStatus, string> = {
+  active: 'bg-emerald-500',
+  waitlist: 'bg-amber-500',
+  inactive: 'bg-zinc-400',
+}
+
+export interface CommissionOfferBoard {
+  id: string
+  title: string
+  description: string | null
+  status: OfferBoardStatus
+  sortOrder: number
+}
+
+export interface CommissionOfferBoardRow {
+  id: string
+  title: string
+  description: string | null
+  status: OfferBoardStatus
+  sort_order: number
+}
+
 export interface CommissionOffer {
   id: string
+  boardId: string
   commissionType: CommissionType
   title: string
   description: string
@@ -20,6 +47,7 @@ export interface CommissionOffer {
 
 export interface CommissionOfferRow {
   id: string
+  board_id: string
   commission_type: CommissionType
   title: string
   description: string
@@ -32,9 +60,22 @@ export interface CommissionOfferRow {
   request_count: number | null
 }
 
+export const DEFAULT_OFFER_BOARD_ID = '00000000-0000-0000-0000-000000000301'
+
+export const DEFAULT_COMMISSION_OFFER_BOARDS: CommissionOfferBoard[] = [
+  {
+    id: DEFAULT_OFFER_BOARD_ID,
+    title: 'Open Commission List',
+    description: null,
+    status: 'active',
+    sortOrder: 1,
+  },
+]
+
 export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
   {
     id: '00000000-0000-0000-0000-000000000101',
+    boardId: DEFAULT_OFFER_BOARD_ID,
     commissionType: 'Emote',
     title: 'Custom Emote',
     description: 'Expressive static emote for Twitch, Discord, or YouTube.',
@@ -48,6 +89,7 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
   },
   {
     id: '00000000-0000-0000-0000-000000000102',
+    boardId: DEFAULT_OFFER_BOARD_ID,
     commissionType: 'GIF',
     title: 'Animated GIF / Emote',
     description: 'Looping animated emote or reaction GIF with smooth motion.',
@@ -61,6 +103,7 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
   },
   {
     id: '00000000-0000-0000-0000-000000000103',
+    boardId: DEFAULT_OFFER_BOARD_ID,
     commissionType: 'Illustration',
     title: 'Character Illustration',
     description: 'Clean lined and rendered illustration of your character.',
@@ -74,6 +117,7 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
   },
   {
     id: '00000000-0000-0000-0000-000000000104',
+    boardId: DEFAULT_OFFER_BOARD_ID,
     commissionType: 'Animation',
     title: '2D Character Animation',
     description: 'Short 2D loop or character animation with shading.',
@@ -87,6 +131,7 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
   },
   {
     id: '00000000-0000-0000-0000-000000000105',
+    boardId: DEFAULT_OFFER_BOARD_ID,
     commissionType: 'Transition',
     title: 'Stream Stinger Transition',
     description: 'Custom animated transition tailored to your stream branding.',
@@ -99,6 +144,71 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     requestCount: 0,
   },
 ]
+
+export function isOfferBoardVisible(status: OfferBoardStatus): boolean {
+  return status === 'active' || status === 'waitlist'
+}
+
+export function activeOfferBoardCount(
+  boards: readonly Pick<CommissionOfferBoard, 'id' | 'status'>[],
+  excludeBoardId?: string,
+): number {
+  return boards.filter((board) => board.status === 'active' && board.id !== excludeBoardId).length
+}
+
+export function canActivateOfferBoard(
+  boards: readonly Pick<CommissionOfferBoard, 'id' | 'status'>[],
+  targetBoardId?: string,
+): boolean {
+  return activeOfferBoardCount(boards, targetBoardId) < MAX_ACTIVE_OFFER_BOARDS
+}
+
+export function summarizeOffersWithBoards(
+  offers: readonly CommissionOffer[],
+  boards: readonly CommissionOfferBoard[],
+): Pick<CommissionStatus, 'slotsOpen' | 'slotsTotal'> {
+  const statusByBoardId = new Map(boards.map((board) => [board.id, board.status]))
+  return summarizeOfferSlots(
+    offers.map((offer) => ({
+      isOpen: offer.isOpen,
+      boardStatus: statusByBoardId.get(offer.boardId) ?? 'inactive',
+      maxRequests: offer.maxRequests,
+      requestCount: offer.requestCount,
+    })),
+  )
+}
+
+export function toCommissionOfferBoard(row: CommissionOfferBoardRow): CommissionOfferBoard {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    status: row.status,
+    sortOrder: row.sort_order,
+  }
+}
+
+export async function fetchCommissionOfferBoards(
+  includeInactive = false,
+): Promise<CommissionOfferBoard[]> {
+  if (!supabase) {
+    return includeInactive
+      ? DEFAULT_COMMISSION_OFFER_BOARDS
+      : DEFAULT_COMMISSION_OFFER_BOARDS.filter((board) => isOfferBoardVisible(board.status))
+  }
+
+  let query = supabase
+    .from('commission_offer_boards')
+    .select('id,title,description,status,sort_order')
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
+
+  if (!includeInactive) query = query.in('status', ['active', 'waitlist'])
+
+  const { data, error } = await query
+  if (error || !data) return []
+  return (data as CommissionOfferBoardRow[]).map(toCommissionOfferBoard)
+}
 
 export function isOfferLimitReached(
   offer: Pick<CommissionOffer, 'maxRequests' | 'requestCount'>,
@@ -129,6 +239,7 @@ export function formatOfferPrices(
 export function toCommissionOffer(row: CommissionOfferRow): CommissionOffer {
   return {
     id: row.id,
+    boardId: row.board_id,
     commissionType: row.commission_type,
     title: row.title,
     description: row.description,
@@ -153,7 +264,7 @@ export async function fetchCommissionOffers(includeClosed = false): Promise<Comm
   let query = supabase
     .from('commission_offers')
     .select(
-      'id,commission_type,title,description,price_usd,price_idr,image_path,is_open,sort_order,max_requests,request_count',
+      'id,board_id,commission_type,title,description,price_usd,price_idr,image_path,is_open,sort_order,max_requests,request_count',
     )
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })

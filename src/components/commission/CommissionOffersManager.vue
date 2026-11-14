@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Copy, Pencil, Plus, Search, Trash2, X } from '@lucide/vue'
+import { Check, Copy, FileText, Pencil, Plus, Search, Trash2, X } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import {
   DialogClose,
@@ -13,13 +13,24 @@ import {
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useLanguage } from '../../composables/useLanguage'
 import {
+  activeOfferBoardCount,
+  canActivateOfferBoard,
   type CommissionOffer,
+  type CommissionOfferBoard,
+  type CommissionOfferBoardRow,
   type CommissionOfferRow,
   DEFAULT_COMMISSION_OFFERS,
+  DEFAULT_COMMISSION_OFFER_BOARDS,
+  fetchCommissionOfferBoards,
   fetchCommissionOffers,
   formatOfferPrices,
   isOfferLimitReached,
+  MAX_ACTIVE_OFFER_BOARDS,
+  OFFER_BOARD_STATUSES,
+  OFFER_BOARD_STATUS_DOTS,
+  type OfferBoardStatus,
   toCommissionOffer,
+  toCommissionOfferBoard,
 } from '../../lib/commissionOffers'
 import { COMMISSION_TYPES, type CommissionType } from '../../lib/commissionStatus'
 import { uploadKanbanImage } from '../../lib/kanbanImage'
@@ -27,27 +38,40 @@ import { supabase } from '../../lib/supabase'
 import ConfirmDialog from '../ui/ConfirmDialog.vue'
 import ImageUploadField from '../ui/ImageUploadField.vue'
 import SelectField from '../ui/SelectField.vue'
+import OfferBoardFormDialog from './OfferBoardFormDialog.vue'
 
-type OfferFilter = 'all' | 'active' | 'inactive'
+type BoardFilter = 'all' | OfferBoardStatus
+
+const OFFER_SELECT_COLUMNS =
+  'id,board_id,commission_type,title,description,price_usd,price_idr,image_path,is_open,sort_order,max_requests,request_count'
 
 const emit = defineEmits<{
-  offersChange: [offers: CommissionOffer[]]
+  offersChange: [offers: CommissionOffer[], boards: CommissionOfferBoard[]]
 }>()
 
 const { language, text } = useLanguage()
 const reducedMotion = useReducedMotion()
 
+const boards = ref<CommissionOfferBoard[]>(supabase ? [] : DEFAULT_COMMISSION_OFFER_BOARDS)
 const offers = ref<CommissionOffer[]>(supabase ? [] : DEFAULT_COMMISSION_OFFERS)
 const loading = ref(!!supabase)
 const loadError = ref('')
+const statusBusyBoardId = ref('')
 const togglingId = ref('')
 const resettingId = ref('')
 const query = ref('')
-const statusFilter = ref<OfferFilter>('all')
+const statusFilter = ref<BoardFilter>('all')
+
+const boardDialogOpen = ref(false)
+const boardDialogMode = ref<'create' | 'edit' | 'copy'>('create')
+const activeDialogBoard = ref<CommissionOfferBoard | null>(null)
+const boardSaving = ref(false)
+const boardFormError = ref('')
 
 const dialogOpen = ref(false)
 const editingOffer = ref<CommissionOffer | null>(null)
 const templateOffer = ref<CommissionOffer | null>(null)
+const targetBoardId = ref('')
 const typeInput = ref<CommissionType>('Illustration')
 const titleInput = ref('')
 const priceUsdInput = ref<number | string>('')
@@ -68,25 +92,41 @@ const commissionTypeOptions = computed(() =>
   })),
 )
 
-const offerFilterOptions = computed<{ value: OfferFilter; label: string }[]>(() => [
+const boardStatusOptions = computed(() =>
+  OFFER_BOARD_STATUSES.map((statusOption) => ({
+    value: statusOption,
+    label: text.value.setting.offers.boardStatuses[statusOption],
+    dotClass: OFFER_BOARD_STATUS_DOTS[statusOption],
+  })),
+)
+
+const boardFilterOptions = computed<{ value: BoardFilter; label: string }[]>(() => [
   { value: 'all', label: text.value.setting.filterAll },
-  { value: 'active', label: text.value.setting.filterActive },
-  { value: 'inactive', label: text.value.setting.filterInactive },
+  ...OFFER_BOARD_STATUSES.map((statusOption) => ({
+    value: statusOption,
+    label: text.value.setting.offers.boardStatuses[statusOption],
+  })),
 ])
 
-const filteredOffers = computed(() => {
+const activeBoardsUsed = computed(() => activeOfferBoardCount(boards.value))
+
+const canDialogBoardSetActive = computed(() =>
+  canActivateOfferBoard(
+    boards.value,
+    boardDialogMode.value === 'edit' ? activeDialogBoard.value?.id : undefined,
+  ),
+)
+
+const filteredBoards = computed(() => {
   const needle = query.value.trim().toLowerCase()
-  return offers.value.filter((offer) => {
-    if (statusFilter.value === 'active' && !offer.isOpen) return false
-    if (statusFilter.value === 'inactive' && offer.isOpen) return false
+  return boards.value.filter((board) => {
+    if (statusFilter.value !== 'all' && board.status !== statusFilter.value) return false
     if (!needle) return true
-    const typeLabel = text.value.home.commissionTypes[offer.commissionType].toLowerCase()
-    return (
-      offer.title.toLowerCase().includes(needle) ||
-      offer.description.toLowerCase().includes(needle) ||
-      offer.commissionType.toLowerCase().includes(needle) ||
-      typeLabel.includes(needle)
-    )
+    const boardMatches =
+      board.title.toLowerCase().includes(needle) ||
+      (board.description ?? '').toLowerCase().includes(needle)
+    if (boardMatches) return true
+    return offersForBoard(board.id, needle).length > 0
   })
 })
 
@@ -103,9 +143,9 @@ const dialogDescription = computed(() => {
 })
 
 watch(
-  offers,
-  (nextOffers) => {
-    emit('offersChange', nextOffers)
+  [offers, boards],
+  ([nextOffers, nextBoards]) => {
+    emit('offersChange', nextOffers, nextBoards)
   },
   { deep: true, immediate: true },
 )
@@ -113,7 +153,12 @@ watch(
 onMounted(async () => {
   if (!supabase) return
   try {
-    offers.value = await fetchCommissionOffers(true)
+    const [loadedBoards, loadedOffers] = await Promise.all([
+      fetchCommissionOfferBoards(true),
+      fetchCommissionOffers(true),
+    ])
+    boards.value = loadedBoards
+    offers.value = loadedOffers
   } catch {
     loadError.value = text.value.setting.offers.saveError
   } finally {
@@ -127,15 +172,235 @@ onUnmounted(() => {
   }
 })
 
+function offerMatchesNeedle(offer: CommissionOffer, needle: string): boolean {
+  if (!needle) return true
+  const typeLabel = text.value.home.commissionTypes[offer.commissionType].toLowerCase()
+  return (
+    offer.title.toLowerCase().includes(needle) ||
+    offer.description.toLowerCase().includes(needle) ||
+    offer.commissionType.toLowerCase().includes(needle) ||
+    typeLabel.includes(needle)
+  )
+}
+
+function offersForBoard(boardId: string, needle = query.value.trim().toLowerCase()): CommissionOffer[] {
+  const boardOffers = offers.value.filter((offer) => offer.boardId === boardId)
+  if (!needle) return boardOffers
+  const board = boards.value.find((item) => item.id === boardId)
+  const boardMatches =
+    board &&
+    (board.title.toLowerCase().includes(needle) ||
+      (board.description ?? '').toLowerCase().includes(needle))
+  if (boardMatches) return boardOffers
+  return boardOffers.filter((offer) => offerMatchesNeedle(offer, needle))
+}
+
+function boardStatusBadgeClass(status: OfferBoardStatus): string {
+  if (status === 'active') {
+    return 'bg-orange-500/15 text-orange-700 dark:bg-orange-400/15 dark:text-orange-300'
+  }
+  if (status === 'waitlist') {
+    return 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200'
+  }
+  return 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
+}
+
+function openCreateBoard() {
+  boardDialogMode.value = 'create'
+  activeDialogBoard.value = null
+  boardFormError.value = ''
+  boardDialogOpen.value = true
+}
+
+function openEditBoard(board: CommissionOfferBoard) {
+  boardDialogMode.value = 'edit'
+  activeDialogBoard.value = board
+  boardFormError.value = ''
+  boardDialogOpen.value = true
+}
+
+function openCopyBoard(board: CommissionOfferBoard) {
+  boardDialogMode.value = 'copy'
+  activeDialogBoard.value = board
+  boardFormError.value = ''
+  boardDialogOpen.value = true
+}
+
+async function saveBoard(payload: {
+  title: string
+  description: string | null
+  status: OfferBoardStatus
+}) {
+  if (boardSaving.value) return
+  if (
+    payload.status === 'active' &&
+    !canActivateOfferBoard(
+      boards.value,
+      boardDialogMode.value === 'edit' ? activeDialogBoard.value?.id : undefined,
+    )
+  ) {
+    boardFormError.value = text.value.setting.offers.maxActiveError
+    return
+  }
+
+  boardSaving.value = true
+  boardFormError.value = ''
+  loadError.value = ''
+  try {
+    const editing = boardDialogMode.value === 'edit' ? activeDialogBoard.value : null
+    const copySource = boardDialogMode.value === 'copy' ? activeDialogBoard.value : null
+
+    if (!supabase) {
+      if (editing) {
+        boards.value = boards.value.map((item) =>
+          item.id === editing.id ? { ...item, ...payload } : item,
+        )
+      } else {
+        const createdBoard: CommissionOfferBoard = {
+          id: crypto.randomUUID(),
+          ...payload,
+          sortOrder: boards.value.reduce((max, item) => Math.max(max, item.sortOrder), 0) + 1,
+        }
+        boards.value.push(createdBoard)
+        if (copySource) {
+          const sourceOffers = offers.value.filter((item) => item.boardId === copySource.id)
+          for (const sourceOffer of sourceOffers) {
+            offers.value.push({
+              ...sourceOffer,
+              id: crypto.randomUUID(),
+              boardId: createdBoard.id,
+              requestCount: 0,
+            })
+          }
+        }
+      }
+      boardDialogOpen.value = false
+      return
+    }
+
+    if (editing) {
+      const { data, error } = await supabase
+        .from('commission_offer_boards')
+        .update(payload)
+        .eq('id', editing.id)
+        .select('id,title,description,status,sort_order')
+        .single()
+      if (error || !data) throw error
+      const updated = toCommissionOfferBoard(data as CommissionOfferBoardRow)
+      boards.value = boards.value.map((item) => (item.id === updated.id ? updated : item))
+    } else {
+      const nextBoardSort = boards.value.reduce((max, item) => Math.max(max, item.sortOrder), 0) + 1
+      const { data: boardData, error: boardError } = await supabase
+        .from('commission_offer_boards')
+        .insert({ ...payload, sort_order: nextBoardSort })
+        .select('id,title,description,status,sort_order')
+        .single()
+      if (boardError || !boardData) throw boardError
+      const createdBoard = toCommissionOfferBoard(boardData as CommissionOfferBoardRow)
+      boards.value.push(createdBoard)
+
+      if (copySource) {
+        const sourceOffers = offers.value.filter((item) => item.boardId === copySource.id)
+        if (sourceOffers.length > 0) {
+          let nextOfferSort = offers.value.reduce((max, item) => Math.max(max, item.sortOrder), 0)
+          const insertRows = sourceOffers.map((item) => {
+            nextOfferSort += 1
+            return {
+              board_id: createdBoard.id,
+              commission_type: item.commissionType,
+              title: item.title,
+              description: item.description,
+              price: String(item.priceUsd),
+              price_usd: item.priceUsd,
+              price_idr: item.priceIdr,
+              image_path: item.imagePath,
+              is_open: item.isOpen,
+              sort_order: nextOfferSort,
+              max_requests: item.maxRequests,
+            }
+          })
+          const { data: copiedOffersData, error: copyOffersError } = await supabase
+            .from('commission_offers')
+            .insert(insertRows)
+            .select(OFFER_SELECT_COLUMNS)
+          if (copyOffersError) throw copyOffersError
+          for (const row of (copiedOffersData ?? []) as CommissionOfferRow[]) {
+            offers.value.push(toCommissionOffer(row))
+          }
+        }
+      }
+    }
+    boardDialogOpen.value = false
+  } catch (err) {
+    const message = err instanceof Error ? err.message : ''
+    boardFormError.value = message.includes('active')
+      ? text.value.setting.offers.maxActiveError
+      : text.value.setting.offers.saveError
+  } finally {
+    boardSaving.value = false
+  }
+}
+
+async function setBoardStatus(board: CommissionOfferBoard, nextStatus: OfferBoardStatus) {
+  if (statusBusyBoardId.value || board.status === nextStatus) return
+  if (nextStatus === 'active' && !canActivateOfferBoard(boards.value, board.id)) {
+    loadError.value = text.value.setting.offers.maxActiveError
+    return
+  }
+
+  statusBusyBoardId.value = board.id
+  loadError.value = ''
+  try {
+    if (supabase) {
+      const { error } = await supabase
+        .from('commission_offer_boards')
+        .update({ status: nextStatus })
+        .eq('id', board.id)
+      if (error) throw error
+    }
+    boards.value = boards.value.map((item) =>
+      item.id === board.id ? { ...item, status: nextStatus } : item,
+    )
+  } catch (err) {
+    const message = err instanceof Error ? err.message : ''
+    loadError.value = message.includes('active')
+      ? text.value.setting.offers.maxActiveError
+      : text.value.setting.offers.saveError
+  } finally {
+    statusBusyBoardId.value = ''
+  }
+}
+
+async function deleteBoard(board: CommissionOfferBoard) {
+  const boardOffers = offers.value.filter((item) => item.boardId === board.id)
+  if (supabase) {
+    const { error } = await supabase.from('commission_offer_boards').delete().eq('id', board.id)
+    if (error) throw error
+    const paths = boardOffers
+      .map((item) => item.imagePath)
+      .filter((path): path is string => Boolean(path))
+    if (paths.length > 0) {
+      await supabase.storage.from('kanban-images').remove(paths).catch(() => {})
+    }
+  } else {
+    for (const item of boardOffers) {
+      if (item.imageUrl?.startsWith('blob:')) URL.revokeObjectURL(item.imageUrl)
+    }
+  }
+  boards.value = boards.value.filter((item) => item.id !== board.id)
+  offers.value = offers.value.filter((item) => item.boardId !== board.id)
+}
+
 function resetImageState() {
   imageFile.value = null
   removeExistingImage.value = false
   imageError.value = ''
 }
 
-function openCreate() {
+function openCreate(boardId: string) {
   editingOffer.value = null
   templateOffer.value = null
+  targetBoardId.value = boardId
   typeInput.value = 'Illustration'
   titleInput.value = ''
   priceUsdInput.value = ''
@@ -151,6 +416,7 @@ function openCreate() {
 function prefillOfferForm(offer: CommissionOffer, asCopy: boolean) {
   editingOffer.value = asCopy ? null : offer
   templateOffer.value = asCopy ? offer : null
+  targetBoardId.value = offer.boardId
   typeInput.value = offer.commissionType
   titleInput.value = asCopy
     ? `${offer.title} (${text.value.setting.offers.copySuffix})`.slice(0, 120)
@@ -226,6 +492,9 @@ async function saveOffer() {
   formError.value = ''
   try {
     const editing = editingOffer.value
+    const boardId = editing?.boardId ?? targetBoardId.value
+    if (!boardId) throw new Error('Missing board')
+
     if (!supabase) {
       if (editing) {
         const nextUrl = imageFile.value
@@ -255,6 +524,7 @@ async function saveOffer() {
         const inheritedTemplate = removeExistingImage.value ? null : templateOffer.value
         offers.value.push({
           id: crypto.randomUUID(),
+          boardId,
           commissionType: typeInput.value,
           title,
           priceUsd,
@@ -281,8 +551,6 @@ async function saveOffer() {
       uploadedPath = await uploadKanbanImage(imageFile.value)
     }
 
-    const selectColumns =
-      'id,commission_type,title,description,price_usd,price_idr,image_path,is_open,sort_order,max_requests,request_count'
     if (editing) {
       const oldImagePath = editing.imagePath
       const nextImagePath = uploadedPath ?? (removeExistingImage.value ? null : oldImagePath)
@@ -300,7 +568,7 @@ async function saveOffer() {
           max_requests: maxRequests,
         })
         .eq('id', editing.id)
-        .select(selectColumns)
+        .select(OFFER_SELECT_COLUMNS)
         .single()
       if (error || !data) throw error
       if (oldImagePath && (uploadedPath || removeExistingImage.value)) {
@@ -315,6 +583,7 @@ async function saveOffer() {
       const { data, error } = await supabase
         .from('commission_offers')
         .insert({
+          board_id: boardId,
           commission_type: typeInput.value,
           title,
           price: String(priceUsd),
@@ -326,7 +595,7 @@ async function saveOffer() {
           sort_order: nextSort,
           max_requests: maxRequests,
         })
-        .select(selectColumns)
+        .select(OFFER_SELECT_COLUMNS)
         .single()
       if (error || !data) throw error
       offers.value.push(toCommissionOffer(data as CommissionOfferRow))
@@ -397,31 +666,34 @@ async function deleteOffer(offer: CommissionOffer) {
 </script>
 
 <template>
-  <section class="surface-shadow mt-6 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
+  <section class="mt-8">
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <h2 class="text-lg font-bold text-zinc-950 dark:text-zinc-50">
-          {{ text.setting.offers.title }}
-        </h2>
-        <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <div class="flex flex-wrap items-center gap-2.5">
+          <h2 class="text-2xl font-bold text-zinc-950 sm:text-3xl dark:text-zinc-50">
+            {{ text.setting.offers.title }}
+          </h2>
+          <span
+            class="rounded-full bg-orange-500/15 px-3 py-1 text-xs font-medium tabular-nums text-orange-700 dark:bg-orange-400/15 dark:text-orange-300"
+          >
+            {{ activeBoardsUsed }}/{{ MAX_ACTIVE_OFFER_BOARDS }} {{ text.setting.offers.activeLimitCount }}
+          </span>
+        </div>
+        <p class="mt-1.5 text-sm text-zinc-600 dark:text-zinc-400">
           {{ text.setting.offers.description }}
         </p>
       </div>
       <button
         type="button"
-        class="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-        @click="openCreate"
+        class="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+        @click="openCreateBoard"
       >
         <Plus :size="16" aria-hidden="true" />
-        <span>{{ text.setting.offers.addOffer }}</span>
+        <span>{{ text.setting.offers.addBoard }}</span>
       </button>
     </div>
 
-    <p v-if="loadError" role="alert" class="mt-3 text-sm text-red-700 dark:text-red-400">
-      {{ loadError }}
-    </p>
-
-    <form v-if="!loading && offers.length > 0" class="mt-4 flex flex-wrap gap-3" role="search" @submit.prevent>
+    <form v-if="!loading && boards.length > 0" class="mt-6 flex flex-wrap gap-3" role="search" @submit.prevent>
       <label for="offer-search" class="sr-only">{{ text.setting.offers.searchOffers }}</label>
       <div class="relative min-w-48 flex-1">
         <Search
@@ -441,138 +713,281 @@ async function deleteOffer(offer: CommissionOffer) {
         <SelectField
           id="offer-filter"
           v-model="statusFilter"
-          :options="offerFilterOptions"
+          :options="boardFilterOptions"
           :aria-label="text.setting.offers.filterOffers"
         />
       </div>
     </form>
 
-    <div v-if="loading" class="mt-4 h-24 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" />
-
     <p
-      v-else-if="offers.length === 0"
-      class="mt-4 rounded-xl border border-dashed border-zinc-300 px-4 py-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+      v-if="loadError"
+      role="alert"
+      class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
     >
-      {{ text.setting.offers.empty }}
+      {{ loadError }}
     </p>
 
+    <div v-if="loading" class="mt-6 flex flex-col gap-4">
+      <div
+        v-for="n in 3"
+        :key="n"
+        class="h-36 w-full animate-pulse rounded-2xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
+      />
+    </div>
+
+    <div
+      v-else-if="boards.length === 0"
+      class="mx-auto mt-6 flex min-h-60 flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 px-6 py-10 text-center dark:border-zinc-700"
+    >
+      <span
+        aria-hidden="true"
+        class="flex size-14 items-center justify-center rounded-2xl bg-orange-100 text-orange-700 dark:bg-zinc-800 dark:text-orange-300"
+      >
+        <FileText :size="26" />
+      </span>
+      <p class="mt-4 max-w-md text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+        {{ text.setting.offers.empty }}
+      </p>
+    </div>
+
     <p
-      v-else-if="filteredOffers.length === 0"
-      class="mt-4 rounded-xl border border-dashed border-zinc-300 px-4 py-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+      v-else-if="filteredBoards.length === 0"
+      class="mt-6 rounded-2xl border border-dashed border-zinc-300 px-6 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
     >
       {{ text.setting.noSearchResults }}
     </p>
 
-    <ul v-else class="mt-4 divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+    <ul v-else class="mt-6 flex flex-col gap-4">
       <li
-        v-for="offer in filteredOffers"
-        :key="offer.id"
+        v-for="board in filteredBoards"
+        :key="board.id"
         :class="[
-          'flex flex-wrap items-center justify-between gap-3 px-4 py-3 transition-opacity',
-          offer.isOpen ? '' : 'bg-zinc-50/70 opacity-80 dark:bg-zinc-800/30',
+          'surface-shadow flex w-full flex-col gap-4 rounded-2xl border bg-white p-5 transition-opacity sm:p-6 dark:bg-zinc-900',
+          board.status === 'inactive'
+            ? 'border-zinc-200 opacity-85 dark:border-zinc-800'
+            : 'border-zinc-200 dark:border-zinc-800',
         ]"
       >
-        <div class="flex min-w-0 flex-1 items-center gap-3">
-          <img
-            v-if="offer.imageUrl"
-            :src="offer.imageUrl"
-            :alt="offer.title"
-            class="size-12 shrink-0 rounded-lg bg-zinc-100 object-cover dark:bg-zinc-800"
-          />
+        <div class="flex flex-wrap items-start justify-between gap-4">
           <div class="min-w-0 flex-1">
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ offer.title }}</span>
-              <span class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-950/60 dark:text-orange-200">
-                {{ formatOfferPrices(offer, language) }}
-              </span>
-              <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                {{ text.home.commissionTypes[offer.commissionType] }}
+            <div class="flex flex-wrap items-center gap-2.5">
+              <h3 class="text-xl font-bold text-zinc-950 sm:text-2xl dark:text-zinc-50">
+                {{ board.title }}
+              </h3>
+              <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                {{ offersForBoard(board.id, '').length }}
               </span>
               <span
-                v-if="offer.maxRequests !== null"
                 :class="[
-                  'rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums',
-                  isOfferLimitReached(offer)
-                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-200'
-                    : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+                  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium',
+                  boardStatusBadgeClass(board.status),
                 ]"
               >
-                {{ offer.requestCount }}/{{ offer.maxRequests }}
+                <span :class="['size-1.5 rounded-full', OFFER_BOARD_STATUS_DOTS[board.status]]" aria-hidden="true" />
+                {{ text.setting.offers.boardStatuses[board.status] }}
               </span>
-              <button
-                v-if="offer.requestCount > 0"
-                type="button"
-                :disabled="resettingId === offer.id"
-                :aria-label="`${text.setting.offers.resetRequestsLabel}: ${offer.title}`"
-                class="rounded-full border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                @click="resetRequestCount(offer)"
-              >
-                {{ text.setting.offers.resetRequests }}
-              </button>
             </div>
-            <p class="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">{{ offer.description }}</p>
+            <p
+              v-if="board.description"
+              class="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400"
+            >
+              {{ board.description }}
+            </p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              class="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-zinc-900 px-3.5 py-1.5 text-xs text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              @click="openCreate(board.id)"
+            >
+              <Plus :size="14" aria-hidden="true" />
+              {{ text.setting.offers.addOffer }}
+            </button>
+
+            <div class="w-36">
+              <SelectField
+                :model-value="board.status"
+                :options="boardStatusOptions"
+                :disabled="statusBusyBoardId === board.id"
+                :aria-label="`${text.setting.offers.boardStatusLabel}: ${board.title}`"
+                @update:model-value="(value) => setBoardStatus(board, value as OfferBoardStatus)"
+              />
+            </div>
+
+            <button
+              type="button"
+              :aria-label="`${text.setting.offers.copyBoard}: ${board.title}`"
+              :title="text.setting.offers.copyBoard"
+              class="flex size-9 items-center justify-center rounded-xl text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
+              @click="openCopyBoard(board)"
+            >
+              <Copy :size="16" aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
+              :aria-label="`${text.setting.offers.editBoard}: ${board.title}`"
+              :title="text.setting.offers.editBoard"
+              class="flex size-9 items-center justify-center rounded-xl text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
+              @click="openEditBoard(board)"
+            >
+              <Pencil :size="16" aria-hidden="true" />
+            </button>
+
+            <ConfirmDialog
+              :title="text.setting.offers.deleteBoardTitle"
+              :description="text.setting.offers.deleteBoardDescription"
+              :cancel-label="text.login.cancel"
+              :confirm-label="text.setting.offers.deleteBoard"
+              :pending-label="text.setting.offers.deletingBoard"
+              :error-message="text.setting.offers.deleteBoardError"
+              :on-confirm="() => deleteBoard(board)"
+            >
+              <button
+                type="button"
+                :aria-label="`${text.setting.offers.deleteBoard}: ${board.title}`"
+                :title="text.setting.offers.deleteBoard"
+                class="flex size-9 items-center justify-center rounded-xl text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-red-300 dark:hover:bg-red-950"
+              >
+                <Trash2 :size="16" aria-hidden="true" />
+              </button>
+            </ConfirmDialog>
           </div>
         </div>
 
-        <div class="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            role="switch"
-            :aria-checked="offer.isOpen"
-            :disabled="togglingId === offer.id"
+        <p
+          v-if="offersForBoard(board.id).length === 0"
+          class="rounded-xl border border-dashed border-zinc-300 px-4 py-5 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+        >
+          {{ text.setting.offers.emptyBoardOffers }}
+        </p>
+
+        <ul
+          v-else
+          class="divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800"
+        >
+          <li
+            v-for="offer in offersForBoard(board.id)"
+            :key="offer.id"
             :class="[
-              'inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50',
-              offer.isOpen
-                ? 'bg-orange-500/15 text-orange-700 hover:bg-orange-500/25 dark:bg-orange-400/15 dark:text-orange-300 dark:hover:bg-orange-400/25'
-                : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700',
+              'flex flex-wrap items-center justify-between gap-3 px-4 py-3 transition-opacity',
+              offer.isOpen ? '' : 'bg-zinc-50/70 opacity-75 dark:bg-zinc-800/30',
             ]"
-            @click="toggleOpen(offer)"
           >
-            <Check v-if="offer.isOpen" :size="14" aria-hidden="true" />
-            {{ offer.isOpen ? text.setting.activeBadge : text.setting.makeActive }}
-          </button>
+            <div class="flex min-w-0 flex-1 items-center gap-3">
+              <img
+                v-if="offer.imageUrl"
+                :src="offer.imageUrl"
+                :alt="offer.title"
+                class="size-12 shrink-0 rounded-lg bg-zinc-100 object-cover dark:bg-zinc-800"
+              />
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ offer.title }}</span>
+                  <span class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-950/60 dark:text-orange-200">
+                    {{ formatOfferPrices(offer, language) }}
+                  </span>
+                  <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                    {{ text.home.commissionTypes[offer.commissionType] }}
+                  </span>
+                  <span
+                    v-if="offer.maxRequests !== null"
+                    :class="[
+                      'rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums',
+                      isOfferLimitReached(offer)
+                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-200'
+                        : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+                    ]"
+                  >
+                    {{ offer.requestCount }}/{{ offer.maxRequests }}
+                  </span>
+                  <button
+                    v-if="offer.requestCount > 0"
+                    type="button"
+                    :disabled="resettingId === offer.id"
+                    :aria-label="`${text.setting.offers.resetRequestsLabel}: ${offer.title}`"
+                    class="rounded-full border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    @click="resetRequestCount(offer)"
+                  >
+                    {{ text.setting.offers.resetRequests }}
+                  </button>
+                </div>
+                <p class="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">{{ offer.description }}</p>
+              </div>
+            </div>
 
-          <button
-            type="button"
-            :aria-label="`${text.setting.offers.copyOffer}: ${offer.title}`"
-            :title="text.setting.offers.copyOffer"
-            class="flex size-8 items-center justify-center rounded-lg text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
-            @click="openCopy(offer)"
-          >
-            <Copy :size="14" aria-hidden="true" />
-          </button>
+            <div class="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="offer.isOpen"
+                :disabled="togglingId === offer.id"
+                :class="[
+                  'inline-flex min-h-8 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50',
+                  offer.isOpen
+                    ? 'bg-orange-500/15 text-orange-700 hover:bg-orange-500/25 dark:bg-orange-400/15 dark:text-orange-300 dark:hover:bg-orange-400/25'
+                    : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700',
+                ]"
+                @click="toggleOpen(offer)"
+              >
+                <Check v-if="offer.isOpen" :size="13" aria-hidden="true" />
+                {{ offer.isOpen ? text.setting.activeBadge : text.setting.makeActive }}
+              </button>
 
-          <button
-            type="button"
-            :aria-label="`${text.setting.offers.editOffer}: ${offer.title}`"
-            :title="text.setting.offers.editOffer"
-            class="flex size-8 items-center justify-center rounded-lg text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
-            @click="openEdit(offer)"
-          >
-            <Pencil :size="14" aria-hidden="true" />
-          </button>
+              <button
+                type="button"
+                :aria-label="`${text.setting.offers.copyOffer}: ${offer.title}`"
+                :title="text.setting.offers.copyOffer"
+                class="flex size-8 items-center justify-center rounded-lg text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
+                @click="openCopy(offer)"
+              >
+                <Copy :size="14" aria-hidden="true" />
+              </button>
 
-          <ConfirmDialog
-            :title="text.setting.offers.deleteTitle"
-            :description="text.setting.offers.deleteDescription"
-            :cancel-label="text.login.cancel"
-            :confirm-label="text.setting.offers.deleteOffer"
-            :pending-label="text.setting.offers.deleting"
-            :error-message="text.setting.offers.deleteError"
-            :on-confirm="() => deleteOffer(offer)"
-          >
-            <button
-              type="button"
-              :aria-label="`${text.setting.offers.deleteOffer}: ${offer.title}`"
-              :title="text.setting.offers.deleteOffer"
-              class="flex size-8 items-center justify-center rounded-lg text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950"
-            >
-              <Trash2 :size="14" aria-hidden="true" />
-            </button>
-          </ConfirmDialog>
-        </div>
+              <button
+                type="button"
+                :aria-label="`${text.setting.offers.editOffer}: ${offer.title}`"
+                :title="text.setting.offers.editOffer"
+                class="flex size-8 items-center justify-center rounded-lg text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
+                @click="openEdit(offer)"
+              >
+                <Pencil :size="14" aria-hidden="true" />
+              </button>
+
+              <ConfirmDialog
+                :title="text.setting.offers.deleteTitle"
+                :description="text.setting.offers.deleteDescription"
+                :cancel-label="text.login.cancel"
+                :confirm-label="text.setting.offers.deleteOffer"
+                :pending-label="text.setting.offers.deleting"
+                :error-message="text.setting.offers.deleteError"
+                :on-confirm="() => deleteOffer(offer)"
+              >
+                <button
+                  type="button"
+                  :aria-label="`${text.setting.offers.deleteOffer}: ${offer.title}`"
+                  :title="text.setting.offers.deleteOffer"
+                  class="flex size-8 items-center justify-center rounded-lg text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950"
+                >
+                  <Trash2 :size="14" aria-hidden="true" />
+                </button>
+              </ConfirmDialog>
+            </div>
+          </li>
+        </ul>
       </li>
     </ul>
+
+    <OfferBoardFormDialog
+      v-model:open="boardDialogOpen"
+      :mode="boardDialogMode"
+      :board="activeDialogBoard"
+      :can-set-active="canDialogBoardSetActive"
+      :saving="boardSaving"
+      :error="boardFormError"
+      @save="saveBoard"
+    />
 
     <DialogRoot :open="dialogOpen" @update:open="onOpenChange">
       <DialogPortal>

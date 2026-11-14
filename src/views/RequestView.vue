@@ -6,17 +6,22 @@ import KanbanCardFormDialog from '../components/commission/KanbanCardFormDialog.
 import { useLanguage } from '../composables/useLanguage'
 import {
   type CommissionOffer,
+  type CommissionOfferBoard,
   DEFAULT_COMMISSION_OFFERS,
+  DEFAULT_COMMISSION_OFFER_BOARDS,
+  fetchCommissionOfferBoards,
   fetchCommissionOffers,
   formatOfferPrices,
   isOfferLimitReached,
+  isOfferBoardVisible,
+  OFFER_BOARD_STATUS_DOTS,
+  summarizeOffersWithBoards,
 } from '../lib/commissionOffers'
 import {
   canAccessRequests,
   type CommissionStatus,
   DEFAULT_COMMISSION_STATUS,
   fetchCommissionStatus,
-  summarizeOfferSlots,
 } from '../lib/commissionStatus'
 import { supabase } from '../lib/supabase'
 
@@ -31,6 +36,7 @@ const loading = ref(!!supabase)
 const commissionStatus = ref<CommissionStatus | null>(
   supabase ? null : { ...DEFAULT_COMMISSION_STATUS },
 )
+const boards = ref<CommissionOfferBoard[]>(supabase ? [] : DEFAULT_COMMISSION_OFFER_BOARDS)
 const offers = ref<CommissionOffer[]>(supabase ? [] : DEFAULT_COMMISSION_OFFERS)
 const selectedOffer = ref<CommissionOffer | null>(null)
 const requestDialogOpen = ref(false)
@@ -42,9 +48,17 @@ const canAccess = computed(() =>
   canAccessRequests(signedIn.value, commissionStatus.value),
 )
 
-const visibleOffers = computed(() =>
-  signedIn.value ? offers.value : offers.value.filter((offer) => offer.isOpen),
-)
+const visibleBoardsWithOffers = computed(() => {
+  return boards.value
+    .filter((board) => signedIn.value || isOfferBoardVisible(board.status))
+    .map((board) => ({
+      board,
+      offers: offers.value.filter(
+        (offer) => offer.boardId === board.id && (signedIn.value || offer.isOpen),
+      ),
+    }))
+    .filter((section) => section.offers.length > 0)
+})
 
 onMounted(async () => {
   if (!supabase) return
@@ -58,8 +72,12 @@ onMounted(async () => {
     signedIn.value = isOwner
     commissionStatus.value = statusData
 
-    const loadedOffers = await fetchCommissionOffers(isOwner)
+    const [loadedBoards, loadedOffers] = await Promise.all([
+      fetchCommissionOfferBoards(isOwner),
+      fetchCommissionOffers(isOwner),
+    ])
     if (!active) return
+    boards.value = loadedBoards
     offers.value = loadedOffers
   } finally {
     if (active) loading.value = false
@@ -89,7 +107,7 @@ function onRequestSubmitted(offerId: string) {
   if (commissionStatus.value) {
     commissionStatus.value = {
       ...commissionStatus.value,
-      ...summarizeOfferSlots(offers.value),
+      ...summarizeOffersWithBoards(offers.value, boards.value),
     }
   }
   selectedOffer.value = null
@@ -100,13 +118,16 @@ function resetFlow() {
   submitted.value = false
   selectedOffer.value = null
   if (supabase) {
-    void Promise.all([fetchCommissionOffers(signedIn.value), fetchCommissionStatus()]).then(
-      ([loadedOffers, statusData]) => {
-        if (!active) return
-        offers.value = loadedOffers
-        if (statusData) commissionStatus.value = statusData
-      },
-    )
+    void Promise.all([
+      fetchCommissionOfferBoards(signedIn.value),
+      fetchCommissionOffers(signedIn.value),
+      fetchCommissionStatus(),
+    ]).then(([loadedBoards, loadedOffers, statusData]) => {
+      if (!active) return
+      boards.value = loadedBoards
+      offers.value = loadedOffers
+      if (statusData) commissionStatus.value = statusData
+    })
   }
 }
 </script>
@@ -221,7 +242,7 @@ function resetFlow() {
         </div>
 
         <div
-          v-if="visibleOffers.length === 0"
+          v-if="visibleBoardsWithOffers.length === 0"
           class="mt-6 rounded-2xl border border-dashed border-zinc-300 px-6 py-10 text-center dark:border-zinc-700"
         >
           <p class="text-lg font-bold text-zinc-950 dark:text-zinc-50">
@@ -239,10 +260,43 @@ function resetFlow() {
           </RouterLink>
         </div>
 
-        <div v-else class="mt-6 grid gap-4 sm:grid-cols-2">
-          <button
-            v-for="offer in visibleOffers"
-            :key="offer.id"
+        <div v-else class="mt-8 space-y-10">
+          <section v-for="section in visibleBoardsWithOffers" :key="section.board.id">
+            <div class="flex flex-wrap items-center gap-2.5">
+              <h3 class="text-xl font-bold text-zinc-950 sm:text-2xl dark:text-zinc-50">
+                {{ section.board.title }}
+              </h3>
+              <span
+                :class="[
+                  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium',
+                  section.board.status === 'active'
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200'
+                    : section.board.status === 'waitlist'
+                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200'
+                      : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+                ]"
+              >
+                <span :class="['size-1.5 rounded-full', OFFER_BOARD_STATUS_DOTS[section.board.status]]" aria-hidden="true" />
+                {{ text.setting.offers.boardStatuses[section.board.status] }}
+              </span>
+            </div>
+            <p
+              v-if="section.board.description"
+              class="mt-1 text-sm text-zinc-600 dark:text-zinc-400"
+            >
+              {{ section.board.description }}
+            </p>
+            <p
+              v-if="section.board.status === 'waitlist'"
+              class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200"
+            >
+              {{ text.request.waitlistBoardNotice }}
+            </p>
+
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+              <button
+                v-for="offer in section.offers"
+                :key="offer.id"
             type="button"
             :disabled="isOfferLimitReached(offer)"
             :class="[
@@ -305,7 +359,9 @@ function resetFlow() {
                 <span>{{ text.request.selectOffer }}</span>
                 <ArrowRight :size="15" aria-hidden="true" class="transition-transform group-hover:translate-x-1" />
               </span>
-          </button>
+              </button>
+            </div>
+          </section>
         </div>
       </div>
 

@@ -5,7 +5,11 @@ import CommissionOffersManager from '../components/commission/CommissionOffersMa
 import CommissionStatusBadge from '../components/commission/CommissionStatusBadge.vue'
 import SelectField from '../components/ui/SelectField.vue'
 import { useLanguage } from '../composables/useLanguage'
-import { type CommissionOffer } from '../lib/commissionOffers'
+import {
+  type CommissionOffer,
+  type CommissionOfferBoard,
+  summarizeOffersWithBoards,
+} from '../lib/commissionOffers'
 import {
   COMMISSION_STATUSES,
   COMMISSION_STATUS_STYLES,
@@ -30,8 +34,8 @@ const statusSaved = ref(false)
 const statusError = ref('')
 let statusSavedTimer: ReturnType<typeof setTimeout> | null = null
 
-function onOffersChange(nextOffers: CommissionOffer[]) {
-  offerSlotSummary.value = summarizeOfferSlots(nextOffers)
+function onOffersChange(nextOffers: CommissionOffer[], nextBoards: CommissionOfferBoard[]) {
+  offerSlotSummary.value = summarizeOffersWithBoards(nextOffers, nextBoards)
 }
 
 const commissionStatusOptions = computed(() =>
