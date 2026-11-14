@@ -7,6 +7,7 @@ import {
   COMMISSION_TYPES,
   type CommissionStatus,
   type CommissionType,
+  DEFAULT_COMMISSION_STATUS,
   fetchCommissionStatus,
 } from '../lib/commissionStatus'
 import CommissionCard from '../components/commission/CommissionCard.vue'
@@ -40,7 +41,7 @@ const authSubscription = supabase?.auth.onAuthStateChange((_event, session) => {
 
 const loading = ref(!!supabase)
 const commissionStatus = ref<CommissionStatus | null>(
-  supabase ? null : { status: 'open', slotsOpen: 3, slotsTotal: 5 },
+  supabase ? null : { ...DEFAULT_COMMISSION_STATUS },
 )
 const boards = ref<KanbanBoard[]>(
   supabase

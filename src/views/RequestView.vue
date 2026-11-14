@@ -11,7 +11,13 @@ import {
   formatOfferPrices,
   isOfferLimitReached,
 } from '../lib/commissionOffers'
-import { canAccessRequests, type CommissionStatus, fetchCommissionStatus } from '../lib/commissionStatus'
+import {
+  canAccessRequests,
+  type CommissionStatus,
+  DEFAULT_COMMISSION_STATUS,
+  fetchCommissionStatus,
+  summarizeOfferSlots,
+} from '../lib/commissionStatus'
 import { supabase } from '../lib/supabase'
 
 const { language, text } = useLanguage()
@@ -23,7 +29,7 @@ const authSubscription = supabase?.auth.onAuthStateChange((_event, session) => {
 
 const loading = ref(!!supabase)
 const commissionStatus = ref<CommissionStatus | null>(
-  supabase ? null : { status: 'open', slotsOpen: 3, slotsTotal: 5 },
+  supabase ? null : { ...DEFAULT_COMMISSION_STATUS },
 )
 const offers = ref<CommissionOffer[]>(supabase ? [] : DEFAULT_COMMISSION_OFFERS)
 const selectedOffer = ref<CommissionOffer | null>(null)
@@ -80,6 +86,12 @@ function onRequestSubmitted(offerId: string) {
   offers.value = offers.value.map((item) =>
     item.id === offerId ? { ...item, requestCount: item.requestCount + 1 } : item,
   )
+  if (commissionStatus.value) {
+    commissionStatus.value = {
+      ...commissionStatus.value,
+      ...summarizeOfferSlots(offers.value),
+    }
+  }
   selectedOffer.value = null
   submitted.value = true
 }
@@ -88,9 +100,13 @@ function resetFlow() {
   submitted.value = false
   selectedOffer.value = null
   if (supabase) {
-    void fetchCommissionOffers(signedIn.value).then((loadedOffers) => {
-      if (active) offers.value = loadedOffers
-    })
+    void Promise.all([fetchCommissionOffers(signedIn.value), fetchCommissionStatus()]).then(
+      ([loadedOffers, statusData]) => {
+        if (!active) return
+        offers.value = loadedOffers
+        if (statusData) commissionStatus.value = statusData
+      },
+    )
   }
 }
 </script>

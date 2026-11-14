@@ -12,10 +12,25 @@ export interface CommissionStatus {
   slotsTotal: number
 }
 
+export interface OfferSlotSummaryInput {
+  isOpen: boolean
+  maxRequests: number | null
+  requestCount: number
+}
+
 interface CommissionStatusRow {
   status: CommissionStatusValue
-  slots_open: number
-  slots_total: number
+}
+
+interface OfferQuotaRow {
+  max_requests: number | null
+  request_count: number | null
+}
+
+export const DEFAULT_COMMISSION_STATUS: CommissionStatus = {
+  status: 'open',
+  slotsOpen: 0,
+  slotsTotal: 0,
 }
 
 export const COMMISSION_STATUS_STYLES: Record<CommissionStatusValue, { badge: string; dot: string }> = {
@@ -33,20 +48,41 @@ export const COMMISSION_STATUS_STYLES: Record<CommissionStatusValue, { badge: st
   },
 }
 
-export async function fetchCommissionStatus(): Promise<CommissionStatus | null> {
-  if (!supabase) return { status: 'open', slotsOpen: 3, slotsTotal: 5 }
-  const { data } = await supabase
-    .from('commission_status')
-    .select('status,slots_open,slots_total')
-    .eq('id', 'default')
-    .maybeSingle()
+/** Sum open and total limited slots from open offers, ignoring unlimited offers. */
+export function summarizeOfferSlots(
+  offers: readonly OfferSlotSummaryInput[],
+): Pick<CommissionStatus, 'slotsOpen' | 'slotsTotal'> {
+  let slotsOpen = 0
+  let slotsTotal = 0
+  for (const offer of offers) {
+    if (!offer.isOpen || offer.maxRequests === null || offer.maxRequests <= 0) continue
+    slotsOpen += Math.max(offer.maxRequests - Math.max(0, offer.requestCount), 0)
+    slotsTotal += offer.maxRequests
+  }
+  return { slotsOpen, slotsTotal }
+}
 
-  if (!data) return null
-  const row = data as CommissionStatusRow
+export async function fetchCommissionStatus(): Promise<CommissionStatus | null> {
+  if (!supabase) return { ...DEFAULT_COMMISSION_STATUS }
+  const [statusResult, offersResult] = await Promise.all([
+    supabase.from('commission_status').select('status').eq('id', 'default').maybeSingle(),
+    supabase
+      .from('commission_offers')
+      .select('max_requests,request_count')
+      .eq('is_open', true)
+      .not('max_requests', 'is', null),
+  ])
+
+  if (!statusResult.data) return null
+  const row = statusResult.data as CommissionStatusRow
+  const offers = ((offersResult.data ?? []) as OfferQuotaRow[]).map((offer) => ({
+    isOpen: true,
+    maxRequests: offer.max_requests,
+    requestCount: Number(offer.request_count) || 0,
+  }))
   return {
     status: row.status,
-    slotsOpen: row.slots_open,
-    slotsTotal: row.slots_total,
+    ...summarizeOfferSlots(offers),
   }
 }
 

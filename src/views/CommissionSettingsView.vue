@@ -16,8 +16,6 @@ const { text } = useLanguage()
 const router = useRouter()
 
 const commissionStatusValue = ref<CommissionStatusValue>('open')
-const slotsOpenInput = ref(3)
-const slotsTotalInput = ref(5)
 const statusSaving = ref(false)
 const statusSaved = ref(false)
 const statusError = ref('')
@@ -39,8 +37,6 @@ onMounted(async () => {
   const statusResult = await fetchCommissionStatus()
   if (statusResult) {
     commissionStatusValue.value = statusResult.status
-    slotsOpenInput.value = statusResult.slotsOpen
-    slotsTotalInput.value = statusResult.slotsTotal
   }
 })
 
@@ -54,10 +50,6 @@ async function saveCommissionStatus() {
   statusSaving.value = true
   statusSaved.value = false
   statusError.value = ''
-  const slotsOpen = Math.max(0, Math.min(99, Math.trunc(Number(slotsOpenInput.value) || 0)))
-  const slotsTotal = Math.max(0, Math.min(99, Math.trunc(Number(slotsTotalInput.value) || 0)))
-  slotsOpenInput.value = slotsOpen
-  slotsTotalInput.value = slotsTotal
 
   try {
     if (supabase) {
@@ -65,8 +57,6 @@ async function saveCommissionStatus() {
         .from('commission_status')
         .update({
           status: commissionStatusValue.value,
-          slots_open: slotsOpen,
-          slots_total: slotsTotal,
         })
         .eq('id', 'default')
       if (error) throw error
@@ -118,32 +108,6 @@ async function saveCommissionStatus() {
               id="commission-status-select"
               v-model="commissionStatusValue"
               :options="commissionStatusOptions"
-            />
-          </div>
-          <div class="w-28">
-            <label for="slots-open" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
-              {{ text.setting.slotsOpenLabel }}
-            </label>
-            <input
-              id="slots-open"
-              v-model.number="slotsOpenInput"
-              type="number"
-              min="0"
-              max="99"
-              class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
-            />
-          </div>
-          <div class="w-28">
-            <label for="slots-total" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
-              {{ text.setting.slotsTotalLabel }}
-            </label>
-            <input
-              id="slots-total"
-              v-model.number="slotsTotalInput"
-              type="number"
-              min="0"
-              max="99"
-              class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
             />
           </div>
           <button

@@ -6,6 +6,7 @@ import {
   canAccessRequests,
   type CommissionStatus,
   type CommissionType,
+  DEFAULT_COMMISSION_STATUS,
   fetchCommissionStatus,
 } from '../lib/commissionStatus'
 import CommissionStatusBadge from '../components/commission/CommissionStatusBadge.vue'
@@ -54,7 +55,7 @@ const signedIn = ref(false)
 const authSubscription = supabase?.auth.onAuthStateChange((_event, session) => {
   signedIn.value = !!session
 })
-const commissionStatus = ref<CommissionStatus | null>(supabase ? null : { status: 'open', slotsOpen: 3, slotsTotal: 5 })
+const commissionStatus = ref<CommissionStatus | null>(supabase ? null : { ...DEFAULT_COMMISSION_STATUS })
 const activeBoard = ref<ActiveBoardSummary | null>(null)
 const boardCards = ref<PreviewCard[]>([])
 
