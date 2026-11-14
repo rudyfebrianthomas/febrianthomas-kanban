@@ -7,6 +7,7 @@
     "label": "Main navigation",
     "home": "Home",
     "commission": "Commission",
+    "request": "Request",
     "about": "About",
     "setting": "Manage",
     "commissionSettings": "Offers",
@@ -378,6 +379,8 @@
   "request": {
     "eyebrow": "FEBRIANTHOMAS / REQUEST",
     "title": "Request a Commission.",
+    "dialogTitle": "Request a Commission",
+    "dialogDescription": "Share your request details, contact info, and optional reference image.",
     "description": "Pick an open commission below, leave your contact and optional reference image, and agree to the Terms of Service.",
     "adminClosedNotice": "Commissions are currently closed to visitors. You can still access this page as admin.",
     "closedTitle": "Commissions are closed right now.",

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { UploadCloud, X } from '@lucide/vue'
+import { X } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import {
   DialogClose,
@@ -10,24 +10,46 @@ import {
   DialogRoot,
   DialogTitle,
 } from 'reka-ui'
-import { computed, onUnmounted, ref, watch } from 'vue'
-import { COMMISSION_TYPES, type CommissionType } from '../../lib/commissionStatus'
+import { computed, ref, watch } from 'vue'
 import { useLanguage } from '../../composables/useLanguage'
+import {
+  type CommissionOffer,
+  formatOfferPrices,
+  isOfferLimitReached,
+} from '../../lib/commissionOffers'
+import { COMMISSION_TYPES, type CommissionType } from '../../lib/commissionStatus'
 import { type KanbanCard, type KanbanCardRow, parseRequestorTags, toKanbanCard } from '../../lib/kanbanCard'
-import { kanbanImageExtension, optimizeKanbanImage } from '../../lib/kanbanImage'
+import { uploadKanbanImage } from '../../lib/kanbanImage'
 import { stageStyle } from '../../lib/kanbanStage'
 import { supabase } from '../../lib/supabase'
+import TosDialog from '../tos/TosDialog.vue'
+import ImageUploadField from '../ui/ImageUploadField.vue'
 import SelectField from '../ui/SelectField.vue'
+
+const CONTACT_CHANNELS = ['email', 'discord', 'twitter', 'instagram'] as const
+type ContactChannel = (typeof CONTACT_CHANNELS)[number]
+
+const CHANNEL_LABELS: Record<ContactChannel, string> = {
+  email: 'Email',
+  discord: 'Discord',
+  twitter: 'Twitter',
+  instagram: 'Instagram',
+}
 
 const props = withDefaults(
   defineProps<{
-    boardId: string
+    mode?: 'card' | 'request'
+    boardId?: string
     card?: KanbanCard | null
+    offer?: CommissionOffer | null
     showStage?: boolean
     idPrefix?: string
   }>(),
   {
+    mode: 'card',
+    boardId: '',
     card: null,
+    offer: null,
     showStage: true,
     idPrefix: 'card',
   },
@@ -37,34 +59,34 @@ const open = defineModel<boolean>('open', { required: true })
 
 const emit = defineEmits<{
   saved: [card: KanbanCard, isEdit: boolean]
+  submitted: [offerId: string]
 }>()
 
 const fieldClass =
-  'mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-base text-zinc-950 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-300'
+  'mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-base text-zinc-950 outline-none placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:border-zinc-300 dark:focus:ring-zinc-300'
 
-const { text } = useLanguage()
+const { language, text } = useLanguage()
 const reducedMotion = useReducedMotion()
 
+const isRequestMode = computed(() => props.mode === 'request')
+
 const pending = ref(false)
-const removeExistingImage = ref(false)
 const stageNumber = ref('01')
 const commissionType = ref<CommissionType>('Illustration')
 const title = ref('')
 const description = ref('')
+const contactChannel = ref<ContactChannel>('discord')
+const contactValue = ref('')
+const useCustomRequestors = ref(false)
 const requestorInput = ref('')
 const imageFile = ref<File | null>(null)
-const previewUrl = ref('')
-const dragging = ref(false)
-const error = ref('')
+const removeExistingImage = ref(false)
 const imageError = ref('')
-const fileInput = ref<HTMLInputElement | null>(null)
+const tosAccepted = ref(false)
+const tosDialogOpen = ref(false)
+const error = ref('')
 
 const previewTags = computed(() => parseRequestorTags(requestorInput.value))
-const activeImagePreviewUrl = computed(() => {
-  if (imageFile.value && previewUrl.value) return previewUrl.value
-  if (props.card?.imageUrl && !removeExistingImage.value) return props.card.imageUrl
-  return ''
-})
 
 const commissionTypeOptions = computed(() =>
   COMMISSION_TYPES.map((typeOption) => ({
@@ -81,26 +103,54 @@ const stageOptions = computed(() =>
   })),
 )
 
-function revokePreview() {
-  if (previewUrl.value) {
-    URL.revokeObjectURL(previewUrl.value)
-    previewUrl.value = ''
-  }
-}
+const contactChannelOptions = computed(() =>
+  CONTACT_CHANNELS.map((channel) => ({
+    value: channel,
+    label: text.value.request.contactChannels[channel],
+  })),
+)
+
+const dialogTitle = computed(() => {
+  if (isRequestMode.value) return text.value.request.dialogTitle
+  return props.card ? text.value.home.editCardTitle : text.value.home.createCardTitle
+})
+
+const dialogDescription = computed(() => {
+  if (isRequestMode.value) return text.value.request.dialogDescription
+  return props.card ? text.value.home.editCardDescription : text.value.home.createCardDescription
+})
 
 function resetForm(editing?: KanbanCard | null) {
-  removeExistingImage.value = false
   stageNumber.value = editing?.stageNumber ?? text.value.home.stages[0]?.number ?? '01'
-  commissionType.value = editing?.commissionType ?? 'Illustration'
-  title.value = editing?.title ?? ''
+  commissionType.value = editing?.commissionType ?? props.offer?.commissionType ?? 'Illustration'
+  title.value = editing?.title ?? props.offer?.title ?? ''
   description.value = editing?.description ?? ''
-  requestorInput.value = editing ? editing.requestors.join(', ') : ''
-  dragging.value = false
-  error.value = ''
-  imageError.value = ''
-  if (fileInput.value) fileInput.value.value = ''
+  contactChannel.value = 'discord'
+  contactValue.value = ''
+  useCustomRequestors.value = false
+  requestorInput.value = ''
+
+  if (editing && !isRequestMode.value) {
+    const first = editing.requestors[0]?.trim() ?? ''
+    const match =
+      editing.requestors.length === 1
+        ? first.match(/^(email|discord|twitter|instagram):\s*(.+)$/i)
+        : null
+    if (match?.[1] && match[2]) {
+      contactChannel.value = match[1].toLowerCase() as ContactChannel
+      contactValue.value = match[2].trim()
+    } else if (editing.requestors.length > 0) {
+      useCustomRequestors.value = true
+      requestorInput.value = editing.requestors.join(', ')
+    }
+  }
+
   imageFile.value = null
-  revokePreview()
+  removeExistingImage.value = false
+  imageError.value = ''
+  tosAccepted.value = false
+  tosDialogOpen.value = false
+  error.value = ''
 }
 
 watch(open, (isOpen) => {
@@ -111,76 +161,83 @@ watch(open, (isOpen) => {
   }
 })
 
-onUnmounted(revokePreview)
-
 function onOpenChange(nextOpen: boolean) {
   if (pending.value) return
   open.value = nextOpen
 }
 
-function selectImage(file: File | null) {
-  revokePreview()
-  if (file && !kanbanImageExtension(file)) {
-    imageFile.value = null
-    if (fileInput.value) fileInput.value.value = ''
-    imageError.value = text.value.home.imageInvalid
+async function submitRequestMode(trimmedDescription: string, trimmedContact: string) {
+  if (!props.offer || isOfferLimitReached(props.offer)) return
+
+  if (!trimmedDescription || !trimmedContact) {
+    error.value = text.value.request.requiredFields
     return
   }
-  imageFile.value = file
-  if (file) {
-    previewUrl.value = URL.createObjectURL(file)
-    removeExistingImage.value = false
+  if (contactChannel.value === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedContact)) {
+    error.value = text.value.request.invalidEmail
+    return
   }
-  imageError.value = ''
+  if (!tosAccepted.value) {
+    error.value = text.value.request.tosRequired
+    return
+  }
+
+  pending.value = true
   error.value = ''
-}
-
-function onFileChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  selectImage(input.files?.[0] ?? null)
-}
-
-function onDragEnter(event: DragEvent) {
-  if (event.dataTransfer?.types.includes('Files')) dragging.value = true
-}
-
-function onDragLeave(event: DragEvent) {
-  const currentTarget = event.currentTarget as HTMLElement | null
-  const related = event.relatedTarget as Node | null
-  if (!related || !currentTarget?.contains(related)) dragging.value = false
-}
-
-function onDrop(event: DragEvent) {
-  dragging.value = false
-  const files = event.dataTransfer?.files
-  if (!files || files.length !== 1) {
-    selectImage(null)
-    imageError.value = text.value.home.imageSingle
-    return
+  let uploadedPath: string | null = null
+  try {
+    if (supabase) {
+      if (imageFile.value) {
+        uploadedPath = await uploadKanbanImage(imageFile.value)
+      }
+      const { error: rpcError } = await supabase.rpc('submit_commission_request', {
+        p_offer_id: props.offer.id,
+        p_description: trimmedDescription,
+        p_contact_channel: contactChannel.value,
+        p_contact_value: trimmedContact,
+        p_image_path: uploadedPath,
+        p_tos_accepted: true,
+      })
+      if (rpcError) throw rpcError
+    }
+    emit('submitted', props.offer.id)
+    open.value = false
+  } catch {
+    if (supabase && uploadedPath) {
+      await supabase.storage.from('kanban-images').remove([uploadedPath]).catch(() => {})
+    }
+    error.value = text.value.request.submitError
+  } finally {
+    pending.value = false
   }
-  if (fileInput.value) fileInput.value.value = ''
-  selectImage(files[0] ?? null)
 }
 
-function clearImage() {
-  if (fileInput.value) fileInput.value.value = ''
-  selectImage(null)
-  if (props.card) removeExistingImage.value = true
-}
+async function submitCardMode(trimmedDescription: string, trimmedContact: string) {
+  if (!props.boardId) return
 
-async function submitCard() {
-  if (pending.value || imageError.value || !props.boardId) return
   const trimmedTitle = title.value.trim()
-  const trimmedDescription = description.value.trim()
-  const requestors = parseRequestorTags(requestorInput.value)
+  let requestors: string[] = []
 
-  if (!trimmedTitle || !trimmedDescription || requestors.length === 0) {
-    error.value = text.value.home.requiredFields
-    return
-  }
-  if (requestors.length > 10 || requestors.join(',').length > 400) {
-    error.value = text.value.home.tagsInvalid
-    return
+  if (useCustomRequestors.value) {
+    requestors = parseRequestorTags(requestorInput.value)
+    if (!trimmedTitle || !trimmedDescription || requestors.length === 0) {
+      error.value = text.value.home.requiredFields
+      return
+    }
+    if (requestors.length > 10 || requestors.join(',').length > 400) {
+      error.value = text.value.home.tagsInvalid
+      return
+    }
+  } else {
+    if (!trimmedTitle || !trimmedDescription || !trimmedContact) {
+      error.value = text.value.home.requiredFields
+      return
+    }
+    if (contactChannel.value === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedContact)) {
+      error.value = text.value.request.invalidEmail
+      return
+    }
+    requestors = [`${CHANNEL_LABELS[contactChannel.value]}: ${trimmedContact}`]
   }
 
   const editing = props.card
@@ -240,17 +297,7 @@ async function submitCard() {
   let uploadedPath: string | null = null
   try {
     if (imageFile.value) {
-      const optimized = await optimizeKanbanImage(imageFile.value)
-      const ext = kanbanImageExtension(optimized)
-      if (!ext) throw new Error('Invalid image')
-      uploadedPath = `${crypto.randomUUID()}.${ext}`
-      const { error: uploadError } = await supabase.storage
-        .from('kanban-images')
-        .upload(uploadedPath, optimized, { contentType: optimized.type, upsert: false })
-      if (uploadError) {
-        uploadedPath = null
-        throw uploadError
-      }
+      uploadedPath = await uploadKanbanImage(imageFile.value)
     }
 
     const selectColumns =
@@ -307,91 +354,159 @@ async function submitCard() {
     pending.value = false
   }
 }
+
+async function handleSubmit() {
+  if (pending.value || imageError.value) return
+  const trimmedDescription = description.value.trim()
+  const trimmedContact = contactValue.value.trim()
+  if (isRequestMode.value) {
+    await submitRequestMode(trimmedDescription, trimmedContact)
+  } else {
+    await submitCardMode(trimmedDescription, trimmedContact)
+  }
+}
 </script>
 
 <template>
   <DialogRoot :open="open" @update:open="onOpenChange">
     <DialogPortal>
-      <DialogOverlay class="fixed inset-0 z-60 bg-zinc-950/50" />
-      <div class="pointer-events-none fixed inset-0 z-70 flex items-center justify-center p-4 sm:p-6">
+      <DialogOverlay class="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px]" />
+      <div class="pointer-events-none fixed inset-0 z-60 flex items-center justify-center p-4 sm:p-6">
         <DialogContent as-child>
           <motion.div
             data-lenis-prevent
-            :initial="reducedMotion ? false : { opacity: 0, scale: 0.97, y: 8 }"
+            :initial="reducedMotion ? false : { opacity: 0, scale: 0.96, y: 8 }"
             :animate="{ opacity: 1, scale: 1, y: 0 }"
-            :transition="{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }"
-            class="surface-shadow pointer-events-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 text-zinc-950 focus:outline-none sm:p-8 dark:bg-zinc-900 dark:text-zinc-50"
+            :transition="reducedMotion ? { duration: 0 } : { duration: 0.16, ease: 'easeOut' }"
+            class="surface-shadow pointer-events-auto max-h-[88dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-6 text-zinc-950 focus:outline-none sm:p-7 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
           >
             <div class="flex items-start justify-between gap-4">
-              <DialogTitle class="text-3xl font-bold tracking-tight sm:text-4xl">
-                {{ card ? text.home.editCardTitle : text.home.createCardTitle }}
-              </DialogTitle>
+              <div>
+                <DialogTitle class="text-2xl font-bold tracking-tight sm:text-3xl">
+                  {{ dialogTitle }}
+                </DialogTitle>
+                <DialogDescription class="mt-1.5 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                  {{ dialogDescription }}
+                </DialogDescription>
+              </div>
               <DialogClose as-child>
                 <button
                   type="button"
                   :disabled="pending"
                   :aria-label="text.home.close"
-                  class="flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 dark:hover:bg-zinc-800"
+                  class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-50 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
                 >
-                  <X :size="20" aria-hidden="true" />
+                  <X class="size-4" aria-hidden="true" />
                 </button>
               </DialogClose>
             </div>
-            <DialogDescription class="mt-3 text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">
-              {{ card ? text.home.editCardDescription : text.home.createCardDescription }}
-            </DialogDescription>
 
-            <form class="mt-7 space-y-5" @submit.prevent="submitCard">
-              <div>
-                <label :for="`${idPrefix}-title`" class="block text-sm">{{ text.home.titleLabel }}</label>
-                <input
-                  :id="`${idPrefix}-title`"
-                  v-model="title"
-                  type="text"
-                  required
-                  maxlength="120"
-                  :class="fieldClass"
+            <form class="mt-6 space-y-5" @submit.prevent="handleSubmit">
+              <div
+                v-if="isRequestMode && offer"
+                class="flex flex-wrap items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/60"
+              >
+                <img
+                  v-if="offer.imageUrl"
+                  :src="offer.imageUrl"
+                  :alt="offer.title"
+                  class="size-16 shrink-0 rounded-xl bg-white object-cover dark:bg-zinc-900"
                 />
+                <div class="min-w-0 flex-1">
+                  <p class="text-xs uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
+                    {{ text.request.selectedLabel }}
+                  </p>
+                  <div class="mt-1.5 flex flex-wrap items-center gap-2">
+                    <h3 class="text-lg font-bold text-zinc-950 dark:text-zinc-50">
+                      {{ offer.title }}
+                    </h3>
+                    <span class="rounded-full bg-white px-2.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+                      {{ text.home.commissionTypes[offer.commissionType] }}
+                    </span>
+                    <span
+                      v-if="offer.maxRequests !== null"
+                      class="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium tabular-nums text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                    >
+                      {{ offer.requestCount }}/{{ offer.maxRequests }}
+                    </span>
+                    <span class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-800 dark:bg-orange-950/60 dark:text-orange-200">
+                      {{ formatOfferPrices(offer, language) }}
+                    </span>
+                  </div>
+                  <p class="mt-1.5 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                    {{ offer.description }}
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <label :for="`${idPrefix}-commission-type`" class="block text-sm">
-                  {{ text.home.commissionTypeLabel }}
-                </label>
-                <SelectField
-                  :id="`${idPrefix}-commission-type`"
-                  v-model="commissionType"
-                  :options="commissionTypeOptions"
-                  size="lg"
-                  required
-                />
-              </div>
+              <template v-else>
+                <div>
+                  <label :for="`${idPrefix}-title`" class="block text-sm text-zinc-800 dark:text-zinc-200">
+                    {{ text.home.titleLabel }}
+                  </label>
+                  <input
+                    :id="`${idPrefix}-title`"
+                    v-model="title"
+                    type="text"
+                    required
+                    maxlength="120"
+                    :class="fieldClass"
+                  />
+                </div>
 
-              <div v-if="showStage">
-                <label :for="`${idPrefix}-stage`" class="block text-sm">{{ text.home.stageLabel }}</label>
-                <SelectField
-                  :id="`${idPrefix}-stage`"
-                  v-model="stageNumber"
-                  :options="stageOptions"
-                  size="lg"
-                  required
-                />
-              </div>
+                <div :class="showStage ? 'grid gap-4 sm:grid-cols-2' : ''">
+                  <div>
+                    <label :for="`${idPrefix}-commission-type`" class="block text-sm text-zinc-800 dark:text-zinc-200">
+                      {{ text.home.commissionTypeLabel }}
+                    </label>
+                    <SelectField
+                      :id="`${idPrefix}-commission-type`"
+                      v-model="commissionType"
+                      :options="commissionTypeOptions"
+                      size="lg"
+                      required
+                    />
+                  </div>
+
+                  <div v-if="showStage">
+                    <label :for="`${idPrefix}-stage`" class="block text-sm text-zinc-800 dark:text-zinc-200">
+                      {{ text.home.stageLabel }}
+                    </label>
+                    <SelectField
+                      :id="`${idPrefix}-stage`"
+                      v-model="stageNumber"
+                      :options="stageOptions"
+                      size="lg"
+                      required
+                    />
+                  </div>
+                </div>
+              </template>
 
               <div>
-                <label :for="`${idPrefix}-description`" class="block text-sm">{{ text.home.descriptionLabel }}</label>
+                <div class="flex items-center justify-between gap-2">
+                  <label :for="`${idPrefix}-description`" class="block text-sm text-zinc-800 dark:text-zinc-200">
+                    {{ isRequestMode ? text.request.descriptionLabel : text.home.descriptionLabel }}
+                  </label>
+                  <span class="text-xs text-zinc-500 dark:text-zinc-400">
+                    {{ description.length }}/240
+                  </span>
+                </div>
                 <textarea
                   :id="`${idPrefix}-description`"
                   v-model="description"
-                  required
+                  rows="4"
                   maxlength="240"
-                  rows="3"
+                  required
+                  :placeholder="text.request.descriptionPlaceholder"
                   :class="fieldClass"
                 />
               </div>
 
-              <div>
-                <label :for="`${idPrefix}-requestor`" class="block text-sm">{{ text.home.requestorLabel }}</label>
+              <div v-if="useCustomRequestors">
+                <label :for="`${idPrefix}-requestor`" class="block text-sm text-zinc-800 dark:text-zinc-200">
+                  {{ text.home.requestorLabel }}
+                </label>
                 <input
                   :id="`${idPrefix}-requestor`"
                   v-model="requestorInput"
@@ -414,86 +529,113 @@ async function submitCard() {
                 </div>
               </div>
 
-              <div>
-                <p :id="`${idPrefix}-image-label`" class="block text-sm">{{ text.home.imageLabel }}</p>
-                <div
-                  :class="[
-                    'mt-2 rounded-xl border-2 border-dashed p-5 focus-within:ring-2 focus-within:ring-zinc-900 dark:focus-within:ring-zinc-300',
-                    dragging ? 'border-orange-500 bg-orange-50 dark:border-orange-400 dark:bg-zinc-800' : 'border-zinc-300 dark:border-zinc-600',
-                  ]"
-                  @dragenter.prevent="onDragEnter"
-                  @dragover.prevent
-                  @dragleave="onDragLeave"
-                  @drop.prevent="onDrop"
-                >
-                  <input
-                    :id="`${idPrefix}-image`"
-                    ref="fileInput"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    :aria-labelledby="`${idPrefix}-image-label`"
-                    :aria-describedby="imageError ? `${idPrefix}-image-help ${idPrefix}-image-error` : `${idPrefix}-image-help`"
-                    :aria-invalid="Boolean(imageError)"
-                    class="sr-only"
-                    @change="onFileChange"
+              <div v-else class="grid gap-4 sm:grid-cols-[12rem_1fr]">
+                <div>
+                  <label :for="`${idPrefix}-contact-channel`" class="block text-sm text-zinc-800 dark:text-zinc-200">
+                    {{ text.request.contactChannelLabel }}
+                  </label>
+                  <SelectField
+                    :id="`${idPrefix}-contact-channel`"
+                    v-model="contactChannel"
+                    :options="contactChannelOptions"
+                    size="lg"
                   />
-                  <div class="flex flex-wrap items-center gap-3">
-                    <UploadCloud :size="22" aria-hidden="true" class="text-zinc-500 dark:text-zinc-400" />
-                    <label
-                      :for="`${idPrefix}-image`"
-                      class="cursor-pointer rounded-xl bg-zinc-100 px-4 py-2 text-sm text-zinc-900 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-600"
-                    >
-                      {{ text.home.chooseImage }}
-                    </label>
-                    <span class="text-sm text-zinc-600 dark:text-zinc-300">{{ text.home.dropImage }}</span>
-                  </div>
-
-                  <img
-                    v-if="activeImagePreviewUrl"
-                    :src="activeImagePreviewUrl"
-                    :alt="text.home.imagePreview"
-                    class="mt-4 max-h-64 w-full rounded-xl bg-zinc-100 object-contain dark:bg-zinc-800"
-                  />
-
-                  <div v-if="imageFile || imageError || activeImagePreviewUrl" class="mt-4 flex items-center justify-between gap-3">
-                    <span role="status" class="min-w-0 wrap-break-words text-sm">{{ imageFile?.name }}</span>
-                    <button
-                      type="button"
-                      class="shrink-0 rounded-xl px-3 py-2 text-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
-                      @click="clearImage"
-                    >
-                      {{ text.home.removeImage }}
-                    </button>
-                  </div>
                 </div>
-                <p :id="`${idPrefix}-image-help`" class="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                  {{ text.home.imageHelp }}
-                </p>
-                <p
-                  v-if="imageError"
-                  :id="`${idPrefix}-image-error`"
-                  role="alert"
-                  class="mt-2 text-sm text-red-700 dark:text-red-400"
-                >
-                  {{ imageError }}
-                </p>
+
+                <div>
+                  <label :for="`${idPrefix}-contact-value`" class="block text-sm text-zinc-800 dark:text-zinc-200">
+                    {{ text.request.contactValueLabel }}
+                  </label>
+                  <input
+                    :id="`${idPrefix}-contact-value`"
+                    v-model="contactValue"
+                    :type="contactChannel === 'email' ? 'email' : 'text'"
+                    maxlength="120"
+                    required
+                    :placeholder="text.request.contactPlaceholders[contactChannel]"
+                    :class="fieldClass"
+                  />
+                </div>
               </div>
 
-              <p v-if="error" role="alert" class="text-sm text-red-700 dark:text-red-400">{{ error }}</p>
+              <ImageUploadField
+                v-model:file="imageFile"
+                v-model:removed="removeExistingImage"
+                v-model:error="imageError"
+                :id-prefix="`${idPrefix}-reference`"
+                :label="isRequestMode ? text.request.referenceImageLabel : text.home.imageLabel"
+                :existing-url="!isRequestMode ? card?.imageUrl : ''"
+              />
 
-              <motion.button
-                type="submit"
-                :disabled="pending"
-                :while-tap="reducedMotion ? undefined : { scale: 0.98 }"
-                :transition="{ duration: 0.14 }"
-                class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
+              <div
+                v-if="isRequestMode"
+                class="flex items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/60"
               >
-                {{ pending ? text.home.savingCard : card ? text.home.saveChanges : text.home.submitCard }}
-              </motion.button>
+                <input
+                  :id="`${idPrefix}-tos-agree`"
+                  v-model="tosAccepted"
+                  type="checkbox"
+                  class="mt-0.5 size-4 shrink-0 cursor-pointer rounded border-zinc-300 accent-zinc-900 dark:border-zinc-600 dark:accent-zinc-100"
+                />
+                <div class="text-sm leading-6 text-zinc-700 dark:text-zinc-300">
+                  <label :for="`${idPrefix}-tos-agree`" class="cursor-pointer">
+                    {{ text.request.tosPrefix }}
+                  </label>
+                  {{ ' ' }}
+                  <button
+                    type="button"
+                    class="cursor-pointer font-medium text-zinc-950 underline underline-offset-4 hover:text-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-50 dark:hover:text-zinc-300"
+                    @click="tosDialogOpen = true"
+                  >
+                    {{ text.request.tosLink }}
+                  </button>
+                </div>
+              </div>
+
+              <p
+                v-if="error"
+                role="alert"
+                class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
+              >
+                {{ error }}
+              </p>
+
+              <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
+                <DialogClose as-child>
+                  <button
+                    type="button"
+                    :disabled="pending"
+                    class="inline-flex min-h-11 items-center justify-center rounded-xl border border-zinc-300 px-4 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  >
+                    {{ text.home.close }}
+                  </button>
+                </DialogClose>
+                <motion.button
+                  type="submit"
+                  :disabled="pending"
+                  :while-tap="reducedMotion ? undefined : { scale: 0.98 }"
+                  :transition="{ duration: 0.14 }"
+                  class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-5 py-2.5 text-sm text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
+                >
+                  {{
+                    isRequestMode
+                      ? pending
+                        ? text.request.submitting
+                        : text.request.submit
+                      : pending
+                        ? text.home.savingCard
+                        : card
+                          ? text.home.saveChanges
+                          : text.home.submitCard
+                  }}
+                </motion.button>
+              </div>
             </form>
           </motion.div>
         </DialogContent>
       </div>
     </DialogPortal>
   </DialogRoot>
+
+  <TosDialog v-if="isRequestMode" v-model:open="tosDialogOpen" @agree="tosAccepted = true" />
 </template>

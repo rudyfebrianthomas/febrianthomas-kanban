@@ -31,9 +31,9 @@ function acceptAndClose() {
 <template>
   <DialogRoot v-model:open="open">
     <DialogPortal>
-      <DialogOverlay class="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px]" />
+      <DialogOverlay class="fixed inset-0 z-70 bg-black/45 backdrop-blur-[2px]" />
       <DialogContent
-        class="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 outline-none"
+        class="fixed left-1/2 top-1/2 z-80 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 outline-none"
       >
         <motion.div
           data-lenis-prevent

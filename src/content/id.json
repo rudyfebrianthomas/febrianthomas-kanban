@@ -7,6 +7,7 @@
     "label": "Navigasi utama",
     "home": "Beranda",
     "commission": "Komisi",
+    "request": "Pesan",
     "about": "Tentang",
     "setting": "Kelola",
     "commissionSettings": "Atur Komisi",
@@ -378,6 +379,8 @@
   "request": {
     "eyebrow": "FEBRIANTHOMAS / PERMINTAAN",
     "title": "Pesan Komisi.",
+    "dialogTitle": "Pesan Komisi",
+    "dialogDescription": "Tulis detail permintaan, kontak, dan gambar referensi (opsional).",
     "description": "Pilih komisi yang buka di bawah, isi kontak dan gambar referensi (opsional), lalu setujui Ketentuan Layanan.",
     "adminClosedNotice": "Komisi sedang tutup untuk pengunjung. Kamu tetap bisa membuka halaman ini sebagai admin.",
     "closedTitle": "Komisi lagi tutup sekarang.",
