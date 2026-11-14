@@ -8,6 +8,7 @@
     "home": "Home",
     "commission": "Commission",
     "about": "About",
+    "tos": "Terms of Service",
     "setting": "Manage",
     "signIn": "Sign in",
     "signOut": "Sign out",
@@ -109,6 +110,7 @@
       "closed": "Commissions Closed"
     },
     "slotsLabel": "slots open",
+    "tosLink": "Read Terms of Service",
     "workflowSections": [
       {
         "id": "queue",
@@ -331,5 +333,51 @@
     "confirmSignOut": "Are you sure you want to sign out?",
     "signOutDescription": "You can sign in again whenever you’re ready.",
     "cancel": "Cancel"
+  },
+  "tos": {
+    "eyebrow": "FEBRIANTHOMAS / TERMS",
+    "title": "Terms of Service.",
+    "intro": "Please read these terms before placing a commission. Submitting a request means you agree to the guidelines below.",
+    "updated": "Last updated: November 2026",
+    "backToBoard": "Back to Commission Board",
+    "sections": [
+      {
+        "id": "general",
+        "title": "General & Workflow",
+        "items": [
+          "I reserve the right to decline any commission request that falls outside my comfort zone or schedule.",
+          "Progress follows the six stages on the Commission Board: Queue, Sketch, Lineart, Rendering, Review, and Completed.",
+          "Turnaround time varies depending on queue position, piece complexity, and revision feedback."
+        ]
+      },
+      {
+        "id": "payment",
+        "title": "Payment & Refunds",
+        "items": [
+          "Work begins after payment is confirmed as agreed upon when your slot is accepted.",
+          "Full refunds are available only if work has not started yet in Queue.",
+          "Once sketching or later stages begin, refunds are no longer available except if I am unable to complete the commission."
+        ]
+      },
+      {
+        "id": "revisions",
+        "title": "Revisions",
+        "items": [
+          "Minor adjustments are included during the Sketch and Lineart stages.",
+          "Major changes requested after Rendering or completion may require an additional fee.",
+          "Please provide clear visual references upfront to keep revisions smooth."
+        ]
+      },
+      {
+        "id": "rights",
+        "title": "Usage & Rights",
+        "items": [
+          "Finished commissions are for personal or channel/streaming use unless commercial rights are agreed upon beforehand.",
+          "Please credit febrianthomas when posting or displaying the commissioned work.",
+          "I retain copyright and may showcase finished pieces or WIPs in my portfolio unless you request a private commission in advance.",
+          "Commissioned artwork may not be used for AI training, datasets, or NFTs."
+        ]
+      }
+    ]
   }
 }

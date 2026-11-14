@@ -8,6 +8,7 @@
     "home": "Beranda",
     "commission": "Komisi",
     "about": "Tentang",
+    "tos": "Ketentuan Layanan",
     "setting": "Kelola",
     "signIn": "Masuk",
     "signOut": "Keluar",
@@ -109,6 +110,7 @@
       "closed": "Komisi Tutup"
     },
     "slotsLabel": "slot tersisa",
+    "tosLink": "Baca Ketentuan Layanan",
     "workflowSections": [
       {
         "id": "queue",
@@ -331,5 +333,51 @@
     "confirmSignOut": "Yakin ingin keluar?",
     "signOutDescription": "Kamu bisa masuk lagi kapan saja.",
     "cancel": "Batal"
+  },
+  "tos": {
+    "eyebrow": "FEBRIANTHOMAS / KETENTUAN",
+    "title": "Ketentuan Layanan.",
+    "intro": "Silakan baca ketentuan berikut sebelum memesan komisi. Mengirimkan permintaan berarti kamu menyetujui aturan di bawah ini.",
+    "updated": "Terakhir diperbarui: November 2026",
+    "backToBoard": "Kembali ke Papan Komisi",
+    "sections": [
+      {
+        "id": "general",
+        "title": "Umum & Alur Kerja",
+        "items": [
+          "Saya berhak menolak permintaan komisi yang berada di luar kemampuan, kenyamanan, atau jadwal saya.",
+          "Progres mengikuti enam tahap di Papan Komisi: Antrean, Sketsa, Lineart, Rendering, Review, dan Selesai.",
+          "Waktu pengerjaan bergantung pada posisi antrean, tingkat kerumitan karya, dan kecepatan respons revisi."
+        ]
+      },
+      {
+        "id": "payment",
+        "title": "Pembayaran & Refund",
+        "items": [
+          "Pengerjaan dimulai setelah pembayaran dikonfirmasi sesuai kesepakatan saat slot diterima.",
+          "Refund penuh hanya tersedia selama komisi masih di tahap Antrean dan belum mulai dikerjakan.",
+          "Setelah tahap Sketsa atau tahap berikutnya berjalan, refund tidak tersedia kecuali saya berhalangan menyelesaikan komisi."
+        ]
+      },
+      {
+        "id": "revisions",
+        "title": "Revisi",
+        "items": [
+          "Revisi minor termasuk gratis pada tahap Sketsa dan Lineart.",
+          "Perubahan besar yang diminta setelah tahap Rendering atau selesai dapat dikenakan biaya tambahan.",
+          "Sertakan referensi visual yang jelas sejak awal agar proses revisi berjalan lancar."
+        ]
+      },
+      {
+        "id": "rights",
+        "title": "Penggunaan & Hak Cipta",
+        "items": [
+          "Hasil komisi ditujukan untuk penggunaan pribadi atau channel/streaming, kecuali hak komersial disepakati sejak awal.",
+          "Cantumkan kredit febrianthomas saat mengunggah atau menampilkan karya hasil komisi.",
+          "Hak cipta tetap milik saya dan karya atau WIP dapat ditampilkan di portofolio, kecuali disepakati sebagai komisi privat sebelumnya.",
+          "Karya komisi tidak boleh digunakan untuk melatih AI, dataset, maupun NFT."
+        ]
+      }
+    ]
   }
 }

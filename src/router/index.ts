@@ -5,15 +5,21 @@ import CommissionView from '../views/CommissionView.vue'
 import HomeView from '../views/HomeView.vue'
 import LoginView from '../views/LoginView.vue'
 import SettingView from '../views/SettingView.vue'
+import TosView from '../views/TosView.vue'
 
 const BASE_TITLE = 'febrianthomas · Kanban'
 
 export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition
+    if (to.path !== from.path) return { top: 0 }
+  },
   routes: [
     { path: '/', component: HomeView },
     { path: '/commission', component: CommissionView, meta: { title: 'Commission' } },
     { path: '/about', component: AboutView, meta: { title: 'About' } },
+    { path: '/tos', alias: ['/terms'], component: TosView, meta: { title: 'Terms of Service' } },
     { path: '/setting', alias: ['/settings', '/manage'], component: SettingView, meta: { title: 'Manage' } },
     { path: '/login', component: LoginView, meta: { title: 'Sign in' } },
   ],

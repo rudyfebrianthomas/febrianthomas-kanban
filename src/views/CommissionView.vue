@@ -367,6 +367,13 @@ async function onColumnDrop(targetStage: string, event: DragEvent) {
           <p class="mt-4 text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">
             {{ text.home.commissionDescription }}
           </p>
+          <RouterLink
+            to="/tos"
+            class="mt-3 inline-flex items-center gap-1.5 text-sm text-zinc-600 underline decoration-zinc-300 underline-offset-4 transition-colors hover:text-zinc-950 hover:decoration-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-300 dark:decoration-zinc-600 dark:hover:text-zinc-50 dark:hover:decoration-zinc-50"
+          >
+            <FileText :size="15" aria-hidden="true" />
+            <span>{{ text.home.tosLink }}</span>
+          </RouterLink>
         </div>
       </div>
 

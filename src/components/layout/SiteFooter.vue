@@ -15,6 +15,12 @@ const copyright = computed(() => text.value.site.copyright.replace(/\d{4}/, Stri
       <div class="flex w-full flex-col items-center gap-4 sm:flex-row sm:justify-between">
         <div class="flex flex-wrap items-center justify-center gap-3">
           <span class="text-sm text-zinc-500 dark:text-zinc-400">{{ copyright }}</span>
+          <RouterLink
+            to="/tos"
+            class="text-sm text-zinc-500 underline-offset-4 transition-colors hover:text-zinc-950 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-400 dark:hover:text-zinc-50"
+          >
+            {{ text.navigation.tos }}
+          </RouterLink>
           <div class="flex items-end gap-1" aria-hidden="true">
             <img v-for="name in starters" :key="name" :src="`/images/${name}.gif`" alt="" width="32" height="32" class="size-8 object-contain" />
           </div>
