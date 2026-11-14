@@ -2,13 +2,17 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import CommissionOffersManager from '../components/commission/CommissionOffersManager.vue'
+import CommissionStatusBadge from '../components/commission/CommissionStatusBadge.vue'
 import SelectField from '../components/ui/SelectField.vue'
 import { useLanguage } from '../composables/useLanguage'
+import { type CommissionOffer } from '../lib/commissionOffers'
 import {
   COMMISSION_STATUSES,
   COMMISSION_STATUS_STYLES,
+  type CommissionStatus,
   type CommissionStatusValue,
   fetchCommissionStatus,
+  summarizeOfferSlots,
 } from '../lib/commissionStatus'
 import { supabase } from '../lib/supabase'
 
@@ -16,10 +20,19 @@ const { text } = useLanguage()
 const router = useRouter()
 
 const commissionStatusValue = ref<CommissionStatusValue>('open')
+const offerSlotSummary = ref(summarizeOfferSlots([]))
+const liveStatusBadge = computed<CommissionStatus>(() => ({
+  status: commissionStatusValue.value,
+  ...offerSlotSummary.value,
+}))
 const statusSaving = ref(false)
 const statusSaved = ref(false)
 const statusError = ref('')
 let statusSavedTimer: ReturnType<typeof setTimeout> | null = null
+
+function onOffersChange(nextOffers: CommissionOffer[]) {
+  offerSlotSummary.value = summarizeOfferSlots(nextOffers)
+}
 
 const commissionStatusOptions = computed(() =>
   COMMISSION_STATUSES.map((option) => ({
@@ -93,6 +106,9 @@ async function saveCommissionStatus() {
         <p class="mt-4 text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">
           {{ text.commissionSettings.description }}
         </p>
+        <div class="mt-5">
+          <CommissionStatusBadge :value="liveStatusBadge" />
+        </div>
       </div>
 
       <form
@@ -129,7 +145,7 @@ async function saveCommissionStatus() {
         </p>
       </form>
 
-      <CommissionOffersManager />
+      <CommissionOffersManager @offers-change="onOffersChange" />
     </section>
   </main>
 </template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Pencil, Plus, Trash2, X } from '@lucide/vue'
+import { Check, Copy, Pencil, Plus, Search, Trash2, X } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import {
   DialogClose,
@@ -10,7 +10,7 @@ import {
   DialogRoot,
   DialogTitle,
 } from 'reka-ui'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useLanguage } from '../../composables/useLanguage'
 import {
   type CommissionOffer,
@@ -28,6 +28,12 @@ import ConfirmDialog from '../ui/ConfirmDialog.vue'
 import ImageUploadField from '../ui/ImageUploadField.vue'
 import SelectField from '../ui/SelectField.vue'
 
+type OfferFilter = 'all' | 'active' | 'inactive'
+
+const emit = defineEmits<{
+  offersChange: [offers: CommissionOffer[]]
+}>()
+
 const { language, text } = useLanguage()
 const reducedMotion = useReducedMotion()
 
@@ -36,9 +42,12 @@ const loading = ref(!!supabase)
 const loadError = ref('')
 const togglingId = ref('')
 const resettingId = ref('')
+const query = ref('')
+const statusFilter = ref<OfferFilter>('all')
 
 const dialogOpen = ref(false)
 const editingOffer = ref<CommissionOffer | null>(null)
+const templateOffer = ref<CommissionOffer | null>(null)
 const typeInput = ref<CommissionType>('Illustration')
 const titleInput = ref('')
 const priceUsdInput = ref<number | string>('')
@@ -57,6 +66,48 @@ const commissionTypeOptions = computed(() =>
     value: typeOption,
     label: text.value.home.commissionTypes[typeOption],
   })),
+)
+
+const offerFilterOptions = computed<{ value: OfferFilter; label: string }[]>(() => [
+  { value: 'all', label: text.value.setting.filterAll },
+  { value: 'active', label: text.value.setting.filterActive },
+  { value: 'inactive', label: text.value.setting.filterInactive },
+])
+
+const filteredOffers = computed(() => {
+  const needle = query.value.trim().toLowerCase()
+  return offers.value.filter((offer) => {
+    if (statusFilter.value === 'active' && !offer.isOpen) return false
+    if (statusFilter.value === 'inactive' && offer.isOpen) return false
+    if (!needle) return true
+    const typeLabel = text.value.home.commissionTypes[offer.commissionType].toLowerCase()
+    return (
+      offer.title.toLowerCase().includes(needle) ||
+      offer.description.toLowerCase().includes(needle) ||
+      offer.commissionType.toLowerCase().includes(needle) ||
+      typeLabel.includes(needle)
+    )
+  })
+})
+
+const dialogTitle = computed(() => {
+  if (editingOffer.value) return text.value.setting.offers.editTitle
+  if (templateOffer.value) return text.value.setting.offers.copyTitle
+  return text.value.setting.offers.createTitle
+})
+
+const dialogDescription = computed(() => {
+  if (editingOffer.value) return text.value.setting.offers.editDescription
+  if (templateOffer.value) return text.value.setting.offers.copyDescription
+  return text.value.setting.offers.createDescription
+})
+
+watch(
+  offers,
+  (nextOffers) => {
+    emit('offersChange', nextOffers)
+  },
+  { deep: true, immediate: true },
 )
 
 onMounted(async () => {
@@ -84,6 +135,7 @@ function resetImageState() {
 
 function openCreate() {
   editingOffer.value = null
+  templateOffer.value = null
   typeInput.value = 'Illustration'
   titleInput.value = ''
   priceUsdInput.value = ''
@@ -96,10 +148,13 @@ function openCreate() {
   dialogOpen.value = true
 }
 
-function openEdit(offer: CommissionOffer) {
-  editingOffer.value = offer
+function prefillOfferForm(offer: CommissionOffer, asCopy: boolean) {
+  editingOffer.value = asCopy ? null : offer
+  templateOffer.value = asCopy ? offer : null
   typeInput.value = offer.commissionType
-  titleInput.value = offer.title
+  titleInput.value = asCopy
+    ? `${offer.title} (${text.value.setting.offers.copySuffix})`.slice(0, 120)
+    : offer.title
   priceUsdInput.value = offer.priceUsd
   priceIdrInput.value = offer.priceIdr
   maxRequestsInput.value = offer.maxRequests ?? ''
@@ -110,10 +165,21 @@ function openEdit(offer: CommissionOffer) {
   dialogOpen.value = true
 }
 
+function openEdit(offer: CommissionOffer) {
+  prefillOfferForm(offer, false)
+}
+
+function openCopy(offer: CommissionOffer) {
+  prefillOfferForm(offer, true)
+}
+
 function onOpenChange(nextOpen: boolean) {
   if (saving.value) return
   dialogOpen.value = nextOpen
-  if (!nextOpen) resetImageState()
+  if (!nextOpen) {
+    templateOffer.value = null
+    resetImageState()
+  }
 }
 
 function parseNonNegativePrice(rawInput: number | string): number | null {
@@ -186,6 +252,7 @@ async function saveOffer() {
             : item,
         )
       } else {
+        const inheritedTemplate = removeExistingImage.value ? null : templateOffer.value
         offers.value.push({
           id: crypto.randomUUID(),
           commissionType: typeInput.value,
@@ -193,8 +260,10 @@ async function saveOffer() {
           priceUsd,
           priceIdr: roundedIdr,
           description,
-          imagePath: null,
-          imageUrl: imageFile.value ? URL.createObjectURL(imageFile.value) : undefined,
+          imagePath: inheritedTemplate?.imagePath ?? null,
+          imageUrl: imageFile.value
+            ? URL.createObjectURL(imageFile.value)
+            : inheritedTemplate?.imageUrl,
           isOpen: openInput.value,
           sortOrder: offers.value.length + 1,
           maxRequests,
@@ -202,6 +271,7 @@ async function saveOffer() {
         })
       }
       dialogOpen.value = false
+      templateOffer.value = null
       resetImageState()
       return
     }
@@ -240,6 +310,8 @@ async function saveOffer() {
       offers.value = offers.value.map((item) => (item.id === updated.id ? updated : item))
     } else {
       const nextSort = offers.value.reduce((max, item) => Math.max(max, item.sortOrder), 0) + 1
+      const copiedImagePath =
+        uploadedPath ?? (removeExistingImage.value ? null : (templateOffer.value?.imagePath ?? null))
       const { data, error } = await supabase
         .from('commission_offers')
         .insert({
@@ -249,7 +321,7 @@ async function saveOffer() {
           price_usd: priceUsd,
           price_idr: roundedIdr,
           description,
-          image_path: uploadedPath,
+          image_path: copiedImagePath,
           is_open: openInput.value,
           sort_order: nextSort,
           max_requests: maxRequests,
@@ -260,6 +332,7 @@ async function saveOffer() {
       offers.value.push(toCommissionOffer(data as CommissionOfferRow))
     }
     dialogOpen.value = false
+    templateOffer.value = null
     resetImageState()
   } catch {
     formError.value = text.value.setting.offers.saveError
@@ -348,6 +421,32 @@ async function deleteOffer(offer: CommissionOffer) {
       {{ loadError }}
     </p>
 
+    <form v-if="!loading && offers.length > 0" class="mt-4 flex flex-wrap gap-3" role="search" @submit.prevent>
+      <label for="offer-search" class="sr-only">{{ text.setting.offers.searchOffers }}</label>
+      <div class="relative min-w-48 flex-1">
+        <Search
+          class="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
+          aria-hidden="true"
+        />
+        <input
+          id="offer-search"
+          v-model="query"
+          type="search"
+          :placeholder="text.setting.offers.searchOffersPlaceholder"
+          class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-4 text-sm text-zinc-950 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-zinc-300"
+        />
+      </div>
+      <div class="w-40">
+        <label for="offer-filter" class="sr-only">{{ text.setting.offers.filterOffers }}</label>
+        <SelectField
+          id="offer-filter"
+          v-model="statusFilter"
+          :options="offerFilterOptions"
+          :aria-label="text.setting.offers.filterOffers"
+        />
+      </div>
+    </form>
+
     <div v-if="loading" class="mt-4 h-24 animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" />
 
     <p
@@ -357,11 +456,21 @@ async function deleteOffer(offer: CommissionOffer) {
       {{ text.setting.offers.empty }}
     </p>
 
+    <p
+      v-else-if="filteredOffers.length === 0"
+      class="mt-4 rounded-xl border border-dashed border-zinc-300 px-4 py-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+    >
+      {{ text.setting.noSearchResults }}
+    </p>
+
     <ul v-else class="mt-4 divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
       <li
-        v-for="offer in offers"
+        v-for="offer in filteredOffers"
         :key="offer.id"
-        class="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+        :class="[
+          'flex flex-wrap items-center justify-between gap-3 px-4 py-3 transition-opacity',
+          offer.isOpen ? '' : 'bg-zinc-50/70 opacity-80 dark:bg-zinc-800/30',
+        ]"
       >
         <div class="flex min-w-0 flex-1 items-center gap-3">
           <img
@@ -412,14 +521,25 @@ async function deleteOffer(offer: CommissionOffer) {
             :aria-checked="offer.isOpen"
             :disabled="togglingId === offer.id"
             :class="[
-              'min-h-8 rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50',
+              'inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50',
               offer.isOpen
-                ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-200'
-                : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300',
+                ? 'bg-orange-500/15 text-orange-700 hover:bg-orange-500/25 dark:bg-orange-400/15 dark:text-orange-300 dark:hover:bg-orange-400/25'
+                : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700',
             ]"
             @click="toggleOpen(offer)"
           >
-            {{ offer.isOpen ? text.setting.offers.openBadge : text.setting.offers.closedBadge }}
+            <Check v-if="offer.isOpen" :size="14" aria-hidden="true" />
+            {{ offer.isOpen ? text.setting.activeBadge : text.setting.makeActive }}
+          </button>
+
+          <button
+            type="button"
+            :aria-label="`${text.setting.offers.copyOffer}: ${offer.title}`"
+            :title="text.setting.offers.copyOffer"
+            class="flex size-8 items-center justify-center rounded-lg text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
+            @click="openCopy(offer)"
+          >
+            <Copy :size="14" aria-hidden="true" />
           </button>
 
           <button
@@ -470,10 +590,10 @@ async function deleteOffer(offer: CommissionOffer) {
             <div class="flex items-start justify-between gap-4">
               <div>
                 <DialogTitle class="text-lg font-bold">
-                  {{ editingOffer ? text.setting.offers.editTitle : text.setting.offers.createTitle }}
+                  {{ dialogTitle }}
                 </DialogTitle>
                 <DialogDescription class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                  {{ editingOffer ? text.setting.offers.editDescription : text.setting.offers.createDescription }}
+                  {{ dialogDescription }}
                 </DialogDescription>
               </div>
               <DialogClose as-child>
@@ -585,7 +705,7 @@ async function deleteOffer(offer: CommissionOffer) {
                 v-model:error="imageError"
                 id-prefix="offer-example"
                 :label="text.setting.offers.exampleImageLabel"
-                :existing-url="editingOffer?.imageUrl"
+                :existing-url="editingOffer?.imageUrl ?? templateOffer?.imageUrl"
               />
 
               <label class="inline-flex cursor-pointer items-center gap-2.5 text-sm text-zinc-800 dark:text-zinc-200">
