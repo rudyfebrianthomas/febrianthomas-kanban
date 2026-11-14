@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 export const COMMISSION_TYPES = ['Emote', 'GIF', 'Animation', 'Illustration', 'Transition'] as const
 export type CommissionType = (typeof COMMISSION_TYPES)[number]
 
-export const COMMISSION_STATUSES = ['open', 'waitlist', 'closed'] as const
+const COMMISSION_STATUSES = ['open', 'waitlist', 'closed'] as const
 export type CommissionStatusValue = (typeof COMMISSION_STATUSES)[number]
 
 export interface CommissionStatus {
@@ -12,15 +12,11 @@ export interface CommissionStatus {
   slotsTotal: number
 }
 
-export interface OfferSlotSummaryInput {
+interface OfferSlotSummaryInput {
   isOpen: boolean
   boardStatus?: 'active' | 'waitlist' | 'inactive'
   maxRequests: number | null
   requestCount: number
-}
-
-interface CommissionStatusRow {
-  status: CommissionStatusValue
 }
 
 interface OfferQuotaRow {
@@ -34,24 +30,41 @@ interface VisibleBoardRow {
   status: 'active' | 'waitlist'
 }
 
+export function deriveCommissionStatusValue(
+  boards: readonly { status: 'active' | 'waitlist' | 'inactive' }[],
+): CommissionStatusValue {
+  if (boards.some((board) => board.status === 'waitlist')) return 'waitlist'
+  if (boards.some((board) => board.status === 'active')) return 'open'
+  return 'closed'
+}
+
 export const DEFAULT_COMMISSION_STATUS: CommissionStatus = {
   status: 'open',
   slotsOpen: 0,
   slotsTotal: 0,
 }
 
-export const COMMISSION_STATUS_STYLES: Record<CommissionStatusValue, { badge: string; dot: string }> = {
+export const COMMISSION_STATUS_STYLES: Record<
+  CommissionStatusValue,
+  { badge: string; dot: string; cardBorder: string; interactiveBorder: string }
+> = {
   open: {
     badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200',
     dot: 'bg-emerald-500',
+    cardBorder: 'border-emerald-500 dark:border-emerald-500',
+    interactiveBorder: 'hover:border-emerald-600 dark:hover:border-emerald-400',
   },
   waitlist: {
     badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200',
     dot: 'bg-amber-500',
+    cardBorder: 'border-amber-400 dark:border-amber-500',
+    interactiveBorder: 'hover:border-amber-500 dark:hover:border-amber-400',
   },
   closed: {
     badge: 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-200',
     dot: 'bg-rose-500',
+    cardBorder: 'border-rose-400 dark:border-rose-500',
+    interactiveBorder: 'hover:border-rose-500 dark:hover:border-rose-400',
   },
 }
 
@@ -76,10 +89,21 @@ export function summarizeOfferSlots(
   return { slotsOpen, slotsTotal }
 }
 
+export async function syncCommissionStatusRow(
+  boards: readonly { status: 'active' | 'waitlist' | 'inactive' }[],
+): Promise<void> {
+  if (!supabase) return
+  const status = deriveCommissionStatusValue(boards)
+  const { error } = await supabase
+    .from('commission_status')
+    .update({ status })
+    .eq('id', 'default')
+  if (error) throw error
+}
+
 export async function fetchCommissionStatus(): Promise<CommissionStatus | null> {
   if (!supabase) return { ...DEFAULT_COMMISSION_STATUS }
-  const [statusResult, boardsResult, offersResult] = await Promise.all([
-    supabase.from('commission_status').select('status').eq('id', 'default').maybeSingle(),
+  const [boardsResult, offersResult] = await Promise.all([
     supabase.from('commission_offer_boards').select('id,status').in('status', ['active', 'waitlist']),
     supabase
       .from('commission_offers')
@@ -88,10 +112,10 @@ export async function fetchCommissionStatus(): Promise<CommissionStatus | null> 
       .not('max_requests', 'is', null),
   ])
 
-  if (!statusResult.data) return null
-  const row = statusResult.data as CommissionStatusRow
+  if (boardsResult.error) return null
+  const visibleBoards = (boardsResult.data ?? []) as VisibleBoardRow[]
   const visibleBoardStatusById = new Map(
-    ((boardsResult.data ?? []) as VisibleBoardRow[]).map((board) => [board.id, board.status]),
+    visibleBoards.map((board) => [board.id, board.status]),
   )
   const offers = ((offersResult.data ?? []) as OfferQuotaRow[])
     .filter((offer) => visibleBoardStatusById.has(offer.board_id))
@@ -102,7 +126,7 @@ export async function fetchCommissionStatus(): Promise<CommissionStatus | null> 
       requestCount: Number(offer.request_count) || 0,
     }))
   return {
-    status: row.status,
+    status: deriveCommissionStatusValue(visibleBoards),
     ...summarizeOfferSlots(offers),
   }
 }

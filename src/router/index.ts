@@ -1,16 +1,24 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { supabase } from '../lib/supabase'
 import AboutView from '../views/AboutView.vue'
-import CommissionSettingsView from '../views/CommissionSettingsView.vue'
-import CommissionView from '../views/CommissionView.vue'
+import BoardsView from '../views/BoardsView.vue'
+import CommissionsView from '../views/CommissionsView.vue'
 import HomeView from '../views/HomeView.vue'
 import LoginView from '../views/LoginView.vue'
-import RequestView from '../views/RequestView.vue'
-import SettingView from '../views/SettingView.vue'
-import TosView from '../views/TosView.vue'
+import QueueView from '../views/QueueView.vue'
+import SlotsView from '../views/SlotsView.vue'
+import TermsView from '../views/TermsView.vue'
 
 const BASE_TITLE = 'febrianthomas · Kanban'
-const PROTECTED_PATHS = new Set(['/setting', '/settings', '/manage', '/commission-settings', '/offers'])
+const PROTECTED_PATHS = new Set([
+  '/boards',
+  '/slots',
+  '/manage',
+  '/offers',
+  '/setting',
+  '/settings',
+  '/commission-settings',
+])
 
 export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -20,12 +28,21 @@ export const router = createRouter({
   },
   routes: [
     { path: '/', component: HomeView },
-    { path: '/commission', component: CommissionView, meta: { title: 'Commission' } },
-    { path: '/request', component: RequestView, meta: { title: 'Request Commission' } },
+    { path: '/queue', component: QueueView, meta: { title: 'Queue' } },
+    { path: '/board', redirect: (to) => ({ path: '/queue', query: to.query }) },
+    { path: '/commissions', component: CommissionsView, meta: { title: 'Commissions' } },
+    { path: '/commission', redirect: (to) => ({ path: '/commissions', query: to.query }) },
+    { path: '/request', redirect: (to) => ({ path: '/commissions', query: to.query }) },
     { path: '/about', component: AboutView, meta: { title: 'About' } },
-    { path: '/tos', alias: ['/terms'], component: TosView, meta: { title: 'Terms of Service' } },
-    { path: '/setting', alias: ['/settings', '/manage'], component: SettingView, meta: { title: 'Manage' } },
-    { path: '/commission-settings', alias: ['/offers'], component: CommissionSettingsView, meta: { title: 'Commission Settings' } },
+    { path: '/terms', component: TermsView, meta: { title: 'Terms' } },
+    { path: '/tos', redirect: '/terms' },
+    { path: '/boards', component: BoardsView, meta: { title: 'Boards' } },
+    { path: '/manage', redirect: '/boards' },
+    { path: '/setting', redirect: '/boards' },
+    { path: '/settings', redirect: '/boards' },
+    { path: '/slots', component: SlotsView, meta: { title: 'Slots' } },
+    { path: '/offers', redirect: '/slots' },
+    { path: '/commission-settings', redirect: '/slots' },
     { path: '/login', component: LoginView, meta: { title: 'Sign in' } },
   ],
 })

@@ -5,12 +5,19 @@ import { supabase } from './supabase'
 
 export const OFFER_BOARD_STATUSES = ['active', 'waitlist', 'inactive'] as const
 export type OfferBoardStatus = (typeof OFFER_BOARD_STATUSES)[number]
-export const MAX_ACTIVE_OFFER_BOARDS = 2
+export const MAX_ACTIVE_OFFER_BOARDS = 1
+export const MAX_WAITLIST_OFFER_BOARDS = 1
 
 export const OFFER_BOARD_STATUS_DOTS: Record<OfferBoardStatus, string> = {
   active: 'bg-emerald-500',
   waitlist: 'bg-amber-500',
   inactive: 'bg-zinc-400',
+}
+
+export const OFFER_BOARD_STATUS_BADGES: Record<OfferBoardStatus, string> = {
+  active: 'bg-orange-500/15 text-orange-700 dark:bg-orange-400/15 dark:text-orange-300',
+  waitlist: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200',
+  inactive: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
 }
 
 export interface CommissionOfferBoard {
@@ -60,7 +67,7 @@ export interface CommissionOfferRow {
   request_count: number | null
 }
 
-export const DEFAULT_OFFER_BOARD_ID = '00000000-0000-0000-0000-000000000301'
+const DEFAULT_OFFER_BOARD_ID = '00000000-0000-0000-0000-000000000301'
 
 export const DEFAULT_COMMISSION_OFFER_BOARDS: CommissionOfferBoard[] = [
   {
@@ -149,18 +156,34 @@ export function isOfferBoardVisible(status: OfferBoardStatus): boolean {
   return status === 'active' || status === 'waitlist'
 }
 
-export function activeOfferBoardCount(
-  boards: readonly Pick<CommissionOfferBoard, 'id' | 'status'>[],
+export function findOfferBoardByStatus(
+  boards: readonly CommissionOfferBoard[],
+  status: OfferBoardStatus,
   excludeBoardId?: string,
-): number {
-  return boards.filter((board) => board.status === 'active' && board.id !== excludeBoardId).length
+): CommissionOfferBoard | undefined {
+  return boards.find((board) => board.status === status && board.id !== excludeBoardId)
 }
 
-export function canActivateOfferBoard(
+export function offerBoardStatusCount(
   boards: readonly Pick<CommissionOfferBoard, 'id' | 'status'>[],
+  status: OfferBoardStatus,
+  excludeBoardId?: string,
+): number {
+  return boards.filter((board) => board.status === status && board.id !== excludeBoardId).length
+}
+
+export function canSetOfferBoardStatus(
+  boards: readonly Pick<CommissionOfferBoard, 'id' | 'status'>[],
+  status: OfferBoardStatus,
   targetBoardId?: string,
 ): boolean {
-  return activeOfferBoardCount(boards, targetBoardId) < MAX_ACTIVE_OFFER_BOARDS
+  if (status === 'active') {
+    return offerBoardStatusCount(boards, 'active', targetBoardId) < MAX_ACTIVE_OFFER_BOARDS
+  }
+  if (status === 'waitlist') {
+    return offerBoardStatusCount(boards, 'waitlist', targetBoardId) < MAX_WAITLIST_OFFER_BOARDS
+  }
+  return true
 }
 
 export function summarizeOffersWithBoards(

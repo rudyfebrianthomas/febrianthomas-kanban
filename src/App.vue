@@ -8,20 +8,17 @@ import SiteHeader from './components/layout/SiteHeader.vue'
 
 const reducedMotion = useReducedMotion()
 let lenis: Lenis | undefined
-let frame = 0
 
 onMounted(() => {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-  lenis = new Lenis()
-  const raf = (time: number) => {
-    lenis?.raf(time)
-    frame = requestAnimationFrame(raf)
-  }
-  frame = requestAnimationFrame(raf)
+  lenis = new Lenis({
+    autoRaf: true,
+    anchors: true,
+    stopInertiaOnNavigate: true,
+    respectReducedMotion: true,
+  })
 })
 
 onUnmounted(() => {
-  cancelAnimationFrame(frame)
   lenis?.destroy()
 })
 </script>

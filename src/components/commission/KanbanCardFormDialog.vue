@@ -1,15 +1,6 @@
 <script setup lang="ts">
-import { X } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
-import {
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-} from 'reka-ui'
+import { DialogClose } from 'reka-ui'
 import { computed, ref, watch } from 'vue'
 import { useLanguage } from '../../composables/useLanguage'
 import {
@@ -18,12 +9,14 @@ import {
   isOfferLimitReached,
 } from '../../lib/commissionOffers'
 import { COMMISSION_TYPES, type CommissionType } from '../../lib/commissionStatus'
-import { type KanbanCard, type KanbanCardRow, parseRequestorTags, toKanbanCard } from '../../lib/kanbanCard'
-import { uploadKanbanImage } from '../../lib/kanbanImage'
+import { type KanbanCard, type KanbanCardRow, toKanbanCard } from '../../lib/kanbanCard'
+import { removeKanbanImages, revokeBlobUrls, uploadKanbanImage } from '../../lib/kanbanImage'
 import { stageStyle } from '../../lib/kanbanStage'
 import { supabase } from '../../lib/supabase'
-import TosDialog from '../tos/TosDialog.vue'
+import TermsDialog from '../terms/TermsDialog.vue'
+import BaseDialog from '../ui/BaseDialog.vue'
 import ImageUploadField from '../ui/ImageUploadField.vue'
+import LoadingIndicator from '../ui/LoadingIndicator.vue'
 import SelectField from '../ui/SelectField.vue'
 
 const CONTACT_CHANNELS = ['email', 'discord', 'twitter', 'instagram'] as const
@@ -41,6 +34,7 @@ const props = withDefaults(
     mode?: 'card' | 'request'
     boardId?: string
     card?: KanbanCard | null
+    templateCard?: KanbanCard | null
     offer?: CommissionOffer | null
     showStage?: boolean
     idPrefix?: string
@@ -49,6 +43,7 @@ const props = withDefaults(
     mode: 'card',
     boardId: '',
     card: null,
+    templateCard: null,
     offer: null,
     showStage: true,
     idPrefix: 'card',
@@ -77,16 +72,12 @@ const title = ref('')
 const description = ref('')
 const contactChannel = ref<ContactChannel>('discord')
 const contactValue = ref('')
-const useCustomRequestors = ref(false)
-const requestorInput = ref('')
 const imageFile = ref<File | null>(null)
 const removeExistingImage = ref(false)
 const imageError = ref('')
 const tosAccepted = ref(false)
 const tosDialogOpen = ref(false)
 const error = ref('')
-
-const previewTags = computed(() => parseRequestorTags(requestorInput.value))
 
 const commissionTypeOptions = computed(() =>
   COMMISSION_TYPES.map((typeOption) => ({
@@ -112,36 +103,41 @@ const contactChannelOptions = computed(() =>
 
 const dialogTitle = computed(() => {
   if (isRequestMode.value) return text.value.request.dialogTitle
-  return props.card ? text.value.home.editCardTitle : text.value.home.createCardTitle
+  if (props.card) return text.value.home.editCardTitle
+  if (props.templateCard) return text.value.home.copyCardTitle
+  return text.value.home.createCardTitle
 })
 
 const dialogDescription = computed(() => {
   if (isRequestMode.value) return text.value.request.dialogDescription
-  return props.card ? text.value.home.editCardDescription : text.value.home.createCardDescription
+  if (props.card) return text.value.home.editCardDescription
+  if (props.templateCard) return text.value.home.copyCardDescription
+  return text.value.home.createCardDescription
 })
 
-function resetForm(editing?: KanbanCard | null) {
-  stageNumber.value = editing?.stageNumber ?? text.value.home.stages[0]?.number ?? '01'
-  commissionType.value = editing?.commissionType ?? props.offer?.commissionType ?? 'Illustration'
-  title.value = editing?.title ?? props.offer?.title ?? ''
-  description.value = editing?.description ?? ''
+function resetForm(editing?: KanbanCard | null, template?: KanbanCard | null) {
+  const source = editing ?? template
+  stageNumber.value = source?.stageNumber ?? text.value.home.stages[0]?.number ?? '01'
+  commissionType.value = source?.commissionType ?? props.offer?.commissionType ?? 'Illustration'
+  title.value = editing
+    ? editing.title
+    : template
+      ? `${template.title} (${text.value.setting.offers.copySuffix})`.slice(0, 120)
+      : props.offer?.title ?? ''
+  description.value = source?.description ?? ''
   contactChannel.value = 'discord'
   contactValue.value = ''
-  useCustomRequestors.value = false
-  requestorInput.value = ''
 
-  if (editing && !isRequestMode.value) {
-    const first = editing.requestors[0]?.trim() ?? ''
-    const match =
-      editing.requestors.length === 1
-        ? first.match(/^(email|discord|twitter|instagram):\s*(.+)$/i)
-        : null
+  if (source && !isRequestMode.value) {
+    const first = source.requestors[0]?.trim() ?? ''
+    const match = first.match(/^(email|discord|twitter|instagram):\s*(.+)$/i)
     if (match?.[1] && match[2]) {
       contactChannel.value = match[1].toLowerCase() as ContactChannel
       contactValue.value = match[2].trim()
-    } else if (editing.requestors.length > 0) {
-      useCustomRequestors.value = true
-      requestorInput.value = editing.requestors.join(', ')
+    } else if (source.requestors.length > 0) {
+      const joined = source.requestors.join(', ').trim()
+      contactChannel.value = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(joined) ? 'email' : 'discord'
+      contactValue.value = joined
     }
   }
 
@@ -155,9 +151,9 @@ function resetForm(editing?: KanbanCard | null) {
 
 watch(open, (isOpen) => {
   if (isOpen) {
-    resetForm(props.card)
+    resetForm(props.card, props.templateCard)
   } else {
-    resetForm(null)
+    resetForm(null, null)
   }
 })
 
@@ -203,9 +199,7 @@ async function submitRequestMode(trimmedDescription: string, trimmedContact: str
     emit('submitted', props.offer.id)
     open.value = false
   } catch {
-    if (supabase && uploadedPath) {
-      await supabase.storage.from('kanban-images').remove([uploadedPath]).catch(() => {})
-    }
+    await removeKanbanImages([uploadedPath])
     error.value = text.value.request.submitError
   } finally {
     pending.value = false
@@ -216,29 +210,15 @@ async function submitCardMode(trimmedDescription: string, trimmedContact: string
   if (!props.boardId) return
 
   const trimmedTitle = title.value.trim()
-  let requestors: string[] = []
-
-  if (useCustomRequestors.value) {
-    requestors = parseRequestorTags(requestorInput.value)
-    if (!trimmedTitle || !trimmedDescription || requestors.length === 0) {
-      error.value = text.value.home.requiredFields
-      return
-    }
-    if (requestors.length > 10 || requestors.join(',').length > 400) {
-      error.value = text.value.home.tagsInvalid
-      return
-    }
-  } else {
-    if (!trimmedTitle || !trimmedDescription || !trimmedContact) {
-      error.value = text.value.home.requiredFields
-      return
-    }
-    if (contactChannel.value === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedContact)) {
-      error.value = text.value.request.invalidEmail
-      return
-    }
-    requestors = [`${CHANNEL_LABELS[contactChannel.value]}: ${trimmedContact}`]
+  if (!trimmedTitle || !trimmedDescription || !trimmedContact) {
+    error.value = text.value.home.requiredFields
+    return
   }
+  if (contactChannel.value === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedContact)) {
+    error.value = text.value.request.invalidEmail
+    return
+  }
+  const requestors = [`${CHANNEL_LABELS[contactChannel.value]}: ${trimmedContact}`]
 
   const editing = props.card
   const targetStage = props.showStage
@@ -252,8 +232,8 @@ async function submitCardMode(trimmedDescription: string, trimmedContact: string
         : removeExistingImage.value
           ? undefined
           : editing.imageUrl
-      if ((imageFile.value || removeExistingImage.value) && editing.imageUrl?.startsWith('blob:')) {
-        URL.revokeObjectURL(editing.imageUrl)
+      if (imageFile.value || removeExistingImage.value) {
+        revokeBlobUrls([editing.imageUrl])
       }
       emit(
         'saved',
@@ -270,6 +250,12 @@ async function submitCardMode(trimmedDescription: string, trimmedContact: string
         true,
       )
     } else {
+      const copiedImageUrl =
+        imageFile.value
+          ? URL.createObjectURL(imageFile.value)
+          : removeExistingImage.value
+            ? undefined
+            : props.templateCard?.imageUrl
       emit(
         'saved',
         {
@@ -281,7 +267,7 @@ async function submitCardMode(trimmedDescription: string, trimmedContact: string
           description: trimmedDescription,
           requestors,
           imagePath: null,
-          imageUrl: imageFile.value ? URL.createObjectURL(imageFile.value) : undefined,
+          imageUrl: copiedImageUrl,
           createdAt: new Date().toISOString(),
           updatedAt: null,
         },
@@ -321,11 +307,13 @@ async function submitCardMode(trimmedDescription: string, trimmedContact: string
         .single()
 
       if (updateError) throw updateError
-      if (oldImagePath && (uploadedPath || removeExistingImage.value)) {
-        await supabase.storage.from('kanban-images').remove([oldImagePath]).catch(() => {})
+      if (uploadedPath || removeExistingImage.value) {
+        await removeKanbanImages([oldImagePath])
       }
       emit('saved', toKanbanCard(data as KanbanCardRow), true)
     } else {
+      const nextImagePath =
+        uploadedPath ?? (removeExistingImage.value ? null : props.templateCard?.imagePath ?? null)
       const { data, error: insertError } = await supabase
         .from('kanban_cards')
         .insert({
@@ -335,7 +323,7 @@ async function submitCardMode(trimmedDescription: string, trimmedContact: string
           title: trimmedTitle,
           description: trimmedDescription,
           requestors,
-          image_path: uploadedPath,
+          image_path: nextImagePath,
         })
         .select(selectColumns)
         .single()
@@ -346,9 +334,7 @@ async function submitCardMode(trimmedDescription: string, trimmedContact: string
 
     open.value = false
   } catch {
-    if (uploadedPath) {
-      await supabase.storage.from('kanban-images').remove([uploadedPath]).catch(() => {})
-    }
+    await removeKanbanImages([uploadedPath])
     error.value = text.value.home.saveError
   } finally {
     pending.value = false
@@ -368,40 +354,17 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <DialogRoot :open="open" @update:open="onOpenChange">
-    <DialogPortal>
-      <DialogOverlay class="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px]" />
-      <div class="pointer-events-none fixed inset-0 z-60 flex items-center justify-center p-4 sm:p-6">
-        <DialogContent as-child>
-          <motion.div
-            data-lenis-prevent
-            :initial="reducedMotion ? false : { opacity: 0, scale: 0.96, y: 8 }"
-            :animate="{ opacity: 1, scale: 1, y: 0 }"
-            :transition="reducedMotion ? { duration: 0 } : { duration: 0.16, ease: 'easeOut' }"
-            class="surface-shadow pointer-events-auto max-h-[88dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-6 text-zinc-950 focus:outline-none sm:p-7 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-          >
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <DialogTitle class="text-2xl font-bold tracking-tight sm:text-3xl">
-                  {{ dialogTitle }}
-                </DialogTitle>
-                <DialogDescription class="mt-1.5 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                  {{ dialogDescription }}
-                </DialogDescription>
-              </div>
-              <DialogClose as-child>
-                <button
-                  type="button"
-                  :disabled="pending"
-                  :aria-label="text.home.close"
-                  class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-50 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-                >
-                  <X class="size-4" aria-hidden="true" />
-                </button>
-              </DialogClose>
-            </div>
-
-            <form class="mt-6 space-y-5" @submit.prevent="handleSubmit">
+  <BaseDialog
+    :open="open"
+    :title="dialogTitle"
+    :description="dialogDescription"
+    :close-label="text.home.close"
+    :close-disabled="pending"
+    max-width-class="max-w-2xl"
+    description-class="mt-2 text-base leading-6 text-zinc-600 dark:text-zinc-300"
+    @update:open="onOpenChange"
+  >
+    <form class="mt-6 space-y-5" @submit.prevent="handleSubmit">
               <div
                 v-if="isRequestMode && offer"
                 class="flex flex-wrap items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/60"
@@ -489,47 +452,21 @@ async function handleSubmit() {
                     {{ isRequestMode ? text.request.descriptionLabel : text.home.descriptionLabel }}
                   </label>
                   <span class="text-xs text-zinc-500 dark:text-zinc-400">
-                    {{ description.length }}/240
+                    {{ description.length }}/500
                   </span>
                 </div>
                 <textarea
                   :id="`${idPrefix}-description`"
                   v-model="description"
                   rows="4"
-                  maxlength="240"
+                  maxlength="500"
                   required
                   :placeholder="text.request.descriptionPlaceholder"
                   :class="fieldClass"
                 />
               </div>
 
-              <div v-if="useCustomRequestors">
-                <label :for="`${idPrefix}-requestor`" class="block text-sm text-zinc-800 dark:text-zinc-200">
-                  {{ text.home.requestorLabel }}
-                </label>
-                <input
-                  :id="`${idPrefix}-requestor`"
-                  v-model="requestorInput"
-                  type="text"
-                  required
-                  :aria-describedby="`${idPrefix}-requestor-help`"
-                  :class="fieldClass"
-                />
-                <p :id="`${idPrefix}-requestor-help`" class="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                  {{ text.home.requestorHelp }}
-                </p>
-                <div v-if="previewTags.length" class="mt-2.5 flex flex-wrap gap-2">
-                  <span
-                    v-for="tag in previewTags"
-                    :key="tag"
-                    class="rounded-full bg-orange-100 px-3 py-1 text-xs text-orange-800 dark:bg-zinc-800 dark:text-orange-200"
-                  >
-                    {{ tag }}
-                  </span>
-                </div>
-              </div>
-
-              <div v-else class="grid gap-4 sm:grid-cols-[12rem_1fr]">
+              <div class="grid gap-4 sm:grid-cols-[12rem_1fr]">
                 <div>
                   <label :for="`${idPrefix}-contact-channel`" class="block text-sm text-zinc-800 dark:text-zinc-200">
                     {{ text.request.contactChannelLabel }}
@@ -564,7 +501,7 @@ async function handleSubmit() {
                 v-model:error="imageError"
                 :id-prefix="`${idPrefix}-reference`"
                 :label="isRequestMode ? text.request.referenceImageLabel : text.home.imageLabel"
-                :existing-url="!isRequestMode ? card?.imageUrl : ''"
+                :existing-url="!isRequestMode ? (card?.imageUrl ?? templateCard?.imageUrl) : ''"
               />
 
               <div
@@ -617,25 +554,23 @@ async function handleSubmit() {
                   :transition="{ duration: 0.14 }"
                   class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-5 py-2.5 text-sm text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
                 >
-                  {{
-                    isRequestMode
-                      ? pending
-                        ? text.request.submitting
-                        : text.request.submit
-                      : pending
-                        ? text.home.savingCard
+                  <LoadingIndicator
+                    v-if="pending"
+                    :label="isRequestMode ? text.request.submitting : text.home.savingCard"
+                  />
+                  <template v-else>
+                    {{
+                      isRequestMode
+                        ? text.request.submit
                         : card
                           ? text.home.saveChanges
                           : text.home.submitCard
-                  }}
+                    }}
+                  </template>
                 </motion.button>
               </div>
-            </form>
-          </motion.div>
-        </DialogContent>
-      </div>
-    </DialogPortal>
-  </DialogRoot>
+    </form>
+  </BaseDialog>
 
-  <TosDialog v-if="isRequestMode" v-model:open="tosDialogOpen" @agree="tosAccepted = true" />
+  <TermsDialog v-if="isRequestMode" v-model:open="tosDialogOpen" @agree="tosAccepted = true" />
 </template>

@@ -4,6 +4,7 @@ import { useLanguage } from '../../composables/useLanguage'
 import { type KanbanCard } from '../../lib/kanbanCard'
 import { stageStyle } from '../../lib/kanbanStage'
 import ConfirmDialog from '../ui/ConfirmDialog.vue'
+import ThumbnailBox from '../ui/ThumbnailBox.vue'
 
 const props = defineProps<{
   card: KanbanCard
@@ -33,10 +34,10 @@ const { text } = useLanguage()
   <article
     :draggable="editable"
     :class="[
-      'relative rounded-2xl border-2 bg-white p-3.5 text-zinc-950 shadow-xs transition-opacity dark:bg-zinc-900 dark:text-zinc-50',
+      'group relative flex flex-col rounded-2xl border-2 bg-white p-3.5 text-zinc-950 shadow-xs transition-all focus-within:ring-2 focus-within:ring-zinc-900/20 dark:bg-zinc-900 dark:text-zinc-50 dark:focus-within:ring-zinc-100/20',
       stageStyle(props.card.stageNumber).cardBorder,
       editable ? 'cursor-grab active:cursor-grabbing' : '',
-      dragging ? 'opacity-50' : '',
+      dragging ? 'opacity-50' : 'hover:-translate-y-0.5 hover:shadow-md',
     ]"
     @dragstart="emit('dragstart', $event)"
     @dragend="emit('dragend')"
@@ -48,35 +49,35 @@ const { text } = useLanguage()
       @click="emit('detail')"
     />
 
-    <div v-if="editable" class="relative z-10 mb-2 flex items-center justify-end gap-1">
+    <div v-if="editable" class="relative z-10 mb-2 flex items-center justify-end gap-1.5">
       <button
         type="button"
         :disabled="!canMovePrev"
         :aria-label="`${text.home.moveStagePrev}: ${card.title}`"
         :title="text.home.moveStagePrev"
-        class="flex size-7 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700 hover:bg-zinc-200 disabled:opacity-35 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+        class="flex size-8 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700 transition-colors hover:bg-zinc-200 disabled:opacity-35 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
         @click.stop="emit('movePrev')"
       >
-        <ChevronLeft :size="14" aria-hidden="true" />
+        <ChevronLeft :size="15" aria-hidden="true" />
       </button>
       <button
         type="button"
         :disabled="!canMoveNext"
         :aria-label="`${text.home.moveStageNext}: ${card.title}`"
         :title="text.home.moveStageNext"
-        class="flex size-7 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700 hover:bg-zinc-200 disabled:opacity-35 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+        class="flex size-8 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700 transition-colors hover:bg-zinc-200 disabled:opacity-35 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
         @click.stop="emit('moveNext')"
       >
-        <ChevronRight :size="14" aria-hidden="true" />
+        <ChevronRight :size="15" aria-hidden="true" />
       </button>
       <button
         type="button"
         :aria-label="`${text.home.editCard}: ${card.title}`"
         :title="text.home.editCard"
-        class="flex size-7 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+        class="flex size-8 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
         @click.stop="emit('edit')"
       >
-        <Pencil :size="13" aria-hidden="true" />
+        <Pencil :size="14" aria-hidden="true" />
       </button>
       <ConfirmDialog
         v-if="onDelete"
@@ -92,28 +93,28 @@ const { text } = useLanguage()
           type="button"
           :aria-label="`${text.home.deleteCard}: ${card.title}`"
           :title="text.home.deleteCard"
-          class="flex size-7 items-center justify-center rounded-lg bg-zinc-100 text-red-700 hover:bg-red-50 dark:bg-zinc-800 dark:text-red-300 dark:hover:bg-red-950"
+          class="flex size-8 items-center justify-center rounded-lg bg-zinc-100 text-red-700 transition-colors hover:bg-red-50 dark:bg-zinc-800 dark:text-red-300 dark:hover:bg-red-950"
           @click.stop
         >
-          <Trash2 :size="13" aria-hidden="true" />
+          <Trash2 :size="14" aria-hidden="true" />
         </button>
       </ConfirmDialog>
     </div>
 
-    <div class="pointer-events-none relative z-1">
-      <img
-        v-if="card.imageUrl"
+    <div class="pointer-events-none relative z-1 flex flex-1 flex-col">
+      <ThumbnailBox
         :src="card.imageUrl"
         :alt="card.title"
-        draggable="false"
-        class="mb-2.5 aspect-4/3 w-full rounded-xl bg-zinc-100 object-cover dark:bg-zinc-800"
+        :icon-size="28"
+        :draggable="false"
+        img-class="mb-2.5 aspect-4/3 w-full rounded-xl bg-zinc-100 object-cover dark:bg-zinc-800"
+        fallback-class="mb-2.5 aspect-4/3 w-full rounded-xl"
       />
       <h2 class="text-sm">{{ card.title }}</h2>
-      <p class="mt-1.5 inline-flex rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+      <p class="mt-1.5 inline-flex self-start rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
         {{ text.home.commissionTypes[card.commissionType] }}
       </p>
-      <p class="mt-1.5 line-clamp-3 text-xs leading-5 text-zinc-600 sm:text-sm dark:text-zinc-300">{{ card.description }}</p>
-      <div class="mt-2.5">
+      <div class="mt-auto pt-2.5">
         <div class="flex items-center justify-between gap-2 text-xs text-zinc-600 dark:text-zinc-300">
           <span>{{ stageLabel }}</span>
           <span>{{ progress }}%</span>

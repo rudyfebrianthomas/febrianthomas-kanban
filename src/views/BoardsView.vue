@@ -1,21 +1,25 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Check, FileText, Pencil, Plus, Search, Trash2, X } from '@lucide/vue'
-import { motion, useReducedMotion } from 'motion-v'
-import {
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-} from 'reka-ui'
-import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
+import { Check, Copy, Pencil, Plus, Search, Trash2 } from '@lucide/vue'
+import { DialogClose } from 'reka-ui'
+import CommissionStatusBadge from '../components/commission/CommissionStatusBadge.vue'
 import KanbanCardFormDialog from '../components/commission/KanbanCardFormDialog.vue'
+import BaseDialog from '../components/ui/BaseDialog.vue'
+import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
+import EmptyState from '../components/ui/EmptyState.vue'
+import LoadingIndicator from '../components/ui/LoadingIndicator.vue'
+import MotionButton from '../components/ui/MotionButton.vue'
 import SelectField from '../components/ui/SelectField.vue'
+import ThumbnailBox from '../components/ui/ThumbnailBox.vue'
+import { useAuth } from '../composables/useAuth'
+import { useBoardDragSelect } from '../composables/useBoardDragSelect'
 import { useLanguage } from '../composables/useLanguage'
+import {
+  type CommissionStatus,
+  DEFAULT_COMMISSION_STATUS,
+  fetchCommissionStatus,
+} from '../lib/commissionStatus'
 import { isBoardCompleted, type KanbanBoard } from '../lib/kanbanBoard'
 import {
   deleteKanbanCard,
@@ -24,14 +28,15 @@ import {
   type KanbanCardRow,
   toKanbanCard,
 } from '../lib/kanbanCard'
+import { removeKanbanImages, revokeBlobUrls } from '../lib/kanbanImage'
 import { stageLabel, stageProgress } from '../lib/kanbanStage'
 import { supabase } from '../lib/supabase'
 
 const BACKLOG_BOARD_ID = '00000000-0000-0000-0000-000000000000'
 
 const { language, text } = useLanguage()
+const { signedIn } = useAuth()
 const router = useRouter()
-const prefersReducedMotion = useReducedMotion()
 
 const boards = ref<KanbanBoard[]>(
   supabase
@@ -50,6 +55,9 @@ type BoardFilter = 'all' | 'active' | 'inactive' | 'completed'
 type BacklogSortOrder = 'newest' | 'oldest'
 
 const cards = ref<KanbanCard[]>([])
+const commissionStatus = ref<CommissionStatus | null>(
+  supabase ? null : { ...DEFAULT_COMMISSION_STATUS },
+)
 const loading = ref(!!supabase)
 const loadError = ref('')
 const query = ref('')
@@ -58,6 +66,7 @@ const backlogSortOrder = ref<BacklogSortOrder>('newest')
 
 const dialogOpen = ref(false)
 const editingBoard = ref<KanbanBoard | null>(null)
+const copySourceBoard = ref<KanbanBoard | null>(null)
 const titleInput = ref('')
 const descriptionInput = ref('')
 const saving = ref(false)
@@ -70,10 +79,41 @@ const switchDialogOpen = ref(false)
 const cardDialogOpen = ref(false)
 const targetCardBoard = ref<KanbanBoard | null>(null)
 const editingCard = ref<KanbanCard | null>(null)
+const templateCard = ref<KanbanCard | null>(null)
 
-const selectedCardIds = ref<string[]>([])
-const draggingCardIds = ref<string[]>([])
-const dragOverBoardId = ref('')
+const boardDialogTitle = computed(() => {
+  if (editingBoard.value) return text.value.setting.editBoardTitle
+  if (copySourceBoard.value) return text.value.setting.copyBoardTitle
+  return text.value.setting.createBoardTitle
+})
+
+const boardDialogDescription = computed(() => {
+  if (editingBoard.value) return text.value.setting.editBoardDescription
+  if (copySourceBoard.value) return text.value.setting.copyBoardDescription
+  return text.value.setting.createBoardDescription
+})
+
+const boardMoveOptions = computed(() =>
+  boards.value.map((board) => ({ value: board.id, label: board.title })),
+)
+
+function boardMatchesQuery(board: KanbanBoard, needle: string): boolean {
+  return (
+    board.title.toLowerCase().includes(needle) ||
+    (board.description?.toLowerCase().includes(needle) ?? false)
+  )
+}
+
+function cardMatchesQuery(card: KanbanCard, needle: string): boolean {
+  const typeLabel = text.value.home.commissionTypes[card.commissionType].toLowerCase()
+  return (
+    card.title.toLowerCase().includes(needle) ||
+    card.description.toLowerCase().includes(needle) ||
+    card.commissionType.toLowerCase().includes(needle) ||
+    typeLabel.includes(needle) ||
+    card.requestors.some((requestor) => requestor.toLowerCase().includes(needle))
+  )
+}
 
 const filteredBoards = computed(() => {
   const q = query.value.trim().toLowerCase()
@@ -89,10 +129,8 @@ const filteredBoards = computed(() => {
 
     if (!matchesStatus) return false
     if (!q) return true
-    return (
-      board.title.toLowerCase().includes(q) ||
-      (board.description?.toLowerCase().includes(q) ?? false)
-    )
+    if (boardMatchesQuery(board, q)) return true
+    return cards.value.some((card) => card.boardId === board.id && cardMatchesQuery(card, q))
   })
 })
 
@@ -107,9 +145,12 @@ const backlogSortOptions = computed<{ value: BacklogSortOrder; label: string }[]
   { value: 'oldest', label: text.value.setting.backlogSortOldest },
 ])
 
-function cardsForBoard(boardId: string): KanbanCard[] {
-  const boardCards = cards.value.filter((card) => card.boardId === boardId)
+function cardsForBoard(boardId: string, needle = query.value.trim().toLowerCase()): KanbanCard[] {
   const board = boards.value.find((item) => item.id === boardId)
+  let boardCards = cards.value.filter((card) => card.boardId === boardId)
+  if (needle && (!board || !boardMatchesQuery(board, needle))) {
+    boardCards = boardCards.filter((card) => cardMatchesQuery(card, needle))
+  }
   if (!board?.is_backlog) return boardCards
   return [...boardCards].sort((a, b) => {
     const timeA = Date.parse(a.createdAt ?? '') || 0
@@ -118,42 +159,70 @@ function cardsForBoard(boardId: string): KanbanCard[] {
   })
 }
 
-function isCardSelected(cardId: string): boolean {
-  return selectedCardIds.value.includes(cardId)
-}
+async function moveCardsToBoard(ids: string[], targetBoard: KanbanBoard) {
+  if (ids.length === 0) return
+  const targetIdSet = new Set(ids)
+  const targetCards = cards.value.filter(
+    (item) => targetIdSet.has(item.id) && item.boardId !== targetBoard.id,
+  )
+  if (targetCards.length === 0) return
 
-function toggleCardSelected(cardId: string) {
-  if (isCardSelected(cardId)) {
-    selectedCardIds.value = selectedCardIds.value.filter((id) => id !== cardId)
-  } else {
-    selectedCardIds.value = [...selectedCardIds.value, cardId]
+  const nextStage = text.value.home.stages[0]?.number ?? '01'
+  const previousStates = targetCards.map((item) => ({
+    card: item,
+    boardId: item.boardId,
+    stageNumber: item.stageNumber,
+  }))
+  const movedIds = targetCards.map((item) => item.id)
+
+  for (const item of targetCards) {
+    item.boardId = targetBoard.id
+    item.stageNumber = nextStage
+  }
+  clearRemovedSelection(new Set(movedIds))
+
+  if (supabase) {
+    const { error } = await supabase
+      .from('kanban_cards')
+      .update({
+        board_id: targetBoard.id,
+        stage_number: nextStage,
+      })
+      .in('id', movedIds)
+
+    if (error) {
+      for (const prev of previousStates) {
+        prev.card.boardId = prev.boardId
+        prev.card.stageNumber = prev.stageNumber
+      }
+      loadError.value = error.message
+    }
   }
 }
 
-function isAllBoardCardsSelected(boardId: string): boolean {
-  const boardCards = cardsForBoard(boardId)
-  return boardCards.length > 0 && boardCards.every((card) => isCardSelected(card.id))
-}
-
-function isSomeBoardCardsSelected(boardId: string): boolean {
-  const boardCards = cardsForBoard(boardId)
-  if (boardCards.length === 0) return false
-  const selectedCount = boardCards.filter((card) => isCardSelected(card.id)).length
-  return selectedCount > 0 && selectedCount < boardCards.length
-}
-
-function toggleAllBoardCards(boardId: string) {
-  const boardCardIds = cardsForBoard(boardId).map((card) => card.id)
-  if (boardCardIds.length === 0) return
-  if (isAllBoardCardsSelected(boardId)) {
-    const idSet = new Set(boardCardIds)
-    selectedCardIds.value = selectedCardIds.value.filter((id) => !idSet.has(id))
-  } else {
-    const next = new Set(selectedCardIds.value)
-    for (const id of boardCardIds) next.add(id)
-    selectedCardIds.value = [...next]
-  }
-}
+const {
+  selectedIds: selectedCardIds,
+  bulkTargetBoardId,
+  bulkMoving,
+  draggingIds: draggingCardIds,
+  dragOverBoardId,
+  isSelected: isCardSelected,
+  toggleSelected: toggleCardSelected,
+  clearRemovedSelection,
+  isAllInBoardSelected: isAllBoardCardsSelected,
+  isSomeInBoardSelected: isSomeBoardCardsSelected,
+  toggleAllInBoard: toggleAllBoardCards,
+  onItemDragStart: onCardDragStart,
+  onItemDragEnd: onCardDragEnd,
+  onBoardDragOver,
+  onBoardDragLeave,
+  onBoardDrop,
+  moveSelected: moveSelectedCards,
+} = useBoardDragSelect<KanbanBoard, KanbanCard>({
+  boards,
+  itemsForBoard: (boardId) => cardsForBoard(boardId),
+  onMove: moveCardsToBoard,
+})
 
 function cardStatusLabel(board: KanbanBoard, card: KanbanCard): string {
   if (board.is_backlog) return text.value.setting.backlogStatus
@@ -165,19 +234,20 @@ function cardProgress(board: KanbanBoard, card: KanbanCard): number {
   return stageProgress(card.stageNumber, text.value.home.stages)
 }
 
-const subscription = supabase?.auth.onAuthStateChange((_event, session) => {
-  if (!session) void router.replace('/')
-})
+watch(
+  signedIn,
+  (authenticated) => {
+    if (authenticated === false) void router.replace('/')
+  },
+  { immediate: true },
+)
 
 onMounted(() => {
   void loadBoardsAndCards()
 })
 
 onUnmounted(() => {
-  subscription?.data.subscription.unsubscribe()
-  for (const card of cards.value) {
-    if (card.imageUrl?.startsWith('blob:')) URL.revokeObjectURL(card.imageUrl)
-  }
+  revokeBlobUrls(cards.value.map((card) => card.imageUrl))
 })
 
 async function loadBoardsAndCards() {
@@ -189,7 +259,7 @@ async function loadBoardsAndCards() {
     return
   }
 
-  const [boardsResult, cardsResult] = await Promise.all([
+  const [boardsResult, cardsResult, statusResult] = await Promise.all([
     supabase
       .from('kanban_boards')
       .select('id,title,description,is_active,is_backlog,created_at')
@@ -199,7 +269,10 @@ async function loadBoardsAndCards() {
       .from('kanban_cards')
       .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path,created_at,updated_at')
       .order('created_at', { ascending: true }),
+    fetchCommissionStatus(),
   ])
+
+  if (statusResult) commissionStatus.value = statusResult
 
   if (boardsResult.error) {
     loadError.value = boardsResult.error.message
@@ -218,6 +291,7 @@ async function loadBoardsAndCards() {
 
 function resetBoardDialog() {
   editingBoard.value = null
+  copySourceBoard.value = null
   titleInput.value = ''
   descriptionInput.value = ''
   formError.value = ''
@@ -242,6 +316,14 @@ function openEditBoard(board: KanbanBoard) {
   dialogOpen.value = true
 }
 
+function openCopyBoard(board: KanbanBoard) {
+  resetBoardDialog()
+  copySourceBoard.value = board
+  titleInput.value = `${board.title} (${text.value.setting.offers.copySuffix})`.slice(0, 120)
+  descriptionInput.value = board.description ?? ''
+  dialogOpen.value = true
+}
+
 function boardSaveErrorMessage(error: { code?: string; message?: string } | null) {
   if (error?.code === '23505') return text.value.setting.duplicateTitle
   return error?.message || text.value.setting.saveBoardError
@@ -257,6 +339,7 @@ async function handleSaveBoard() {
   const trimmedDescription = descriptionInput.value.trim()
   const nextDescription = trimmedDescription || null
   const editing = editingBoard.value
+  const copySource = copySourceBoard.value
   const normalizedTitle = trimmedTitle.toLowerCase()
   if (
     boards.value.some(
@@ -278,11 +361,12 @@ async function handleSaveBoard() {
           : item,
       )
     } else {
+      const createdId = crypto.randomUUID()
       const backlog = boards.value.filter((item) => item.is_backlog)
       const regular = boards.value.filter((item) => !item.is_backlog)
       boards.value = [
         {
-          id: crypto.randomUUID(),
+          id: createdId,
           title: trimmedTitle,
           description: nextDescription,
           is_active: false,
@@ -291,6 +375,19 @@ async function handleSaveBoard() {
         ...regular,
         ...backlog,
       ]
+      if (copySource) {
+        const sourceCards = cards.value.filter((item) => item.boardId === copySource.id)
+        for (const sourceCard of sourceCards) {
+          cards.value.push({
+            ...sourceCard,
+            id: crypto.randomUUID(),
+            boardId: createdId,
+            requestors: [...sourceCard.requestors],
+            createdAt: new Date().toISOString(),
+            updatedAt: null,
+          })
+        }
+      }
     }
     saving.value = false
     onDialogOpenChange(false)
@@ -331,14 +428,42 @@ async function handleSaveBoard() {
     .select('id,title,description,is_active,is_backlog,created_at')
     .single()
 
-  saving.value = false
-
   if (error || !data) {
+    saving.value = false
     formError.value = boardSaveErrorMessage(error)
     return
   }
 
   const created = data as KanbanBoard
+  if (copySource) {
+    const sourceCards = cards.value.filter((item) => item.boardId === copySource.id)
+    if (sourceCards.length > 0) {
+      const insertRows = sourceCards.map((item) => ({
+        board_id: created.id,
+        stage_number: item.stageNumber,
+        commission_type: item.commissionType,
+        title: item.title,
+        description: item.description,
+        requestors: item.requestors,
+        image_path: item.imagePath,
+      }))
+      const { data: copiedCardsData, error: copyCardsError } = await supabase
+        .from('kanban_cards')
+        .insert(insertRows)
+        .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path,created_at,updated_at')
+      if (copyCardsError) {
+        await supabase.from('kanban_boards').delete().eq('id', created.id)
+        saving.value = false
+        formError.value = boardSaveErrorMessage(copyCardsError)
+        return
+      }
+      for (const row of (copiedCardsData ?? []) as KanbanCardRow[]) {
+        cards.value.push(toKanbanCard(row))
+      }
+    }
+  }
+
+  saving.value = false
   const backlog = boards.value.filter((item) => item.is_backlog)
   const regular = boards.value.filter((item) => !item.is_backlog)
   boards.value = [created, ...regular, ...backlog]
@@ -357,24 +482,17 @@ async function deleteBoard(board: KanbanBoard) {
     const { error } = await supabase.from('kanban_boards').delete().eq('id', board.id)
     if (error) throw error
 
-    const imagePaths = ((cardRows ?? []) as Array<{ image_path: string | null }>)
-      .map((row) => row.image_path)
-      .filter((path): path is string => Boolean(path))
-
-    if (imagePaths.length > 0) {
-      await supabase.storage.from('kanban-images').remove(imagePaths).catch(() => {})
-    }
+    const imagePaths = ((cardRows ?? []) as Array<{ image_path: string | null }>).map(
+      (row) => row.image_path,
+    )
+    await removeKanbanImages(imagePaths)
   }
 
-  for (const card of cards.value) {
-    if (card.boardId === board.id && card.imageUrl?.startsWith('blob:')) {
-      URL.revokeObjectURL(card.imageUrl)
-    }
-  }
+  revokeBlobUrls(cards.value.filter((item) => item.boardId === board.id).map((item) => item.imageUrl))
   const deletedBoardCardIds = new Set(
     cards.value.filter((item) => item.boardId === board.id).map((item) => item.id),
   )
-  selectedCardIds.value = selectedCardIds.value.filter((id) => !deletedBoardCardIds.has(id))
+  clearRemovedSelection(deletedBoardCardIds)
   cards.value = cards.value.filter((item) => item.boardId !== board.id)
   boards.value = boards.value.filter((item) => item.id !== board.id)
 }
@@ -464,12 +582,21 @@ async function confirmSwitchActive() {
 function openAddCard(board: KanbanBoard) {
   targetCardBoard.value = board
   editingCard.value = null
+  templateCard.value = null
   cardDialogOpen.value = true
 }
 
 function openEditCard(card: KanbanCard, board: KanbanBoard) {
   targetCardBoard.value = board
   editingCard.value = card
+  templateCard.value = null
+  cardDialogOpen.value = true
+}
+
+function openCopyCard(card: KanbanCard, board: KanbanBoard) {
+  targetCardBoard.value = board
+  editingCard.value = null
+  templateCard.value = card
   cardDialogOpen.value = true
 }
 
@@ -484,166 +611,60 @@ function onCardSaved(savedCard: KanbanCard, isEdit: boolean) {
 
 async function deleteCard(card: KanbanCard) {
   await deleteKanbanCard(card)
-  selectedCardIds.value = selectedCardIds.value.filter((id) => id !== card.id)
+  clearRemovedSelection(new Set([card.id]))
   cards.value = cards.value.filter((item) => item.id !== card.id)
 }
 
-function parseDraggedCardIds(raw: string | undefined): string[] {
-  if (!raw) return []
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (Array.isArray(parsed)) {
-      return parsed.filter((item): item is string => typeof item === 'string' && item.length > 0)
-    }
-  } catch {
-    return [raw]
-  }
-  return [raw]
-}
-
-function onCardDragStart(cardId: string, event: DragEvent) {
-  const ids = isCardSelected(cardId) ? [...selectedCardIds.value] : [cardId]
-  draggingCardIds.value = ids
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('text/plain', JSON.stringify(ids))
-  }
-}
-
-function onCardDragEnd() {
-  draggingCardIds.value = []
-  dragOverBoardId.value = ''
-}
-
-function onBoardDragOver(boardId: string, event: DragEvent) {
-  if (draggingCardIds.value.length === 0) return
-  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
-  dragOverBoardId.value = boardId
-}
-
-function onBoardDragLeave(boardId: string, event: DragEvent) {
-  if (dragOverBoardId.value !== boardId) return
-  const currentTarget = event.currentTarget as HTMLElement | null
-  const related = event.relatedTarget as Node | null
-  if (!related || !currentTarget?.contains(related)) dragOverBoardId.value = ''
-}
-
-async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
-  const ids =
-    draggingCardIds.value.length > 0
-      ? [...draggingCardIds.value]
-      : parseDraggedCardIds(event.dataTransfer?.getData('text/plain'))
-  onCardDragEnd()
-  if (ids.length === 0) return
-
-  const draggedIdSet = new Set(ids)
-  const targetCards = cards.value.filter(
-    (item) => draggedIdSet.has(item.id) && item.boardId !== targetBoard.id,
-  )
-  if (targetCards.length === 0) return
-
-  const nextStage = text.value.home.stages[0]?.number ?? '01'
-  const previousStates = targetCards.map((item) => ({
-    card: item,
-    boardId: item.boardId,
-    stageNumber: item.stageNumber,
-  }))
-  const movedIds = targetCards.map((item) => item.id)
-  const movedIdSet = new Set(movedIds)
-
-  for (const item of targetCards) {
-    item.boardId = targetBoard.id
-    item.stageNumber = nextStage
-  }
-  selectedCardIds.value = selectedCardIds.value.filter((id) => !movedIdSet.has(id))
-
-  if (supabase) {
-    const { error } = await supabase
-      .from('kanban_cards')
-      .update({
-        board_id: targetBoard.id,
-        stage_number: nextStage,
-      })
-      .in('id', movedIds)
-
-    if (error) {
-      for (const prev of previousStates) {
-        prev.card.boardId = prev.boardId
-        prev.card.stageNumber = prev.stageNumber
-      }
-      loadError.value = error.message
-    }
-  }
+function clearBoardFilters() {
+  query.value = ''
+  statusFilter.value = 'all'
 }
 </script>
 
 <template>
   <main class="flex flex-1 flex-col px-6 sm:px-10">
     <section
-      class="mx-auto flex w-full max-w-6xl flex-1 flex-col py-12 sm:py-16"
+      class="mx-auto flex w-full max-w-6xl flex-1 flex-col py-20 sm:py-28"
       aria-labelledby="page-title"
     >
-      <div class="flex flex-wrap items-end justify-between gap-4">
+      <div class="flex flex-wrap items-end justify-between gap-6">
         <div class="max-w-3xl">
-          <p class="mb-4 text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-            {{ text.setting.eyebrow }}
-          </p>
+          <div class="mb-5 flex flex-wrap items-center gap-3">
+            <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              {{ text.setting.eyebrow }}
+            </p>
+            <CommissionStatusBadge v-if="commissionStatus" :value="commissionStatus" />
+          </div>
           <h1
             id="page-title"
-            class="font-bagel-fat-one text-5xl leading-[1.05] tracking-tight text-zinc-950 sm:text-7xl dark:text-zinc-50"
+            class="font-bagel-fat-one text-6xl leading-none text-zinc-950 sm:text-8xl dark:text-zinc-50"
           >
             {{ text.setting.title }}
           </h1>
-          <p class="mt-4 text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">
+          <p class="mt-6 text-lg leading-7 text-zinc-600 dark:text-zinc-300">
             {{ text.setting.description }}
           </p>
         </div>
 
-        <button
+        <MotionButton
           type="button"
-          class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:ring-zinc-300"
+          class="min-h-11 gap-2"
           @click="openCreateBoard"
         >
           <Plus class="size-4" aria-hidden="true" />
           {{ text.setting.addBoard }}
-        </button>
+        </MotionButton>
       </div>
 
-      <DialogRoot :open="dialogOpen" @update:open="onDialogOpenChange">
-        <DialogPortal>
-          <DialogOverlay class="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px]" />
-          <DialogContent
-            class="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 outline-none"
-          >
-            <motion.div
-              data-lenis-prevent
-              :initial="prefersReducedMotion ? false : { opacity: 0, scale: 0.96 }"
-              :animate="{ opacity: 1, scale: 1 }"
-              :transition="prefersReducedMotion ? { duration: 0 } : { duration: 0.16, ease: 'easeOut' }"
-              class="surface-shadow max-h-[85dvh] overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-6 text-zinc-950 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-            >
-              <div class="flex items-start justify-between gap-4">
-                <div>
-                  <DialogTitle class="text-lg font-bold">
-                    {{ editingBoard ? text.setting.editBoardTitle : text.setting.createBoardTitle }}
-                  </DialogTitle>
-                  <DialogDescription class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                    {{ editingBoard ? text.setting.editBoardDescription : text.setting.createBoardDescription }}
-                  </DialogDescription>
-                </div>
-                <DialogClose as-child>
-                  <button
-                    type="button"
-                    :disabled="saving"
-                    :aria-label="text.setting.close"
-                    class="inline-flex size-9 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-50 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-                  >
-                    <X class="size-4" aria-hidden="true" />
-                  </button>
-                </DialogClose>
-              </div>
-
-              <form class="mt-5 space-y-4" @submit.prevent="handleSaveBoard">
+      <BaseDialog
+        :open="dialogOpen"
+        :title="boardDialogTitle"
+        :description="boardDialogDescription"
+        :close-label="text.setting.close"
+        :close-disabled="saving"
+        @update:open="onDialogOpenChange"
+      >
+        <form class="mt-5 space-y-4" @submit.prevent="handleSaveBoard">
                 <div>
                   <label
                     for="board-title"
@@ -695,32 +716,40 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                       {{ text.setting.close }}
                     </button>
                   </DialogClose>
-                  <button
+                  <MotionButton
                     type="submit"
                     :disabled="saving"
-                    class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                    class="min-h-11"
                   >
-                    {{
-                      editingBoard
-                        ? saving
+                    <LoadingIndicator
+                      v-if="saving"
+                      :label="
+                        editingBoard
                           ? text.setting.savingChanges
-                          : text.setting.saveChanges
-                        : saving
-                          ? text.setting.savingBoard
-                          : text.setting.submitBoard
-                    }}
-                  </button>
+                          : copySourceBoard
+                            ? text.setting.savingCopyBoard
+                            : text.setting.savingBoard
+                      "
+                    />
+                    <template v-else>
+                      {{
+                        editingBoard
+                          ? text.setting.saveChanges
+                          : copySourceBoard
+                            ? text.setting.submitCopyBoard
+                            : text.setting.submitBoard
+                      }}
+                    </template>
+                  </MotionButton>
                 </div>
-              </form>
-            </motion.div>
-          </DialogContent>
-        </DialogPortal>
-      </DialogRoot>
+        </form>
+      </BaseDialog>
 
       <KanbanCardFormDialog
         v-model:open="cardDialogOpen"
         :board-id="targetCardBoard?.id ?? ''"
         :card="editingCard"
+        :template-card="templateCard"
         :show-stage="!(targetCardBoard?.is_backlog ?? false)"
         id-prefix="setting-card"
         @saved="onCardSaved"
@@ -738,7 +767,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
         @update:open="onSwitchDialogOpenChange"
       />
 
-      <form class="mt-8 flex flex-wrap gap-3" role="search" @submit.prevent>
+      <form v-if="!loading && boards.length > 0" class="mt-12 flex flex-wrap gap-3" role="search" @submit.prevent>
         <label for="board-search" class="sr-only">{{ text.setting.searchBoards }}</label>
         <div class="relative min-w-48 flex-1">
           <Search
@@ -763,8 +792,47 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
           />
         </div>
       </form>
+      <p v-if="!loading && boards.length > 0" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+        {{ text.setting.searchHint }}
+      </p>
 
-      <div class="mt-6">
+      <div
+        v-if="selectedCardIds.length > 0 && boardMoveOptions.length > 1"
+        class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-orange-300 bg-orange-50/80 px-4 py-3 dark:border-orange-500/40 dark:bg-orange-950/30"
+      >
+        <span class="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          {{ text.setting.selectedCount.replace('{count}', String(selectedCardIds.length)) }}
+        </span>
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="min-w-44">
+            <label for="bulk-move-board" class="sr-only">{{ text.setting.moveSelectedTo }}</label>
+            <SelectField
+              id="bulk-move-board"
+              :model-value="bulkTargetBoardId || boardMoveOptions[0]?.value || ''"
+              :options="boardMoveOptions"
+              :aria-label="text.setting.moveSelectedTo"
+              @update:model-value="(val) => { bulkTargetBoardId = val }"
+            />
+          </div>
+          <button
+            type="button"
+            :disabled="bulkMoving"
+            class="inline-flex min-h-10 items-center rounded-xl bg-zinc-900 px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            @click="moveSelectedCards"
+          >
+            {{ text.setting.moveSelectedButton }}
+          </button>
+          <button
+            type="button"
+            class="inline-flex min-h-10 items-center rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            @click="selectedCardIds = []"
+          >
+            {{ text.setting.clearSelection }}
+          </button>
+        </div>
+      </div>
+
+      <div :class="loading || boards.length === 0 ? 'mt-12' : 'mt-6'">
         <p
           v-if="loadError"
           role="alert"
@@ -773,38 +841,30 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
           {{ loadError }}
         </p>
 
-        <div v-if="loading" class="flex flex-col gap-4">
-          <div
-            v-for="n in 3"
-            :key="n"
-            class="h-40 w-full animate-pulse rounded-2xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
-          />
+        <div v-if="loading" class="flex min-h-48 items-center justify-center text-zinc-600 dark:text-zinc-300">
+          <LoadingIndicator :label="text.site.loading" />
         </div>
 
-        <div
+        <EmptyState
           v-else-if="boards.length === 0"
-          class="mx-auto flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center"
-        >
-          <span
-            aria-hidden="true"
-            class="flex size-16 items-center justify-center rounded-2xl bg-orange-100 text-orange-700 dark:bg-zinc-800 dark:text-orange-300"
-          >
-            <FileText :size="30" />
-          </span>
-          <h2 class="mt-6 font-sniglet text-3xl font-bold text-zinc-950 dark:text-zinc-50">
-            {{ text.setting.emptyTitle }}
-          </h2>
-          <p class="mt-3 max-w-sm leading-7 text-zinc-600 dark:text-zinc-300">
-            {{ text.setting.emptyDescription }}
-          </p>
-        </div>
+          :title="text.setting.emptyTitle"
+          :description="text.setting.emptyDescription"
+          class="mx-auto py-12"
+        />
 
-        <p
+        <EmptyState
           v-else-if="filteredBoards.length === 0"
-          class="rounded-2xl border border-dashed border-zinc-300 px-6 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+          variant="card"
+          :description="text.setting.noSearchResults"
         >
-          {{ text.setting.noSearchResults }}
-        </p>
+          <button
+            type="button"
+            class="mt-3 inline-flex min-h-9 items-center rounded-full border border-zinc-300 px-3.5 py-1 text-xs text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            @click="clearBoardFilters"
+          >
+            {{ text.setting.resetFilters }}
+          </button>
+        </EmptyState>
 
         <ul v-else class="flex flex-col gap-4">
           <li
@@ -814,7 +874,9 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
               'surface-shadow flex w-full flex-col gap-4 rounded-2xl border bg-white p-5 transition-colors sm:p-6 dark:bg-zinc-900',
               dragOverBoardId === board.id
                 ? 'border-orange-500 bg-orange-50/40 ring-2 ring-orange-500 dark:border-orange-400 dark:bg-zinc-800/80 dark:ring-orange-400'
-                : 'border-zinc-200 dark:border-zinc-800',
+                : board.is_active
+                  ? 'border-orange-300 dark:border-orange-500/40'
+                  : 'border-zinc-200 dark:border-zinc-800',
             ]"
             @dragover.prevent="onBoardDragOver(board.id, $event)"
             @dragenter.prevent="onBoardDragOver(board.id, $event)"
@@ -828,7 +890,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                     {{ board.title }}
                   </h2>
                   <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                    {{ cardsForBoard(board.id).length }}
+                    {{ cardsForBoard(board.id, '').length }}
                   </span>
                 </div>
                 <p
@@ -877,6 +939,16 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
 
                   <button
                     type="button"
+                    :aria-label="`${text.setting.copyBoard}: ${board.title}`"
+                    :title="text.setting.copyBoard"
+                    class="flex size-9 items-center justify-center rounded-xl text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
+                    @click="openCopyBoard(board)"
+                  >
+                    <Copy :size="16" aria-hidden="true" />
+                  </button>
+
+                  <button
+                    type="button"
                     :aria-label="`${text.setting.editBoard}: ${board.title}`"
                     :title="text.setting.editBoard"
                     class="flex size-9 items-center justify-center rounded-xl text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
@@ -907,8 +979,8 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
               </div>
             </div>
 
-            <div class="rounded-xl bg-zinc-100 p-2.5 dark:bg-zinc-800/70">
-              <div v-if="cardsForBoard(board.id).length" class="flex flex-col gap-2">
+            <div v-if="cardsForBoard(board.id).length" class="rounded-xl bg-zinc-100 p-2.5 dark:bg-zinc-800/70">
+              <div class="flex flex-col gap-2">
                 <div class="flex items-center px-3 py-1">
                   <label class="inline-flex cursor-pointer select-none items-center gap-2.5 text-xs text-zinc-600 dark:text-zinc-300">
                     <input
@@ -926,46 +998,49 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                   :key="card.id"
                   draggable="true"
                   :class="[
-                    'flex w-full cursor-grab items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-zinc-950 shadow-xs transition-opacity active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50',
+                    'flex w-full cursor-grab flex-col gap-2.5 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-zinc-950 shadow-xs transition-opacity active:cursor-grabbing sm:flex-row sm:items-center sm:gap-3 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50',
                     draggingCardIds.includes(card.id) ? 'opacity-50' : '',
                   ]"
                   @dragstart="onCardDragStart(card.id, $event)"
                   @dragend="onCardDragEnd"
                 >
-                  <input
-                    type="checkbox"
-                    :checked="isCardSelected(card.id)"
-                    :aria-label="`${text.setting.selectCard}: ${card.title}`"
-                    class="size-4 shrink-0 cursor-pointer rounded border-zinc-300 accent-zinc-900 dark:border-zinc-600 dark:accent-zinc-100"
-                    @click.stop
-                    @change="toggleCardSelected(card.id)"
-                  />
-                  <img
-                    v-if="card.imageUrl"
-                    :src="card.imageUrl"
-                    :alt="card.title"
-                    draggable="false"
-                    class="size-10 shrink-0 rounded-lg bg-zinc-100 object-cover dark:bg-zinc-800"
-                  />
+                  <div class="flex min-w-0 flex-1 items-center gap-3">
+                    <input
+                      type="checkbox"
+                      :checked="isCardSelected(card.id)"
+                      :aria-label="`${text.setting.selectCard}: ${card.title}`"
+                      class="size-4 shrink-0 cursor-pointer rounded border-zinc-300 accent-zinc-900 dark:border-zinc-600 dark:accent-zinc-100"
+                      @click.stop
+                      @change="toggleCardSelected(card.id)"
+                    />
+                    <ThumbnailBox
+                      :src="card.imageUrl"
+                      :alt="card.title"
+                      :icon-size="18"
+                      :draggable="false"
+                      img-class="size-10 shrink-0 rounded-lg bg-zinc-100 object-cover dark:bg-zinc-800"
+                      fallback-class="size-10 shrink-0 rounded-lg"
+                    />
 
-                  <div class="min-w-0 flex-1">
-                    <div class="flex flex-wrap items-center gap-1.5">
-                      <h3 class="truncate text-sm">{{ card.title }}</h3>
-                      <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                        {{ text.home.commissionTypes[card.commissionType] }}
-                      </span>
-                      <span
-                        v-for="requestor in card.requestors"
-                        :key="requestor"
-                        class="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] text-orange-800 dark:bg-zinc-800 dark:text-orange-200"
-                      >
-                        {{ requestor }}
-                      </span>
+                    <div class="min-w-0 flex-1">
+                      <div class="flex flex-wrap items-center gap-1.5">
+                        <h3 class="truncate text-sm font-medium">{{ card.title }}</h3>
+                        <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                          {{ text.home.commissionTypes[card.commissionType] }}
+                        </span>
+                        <span
+                          v-for="requestor in card.requestors"
+                          :key="requestor"
+                          class="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] text-orange-800 dark:bg-zinc-800 dark:text-orange-200"
+                        >
+                          {{ requestor }}
+                        </span>
+                      </div>
+                      <p class="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">{{ card.description }}</p>
                     </div>
-                    <p class="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">{{ card.description }}</p>
                   </div>
 
-                  <div class="flex shrink-0 items-center gap-2">
+                  <div class="flex w-full shrink-0 items-center justify-between gap-2 pl-7 sm:w-auto sm:justify-end sm:pl-0">
                     <span
                       v-if="board.is_backlog && card.createdAt"
                       class="hidden text-[11px] text-zinc-500 sm:inline dark:text-zinc-400"
@@ -977,6 +1052,15 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                     </span>
 
                     <div class="flex items-center gap-1">
+                      <button
+                        type="button"
+                        :aria-label="`${text.home.copyCard}: ${card.title}`"
+                        :title="text.home.copyCard"
+                        class="flex size-8 items-center justify-center rounded-lg text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
+                        @click="openCopyCard(card, board)"
+                      >
+                        <Copy :size="14" aria-hidden="true" />
+                      </button>
                       <button
                         type="button"
                         :aria-label="`${text.home.editCard}: ${card.title}`"
@@ -1008,10 +1092,13 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
                   </div>
                 </article>
               </div>
-              <p v-else class="px-2 py-3 text-center text-xs text-zinc-500 dark:text-zinc-400">
-                {{ text.setting.emptyBoardCards }}
-              </p>
             </div>
+            <EmptyState
+              v-else
+              variant="card"
+              compact
+              :description="text.setting.emptyBoardCards"
+            />
           </li>
         </ul>
       </div>

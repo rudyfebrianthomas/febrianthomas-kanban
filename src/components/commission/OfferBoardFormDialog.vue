@@ -1,15 +1,5 @@
 <script setup lang="ts">
-import { X } from '@lucide/vue'
-import { motion, useReducedMotion } from 'motion-v'
-import {
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-} from 'reka-ui'
+import { DialogClose } from 'reka-ui'
 import { computed, ref, watch } from 'vue'
 import { useLanguage } from '../../composables/useLanguage'
 import {
@@ -18,13 +8,18 @@ import {
   OFFER_BOARD_STATUS_DOTS,
   type OfferBoardStatus,
 } from '../../lib/commissionOffers'
+import BaseDialog from '../ui/BaseDialog.vue'
 import SelectField from '../ui/SelectField.vue'
+import LoadingIndicator from '../ui/LoadingIndicator.vue'
+import MotionButton from '../ui/MotionButton.vue'
 
 const props = defineProps<{
   open: boolean
   mode: 'create' | 'edit' | 'copy'
   board: CommissionOfferBoard | null
+  draft?: { title: string; description: string; status: OfferBoardStatus } | null
   canSetActive: boolean
+  canSetWaitlist: boolean
   saving: boolean
   error: string
 }>()
@@ -35,7 +30,6 @@ const emit = defineEmits<{
 }>()
 
 const { text } = useLanguage()
-const reducedMotion = useReducedMotion()
 
 const titleInput = ref('')
 const descriptionInput = ref('')
@@ -64,15 +58,27 @@ const dialogDescription = computed(() => {
 
 const displayError = computed(() => validationError.value || props.error)
 
+function isStatusSlotFull(status: OfferBoardStatus): boolean {
+  if (status === 'active') return !props.canSetActive
+  if (status === 'waitlist') return !props.canSetWaitlist
+  return false
+}
+
 watch(
   () => [props.open, props.mode, props.board] as const,
   ([isOpen]) => {
     if (!isOpen) return
     validationError.value = ''
+    if (props.draft) {
+      titleInput.value = props.draft.title
+      descriptionInput.value = props.draft.description
+      statusInput.value = props.draft.status
+      return
+    }
     if (props.mode === 'create' || !props.board) {
       titleInput.value = ''
       descriptionInput.value = ''
-      statusInput.value = props.canSetActive ? 'active' : 'inactive'
+      statusInput.value = props.canSetActive ? 'active' : props.canSetWaitlist ? 'waitlist' : 'inactive'
       return
     }
     const isCopy = props.mode === 'copy'
@@ -80,10 +86,7 @@ watch(
       ? `${props.board.title} (${text.value.setting.offers.copySuffix})`.slice(0, 120)
       : props.board.title
     descriptionInput.value = props.board.description ?? ''
-    statusInput.value =
-      isCopy && props.board.status === 'active' && !props.canSetActive
-        ? 'inactive'
-        : props.board.status
+    statusInput.value = isCopy && isStatusSlotFull(props.board.status) ? 'inactive' : props.board.status
   },
 )
 
@@ -99,10 +102,6 @@ function submit() {
     validationError.value = text.value.setting.requiredTitle
     return
   }
-  if (statusInput.value === 'active' && !props.canSetActive) {
-    validationError.value = text.value.setting.offers.maxActiveError
-    return
-  }
   validationError.value = ''
   const description = descriptionInput.value.trim() || null
   emit('save', { title, description, status: statusInput.value })
@@ -110,39 +109,16 @@ function submit() {
 </script>
 
 <template>
-  <DialogRoot :open="open" @update:open="onOpenChange">
-    <DialogPortal>
-      <DialogOverlay class="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px]" />
-      <DialogContent
-        class="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 outline-none"
-      >
-        <motion.div
-          data-lenis-prevent
-          :initial="reducedMotion ? false : { opacity: 0, scale: 0.96 }"
-          :animate="{ opacity: 1, scale: 1 }"
-          :transition="reducedMotion ? { duration: 0 } : { duration: 0.16, ease: 'easeOut' }"
-          class="surface-shadow max-h-[85dvh] overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-6 text-zinc-950 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-        >
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <DialogTitle class="text-lg font-bold">{{ dialogTitle }}</DialogTitle>
-              <DialogDescription class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                {{ dialogDescription }}
-              </DialogDescription>
-            </div>
-            <DialogClose as-child>
-              <button
-                type="button"
-                :disabled="saving"
-                :aria-label="text.setting.close"
-                class="inline-flex size-9 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-50 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-              >
-                <X class="size-4" aria-hidden="true" />
-              </button>
-            </DialogClose>
-          </div>
-
-          <form class="mt-5 space-y-4" @submit.prevent="submit">
+  <BaseDialog
+    :open="open"
+    :title="dialogTitle"
+    :description="dialogDescription"
+    :close-label="text.setting.close"
+    :close-disabled="saving"
+    max-width-class="max-w-md"
+    @update:open="onOpenChange"
+  >
+    <form class="mt-5 space-y-4" @submit.prevent="submit">
             <div>
               <label for="offer-board-title" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
                 {{ text.setting.titleLabel }}
@@ -199,17 +175,15 @@ function submit() {
                   {{ text.setting.close }}
                 </button>
               </DialogClose>
-              <button
+              <MotionButton
                 type="submit"
                 :disabled="saving"
-                class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                class="min-h-11"
               >
-                {{ saving ? text.setting.savingChanges : text.setting.saveChanges }}
-              </button>
+                <LoadingIndicator v-if="saving" :label="text.setting.savingChanges" />
+                <template v-else>{{ text.setting.saveChanges }}</template>
+              </MotionButton>
             </div>
-          </form>
-        </motion.div>
-      </DialogContent>
-    </DialogPortal>
-  </DialogRoot>
+    </form>
+  </BaseDialog>
 </template>

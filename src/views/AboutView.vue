@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Image as ImageIcon } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
+import { useAuth } from '../composables/useAuth'
 import { useLanguage } from '../composables/useLanguage'
 import { socials as socialCatalog } from '../data/socials'
 import { supabase } from '../lib/supabase'
@@ -34,10 +35,7 @@ const socials = computed(() =>
 
 const sections = computed<AboutSection[]>(() => [text.value.about.software, text.value.about.tools])
 
-const signedIn = ref(false)
-const authSubscription = supabase?.auth.onAuthStateChange((_event, session) => {
-  signedIn.value = !!session
-})
+const { signedIn } = useAuth()
 
 const supportStatus = ref<SupportStatus | null>(
   supabase ? null : { streamlabs: true, saweria: true, kofi: true, trakteer: true },
@@ -51,12 +49,8 @@ onMounted(() => {
   if (!supabase) return
   void (async () => {
     try {
-      const [{ data: sessionData }, { data, error }] = await Promise.all([
-        supabase.auth.getSession(),
-        supabase.from('support_buttons').select('id,enabled'),
-      ])
+      const { data, error } = await supabase.from('support_buttons').select('id,enabled')
       if (!active) return
-      signedIn.value = Boolean(sessionData.session)
       if (error) throw error
       supportStatus.value = Object.fromEntries(
         ((data ?? []) as Array<{ id: ButtonId; enabled: boolean }>).map((row) => [row.id, row.enabled]),
@@ -69,7 +63,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   active = false
-  authSubscription?.data.subscription.unsubscribe()
 })
 
 async function toggleSupportButton(id: ButtonId, enabled: boolean) {

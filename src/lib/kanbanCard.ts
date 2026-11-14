@@ -1,5 +1,6 @@
 import { type Language } from '../composables/useLanguage'
 import { type CommissionType } from './commissionStatus'
+import { removeKanbanImages, revokeBlobUrls } from './kanbanImage'
 import { supabase } from './supabase'
 
 export interface KanbanCard {
@@ -50,10 +51,6 @@ export function toKanbanCard(row: KanbanCardRow): KanbanCard {
   }
 }
 
-export function parseRequestorTags(raw: string): string[] {
-  return [...new Set(raw.split(',').map((item) => item.trim()).filter(Boolean))]
-}
-
 export function latestTimestamp(updatedAt?: string | null, createdAt?: string): number {
   return Date.parse(updatedAt ?? createdAt ?? '') || 0
 }
@@ -75,12 +72,8 @@ export async function deleteKanbanCard(card: KanbanCard): Promise<void> {
   if (supabase) {
     const { error } = await supabase.from('kanban_cards').delete().eq('id', card.id)
     if (error) throw error
-    if (card.imagePath) {
-      await supabase.storage.from('kanban-images').remove([card.imagePath]).catch(() => {})
-    }
+    await removeKanbanImages([card.imagePath])
     return
   }
-  if (card.imageUrl?.startsWith('blob:')) {
-    URL.revokeObjectURL(card.imageUrl)
-  }
+  revokeBlobUrls([card.imageUrl])
 }

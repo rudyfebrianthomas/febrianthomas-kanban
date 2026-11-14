@@ -77,3 +77,16 @@ export async function uploadKanbanImage(file: File): Promise<string> {
   if (error) throw error
   return path
 }
+
+export async function removeKanbanImages(paths: Array<string | null | undefined>): Promise<void> {
+  if (!supabase) return
+  const validPaths = paths.filter((path): path is string => Boolean(path))
+  if (validPaths.length === 0) return
+  await supabase.storage.from('kanban-images').remove(validPaths).catch(() => {})
+}
+
+export function revokeBlobUrls(urls: Array<string | undefined>): void {
+  for (const url of urls) {
+    if (url?.startsWith('blob:')) URL.revokeObjectURL(url)
+  }
+}

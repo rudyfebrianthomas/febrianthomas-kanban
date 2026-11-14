@@ -6,6 +6,7 @@ defineProps<{
   to: RouteLocationRaw
   whileHover?: TargetAndTransition
   class?: string
+  activeClass?: string
 }>()
 const reducedMotion = useReducedMotion()
 </script>
@@ -14,7 +15,7 @@ const reducedMotion = useReducedMotion()
   <RouterLink v-slot="{ href, navigate, isExactActive }" :to="to" custom>
     <motion.a
       :href="href"
-      :class="[$props.class, isExactActive ? 'text-zinc-950 dark:text-zinc-50' : '']"
+      :class="[$props.class, isExactActive ? (activeClass ?? 'font-semibold text-zinc-950 dark:text-zinc-50') : '']"
       :aria-current="isExactActive ? 'page' : undefined"
       :while-hover="reducedMotion ? undefined : whileHover ?? { y: -2 }"
       :transition="{ type: 'spring', duration: 0.3, bounce: 0.2 }"

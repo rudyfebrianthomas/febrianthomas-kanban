@@ -1,8 +1,8 @@
 import { siInstagram, siThreads, siTiktok, siTwitch, siX, siYoutube, type SimpleIcon } from 'simple-icons'
 
-export type SocialKey = 'instagram' | 'threads' | 'twitter' | 'tiktok' | 'youtube' | 'twitch'
+type SocialKey = 'instagram' | 'threads' | 'twitter' | 'tiktok' | 'youtube' | 'twitch'
 
-export interface SocialLink {
+interface SocialLink {
   key: SocialKey
   name: string
   url: string

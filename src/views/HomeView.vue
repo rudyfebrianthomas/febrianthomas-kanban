@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowRight, FileText } from '@lucide/vue'
+import { ArrowRight } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
@@ -10,6 +10,10 @@ import {
   fetchCommissionStatus,
 } from '../lib/commissionStatus'
 import CommissionStatusBadge from '../components/commission/CommissionStatusBadge.vue'
+import EmptyState from '../components/ui/EmptyState.vue'
+import LoadingIndicator from '../components/ui/LoadingIndicator.vue'
+import ThumbnailBox from '../components/ui/ThumbnailBox.vue'
+import { useAuth } from '../composables/useAuth'
 import { useLanguage } from '../composables/useLanguage'
 import { kanbanImageUrl, latestTimestamp } from '../lib/kanbanCard'
 import { stageLabel, stageProgress, stageStyle } from '../lib/kanbanStage'
@@ -26,8 +30,6 @@ interface PreviewCardRow {
   stage_number: string
   commission_type: CommissionType
   title: string
-  description: string
-  requestors: string[]
   image_path: string | null
   created_at?: string
   updated_at?: string | null
@@ -38,29 +40,24 @@ interface PreviewCard {
   stageNumber: string
   commissionType: CommissionType
   title: string
-  description: string
-  requestors: string[]
   imageUrl?: string
   sortTime: number
 }
 
 const { text } = useLanguage()
+const { signedIn } = useAuth()
 const reducedMotion = useReducedMotion()
 const greeting = ref(false)
 let timer: ReturnType<typeof setTimeout> | null = null
 let active = true
 
 const previewLoading = ref(!!supabase)
-const signedIn = ref(false)
-const authSubscription = supabase?.auth.onAuthStateChange((_event, session) => {
-  signedIn.value = !!session
-})
 const commissionStatus = ref<CommissionStatus | null>(supabase ? null : { ...DEFAULT_COMMISSION_STATUS })
 const activeBoard = ref<ActiveBoardSummary | null>(null)
 const boardCards = ref<PreviewCard[]>([])
 
 const canRequestCommission = computed(() =>
-  canAccessRequests(signedIn.value, commissionStatus.value),
+  canAccessRequests(Boolean(signedIn.value), commissionStatus.value),
 )
 
 const recentCards = computed(() =>
@@ -90,8 +87,7 @@ function getStageLabel(stageNumber: string): string {
 onMounted(async () => {
   if (!supabase) return
   try {
-    const [{ data: sessionData }, statusData, { data: boardData }] = await Promise.all([
-      supabase.auth.getSession(),
+    const [statusData, { data: boardData }] = await Promise.all([
       fetchCommissionStatus(),
       supabase
         .from('kanban_boards')
@@ -101,14 +97,13 @@ onMounted(async () => {
     ])
     if (!active) return
 
-    signedIn.value = Boolean(sessionData.session)
     commissionStatus.value = statusData
     activeBoard.value = (boardData as ActiveBoardSummary | null) ?? null
     if (!activeBoard.value) return
 
     const { data: cardsData } = await supabase
       .from('kanban_cards')
-      .select('id,stage_number,commission_type,title,description,requestors,image_path,created_at,updated_at')
+      .select('id,stage_number,commission_type,title,image_path,created_at,updated_at')
       .eq('board_id', activeBoard.value.id)
     if (!active || !cardsData) return
 
@@ -117,8 +112,6 @@ onMounted(async () => {
       stageNumber: row.stage_number,
       commissionType: row.commission_type,
       title: row.title,
-      description: row.description,
-      requestors: row.requestors,
       imageUrl: kanbanImageUrl(row.image_path),
       sortTime: latestTimestamp(row.updated_at, row.created_at),
     }))
@@ -129,7 +122,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   active = false
-  authSubscription?.data.subscription.unsubscribe()
   if (timer) clearTimeout(timer)
 })
 </script>
@@ -159,7 +151,7 @@ onUnmounted(() => {
           </p>
           <div class="mt-8 flex flex-wrap items-center gap-3">
             <RouterLink
-              to="/commission"
+              to="/queue"
               class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-zinc-900 px-5 py-2.5 text-sm text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
             >
               <span>{{ text.home.viewBoardCta }}</span>
@@ -167,16 +159,10 @@ onUnmounted(() => {
             </RouterLink>
             <RouterLink
               v-if="canRequestCommission"
-              to="/request"
+              to="/commissions"
               class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-zinc-300 bg-white px-5 py-2.5 text-sm text-zinc-900 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:hover:bg-zinc-800"
             >
               <span>{{ text.home.requestCta }}</span>
-            </RouterLink>
-            <RouterLink
-              to="/about"
-              class="inline-flex min-h-11 items-center rounded-xl border border-zinc-300 px-5 py-2.5 text-sm text-zinc-700 transition-colors hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
-            >
-              {{ text.home.aboutCta }}
             </RouterLink>
           </div>
         </div>
@@ -208,7 +194,10 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section class="mx-auto w-full max-w-6xl py-16 sm:py-24" aria-labelledby="pipeline-title">
+    <section class="mx-auto w-full max-w-6xl border-t border-zinc-200/80 py-14 sm:py-20 dark:border-zinc-800/80" aria-labelledby="pipeline-title">
+      <p class="mb-3 text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+        {{ text.home.pipelineEyebrow }}
+      </p>
       <h2 id="pipeline-title" class="font-bagel-fat-one text-4xl sm:text-5xl">
         {{ text.home.pipelineTitle }}
       </h2>
@@ -221,7 +210,7 @@ onUnmounted(() => {
           v-for="stage in text.home.stages"
           :key="stage.number"
           :class="[
-            'rounded-2xl border-2 bg-white p-4 shadow-xs dark:bg-zinc-900',
+            'flex flex-col rounded-2xl border-2 bg-white p-4 shadow-xs dark:bg-zinc-900',
             stageStyle(stage.number).cardBorder,
           ]"
         >
@@ -230,9 +219,17 @@ onUnmounted(() => {
               <span :class="['size-2.5 rounded-full', stageStyle(stage.number).dot]" aria-hidden="true" />
               {{ stage.number }}
             </span>
-            <span>{{ stageProgress(stage.number, text.home.stages) }}%</span>
+            <span class="tabular-nums">{{ stageProgress(stage.number, text.home.stages) }}%</span>
           </div>
-          <p class="mt-2.5 text-base text-zinc-950 dark:text-zinc-50">{{ stage.label }}</p>
+          <p class="mt-2.5 text-base font-medium text-zinc-950 dark:text-zinc-50">{{ stage.label }}</p>
+          <div class="mt-auto pt-3">
+            <div class="h-1 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+              <div
+                :class="['h-full rounded-full', stageStyle(stage.number).progressBar]"
+                :style="{ width: `${stageProgress(stage.number, text.home.stages)}%` }"
+              />
+            </div>
+          </div>
         </li>
       </ol>
 
@@ -248,30 +245,26 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section class="mx-auto w-full max-w-6xl py-16 sm:py-24" aria-labelledby="preview-title">
-      <RouterLink
-        to="/commission"
-        class="group inline-flex items-center gap-4 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4"
-      >
-        <h2 id="preview-title" class="font-bagel-fat-one text-4xl sm:text-5xl">
-          {{ text.home.commissionTitle }}
-        </h2>
-        <ArrowRight aria-hidden="true" class="transition-transform group-hover:translate-x-1" />
-      </RouterLink>
-      <p class="mt-4 max-w-2xl text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">
-        {{ text.home.commissionDescription }}
-      </p>
+    <section class="mx-auto w-full max-w-6xl border-t border-zinc-200/80 py-14 sm:py-20 dark:border-zinc-800/80" aria-labelledby="preview-title">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <div class="max-w-2xl">
+          <p class="mb-3 text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+            {{ text.home.commissionEyebrow }}
+          </p>
+          <h2 id="preview-title" class="font-bagel-fat-one text-4xl sm:text-5xl">
+            {{ text.home.commissionTitle }}
+          </h2>
+          <p class="mt-4 text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">
+            {{ text.home.commissionDescription }}
+          </p>
+        </div>
+      </div>
 
       <div
         v-if="previewLoading"
-        class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
-        aria-hidden="true"
+        class="mt-8 flex min-h-40 items-center justify-center text-zinc-600 dark:text-zinc-300"
       >
-        <div
-          v-for="n in 3"
-          :key="n"
-          class="h-52 animate-pulse rounded-2xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
-        />
+        <LoadingIndicator :label="text.site.loading" />
       </div>
 
       <div
@@ -291,7 +284,7 @@ onUnmounted(() => {
             </p>
           </div>
           <RouterLink
-            to="/commission"
+            to="/queue"
             class="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-zinc-100 px-3.5 py-2 text-xs text-zinc-800 transition-colors hover:bg-zinc-200 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
           >
             <span>{{ text.home.previewViewAll }}</span>
@@ -314,31 +307,32 @@ onUnmounted(() => {
           <RouterLink
             v-for="card in recentCards"
             :key="card.id"
-            :to="{ path: '/commission', query: { card: card.id } }"
+            :to="{ path: '/queue', query: { card: card.id } }"
             :class="[
-              'flex flex-col rounded-2xl border-2 bg-white p-4 text-zinc-950 shadow-xs transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-900 dark:text-zinc-50',
+              'group flex flex-col rounded-2xl border-2 bg-white p-4 text-zinc-950 shadow-xs transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-900 dark:text-zinc-50',
               stageStyle(card.stageNumber).cardBorder,
             ]"
           >
-            <img
-              v-if="card.imageUrl"
-              :src="card.imageUrl"
-              :alt="card.title"
-              class="mb-3 aspect-4/3 w-full rounded-xl bg-zinc-100 object-cover dark:bg-zinc-800"
-            />
             <div
-              v-else
-              aria-hidden="true"
-              class="mb-3 flex aspect-4/3 w-full items-center justify-center rounded-xl bg-orange-100 text-orange-700 dark:bg-zinc-800 dark:text-orange-300"
+              v-if="card.imageUrl"
+              class="mb-3 overflow-hidden rounded-xl bg-zinc-100 dark:bg-zinc-800"
             >
-              <FileText :size="36" />
+              <ThumbnailBox
+                :src="card.imageUrl"
+                :alt="card.title"
+                img-class="aspect-4/3 w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+              />
             </div>
-            <p class="text-base text-zinc-950 dark:text-zinc-50">{{ card.title }}</p>
+            <ThumbnailBox
+              v-else
+              :src="null"
+              :alt="card.title"
+              :icon-size="36"
+              fallback-class="mb-3 aspect-4/3 w-full rounded-xl"
+            />
+            <p class="line-clamp-1 text-base font-medium text-zinc-950 dark:text-zinc-50">{{ card.title }}</p>
             <p class="mt-1.5 inline-flex self-start rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
               {{ text.home.commissionTypes[card.commissionType] }}
-            </p>
-            <p class="mt-2 line-clamp-2 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-              {{ card.description }}
             </p>
             <div class="mt-auto pt-3">
               <div class="flex items-center justify-between gap-2 text-xs text-zinc-600 dark:text-zinc-300">
@@ -355,39 +349,44 @@ onUnmounted(() => {
           </RouterLink>
         </div>
 
-        <p v-else class="mt-6 text-sm text-zinc-500 dark:text-zinc-400">
-          {{ text.home.previewEmptyCards }}
-        </p>
+        <EmptyState
+          v-else
+          variant="card"
+          heading="h3"
+          :title="text.home.previewEmptyCards"
+          :description="text.home.emptyBoardDescription"
+          class="mt-6"
+        />
       </div>
 
-      <div
+      <EmptyState
         v-else
-        class="mt-8 rounded-2xl border border-dashed border-zinc-300 px-6 py-10 text-center dark:border-zinc-700"
-      >
-        <p class="text-lg font-bold text-zinc-950 dark:text-zinc-50">{{ text.home.noActiveBoardTitle }}</p>
-        <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{{ text.home.noActiveBoardDescription }}</p>
-      </div>
+        heading="h3"
+        :title="text.home.noActiveBoardTitle"
+        :description="text.home.noActiveBoardDescription"
+        class="mx-auto mt-12 py-12"
+      />
     </section>
 
     <template v-for="section in text.home.workflowSections" :key="section.id">
-      <div aria-hidden="true" class="flex items-center justify-center gap-4 py-6">
+      <div aria-hidden="true" class="flex items-center justify-center gap-4 py-4">
         <span class="size-2.5 rounded-full bg-sky-300" />
         <span class="size-3 rotate-45 rounded-sm bg-rose-300" />
         <span class="size-2.5 rounded-full bg-amber-300" />
       </div>
-      <section class="mx-auto flex w-full max-w-5xl items-center py-16 sm:py-24">
-        <div class="grid w-full items-center gap-10 md:grid-cols-2">
+      <section class="mx-auto flex w-full max-w-6xl items-center py-12 sm:py-16">
+        <div class="grid w-full items-center gap-10 md:grid-cols-2 md:gap-14">
           <img
             :src="section.image"
             :alt="section.imageAlt"
             width="500"
             height="500"
             :class="[
-              'aspect-square w-full object-contain',
+              'mx-auto aspect-square w-full max-w-md object-contain',
               section.imagePosition === 'right' ? 'md:order-2' : '',
             ]"
           />
-          <div :class="section.imagePosition === 'right' ? 'md:order-1 md:justify-self-end' : ''">
+          <div :class="['max-w-xl', section.imagePosition === 'right' ? 'md:order-1 md:justify-self-end' : '']">
             <h2 class="font-bagel-fat-one text-4xl sm:text-5xl">{{ section.title }}</h2>
             <p class="mt-5 text-lg leading-8 text-zinc-600 sm:text-xl dark:text-zinc-300">
               {{ section.description }}

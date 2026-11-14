@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ArrowRight, FileText, Plus, Search } from '@lucide/vue'
+import { Plus, Search } from '@lucide/vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  canAccessRequests,
   COMMISSION_TYPES,
   type CommissionStatus,
   type CommissionType,
@@ -14,7 +13,11 @@ import CommissionCard from '../components/commission/CommissionCard.vue'
 import CommissionCardDetailDialog from '../components/commission/CommissionCardDetailDialog.vue'
 import CommissionStatusBadge from '../components/commission/CommissionStatusBadge.vue'
 import KanbanCardFormDialog from '../components/commission/KanbanCardFormDialog.vue'
+import EmptyState from '../components/ui/EmptyState.vue'
+import LoadingIndicator from '../components/ui/LoadingIndicator.vue'
+import MotionButton from '../components/ui/MotionButton.vue'
 import SelectField from '../components/ui/SelectField.vue'
+import { useAuth } from '../composables/useAuth'
 import { useLanguage } from '../composables/useLanguage'
 import { isBoardCompleted, type KanbanBoard } from '../lib/kanbanBoard'
 import {
@@ -25,19 +28,16 @@ import {
   latestTimestamp,
   toKanbanCard,
 } from '../lib/kanbanCard'
+import { revokeBlobUrls } from '../lib/kanbanImage'
 import { stageLabel as getStageLabel, stageProgress as getStageProgress, stageStyle } from '../lib/kanbanStage'
 import { supabase } from '../lib/supabase'
 
 const DEFAULT_BOARD_ID = '00000000-0000-0000-0000-000000000001'
 
 const { language, text } = useLanguage()
+const { signedIn } = useAuth()
 const route = useRoute()
 const router = useRouter()
-
-const signedIn = ref(false)
-const authSubscription = supabase?.auth.onAuthStateChange((_event, session) => {
-  signedIn.value = !!session
-})
 
 const loading = ref(!!supabase)
 const commissionStatus = ref<CommissionStatus | null>(
@@ -58,10 +58,23 @@ const selectedCompletedBoardId = ref('')
 const detailCard = ref<KanbanCard | null>(null)
 const draggingCardId = ref('')
 const dragOverStage = ref('')
+const stageColumnRefs = ref<Record<string, HTMLElement>>({})
 
-const canRequestCommission = computed(() =>
-  canAccessRequests(signedIn.value, commissionStatus.value),
-)
+function setStageColumnRef(stageNumber: string, el: unknown) {
+  if (el instanceof HTMLElement) {
+    stageColumnRefs.value[stageNumber] = el
+  } else {
+    delete stageColumnRefs.value[stageNumber]
+  }
+}
+
+function scrollToStage(stageNumber: string) {
+  stageColumnRefs.value[stageNumber]?.scrollIntoView({
+    behavior: 'smooth',
+    inline: 'start',
+    block: 'nearest',
+  })
+}
 
 function formatCardDate(iso?: string | null): string {
   return formatCardDateForLanguage(iso, language.value)
@@ -158,8 +171,7 @@ onMounted(async () => {
     return
   }
   try {
-    const [{ data: sessionData }, statusData, { data: boardsData }] = await Promise.all([
-      supabase.auth.getSession(),
+    const [statusData, { data: boardsData }] = await Promise.all([
       fetchCommissionStatus(),
       supabase
         .from('kanban_boards')
@@ -167,7 +179,6 @@ onMounted(async () => {
         .eq('is_backlog', false)
         .order('created_at', { ascending: false }),
     ])
-    signedIn.value = Boolean(sessionData.session)
     commissionStatus.value = statusData
 
     const loadedBoards = (boardsData ?? []) as KanbanBoard[]
@@ -191,10 +202,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  authSubscription?.data.subscription.unsubscribe()
-  for (const card of cards.value) {
-    if (card.imageUrl?.startsWith('blob:')) URL.revokeObjectURL(card.imageUrl)
-  }
+  revokeBlobUrls(cards.value.map((card) => card.imageUrl))
 })
 
 function openAddCard() {
@@ -337,10 +345,10 @@ async function onColumnDrop(targetStage: string, event: DragEvent) {
 
 <template>
   <main class="flex flex-1 flex-col px-6 sm:px-10">
-    <section class="flex w-full flex-1 flex-col py-12 sm:py-16" aria-labelledby="page-title">
-      <div class="mx-auto w-full max-w-6xl">
-        <div class="max-w-3xl">
-          <div class="mb-4 flex flex-wrap items-center gap-3">
+    <section class="flex w-full flex-1 flex-col py-20 sm:py-28" aria-labelledby="page-title">
+      <div class="mx-auto w-full max-w-384">
+        <div class="max-w-2xl">
+          <div class="mb-5 flex flex-wrap items-center gap-3">
             <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
               {{ text.home.commissionEyebrow }}
             </p>
@@ -348,44 +356,31 @@ async function onColumnDrop(targetStage: string, event: DragEvent) {
           </div>
           <h1
             id="page-title"
-            class="font-bagel-fat-one text-5xl leading-[1.05] tracking-tight text-zinc-950 sm:text-7xl dark:text-zinc-50"
+            class="font-bagel-fat-one text-6xl leading-none text-zinc-950 sm:text-8xl dark:text-zinc-50"
           >
             {{ text.home.commissionTitle }}
           </h1>
-          <p class="mt-4 text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">
+          <p class="mt-6 text-lg leading-7 text-zinc-600 dark:text-zinc-300">
             {{ text.home.commissionDescription }}
           </p>
-          <div class="mt-4 flex flex-wrap items-center gap-4">
-            <RouterLink
-              v-if="canRequestCommission"
-              to="/request"
-              class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
-            >
-              <span>{{ text.home.requestCta }}</span>
-              <ArrowRight :size="15" aria-hidden="true" />
-            </RouterLink>
-            <RouterLink
-              to="/tos"
-              class="inline-flex min-h-11 items-center gap-1.5 text-sm text-zinc-600 underline decoration-zinc-300 underline-offset-4 transition-colors hover:text-zinc-950 hover:decoration-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-300 dark:decoration-zinc-600 dark:hover:text-zinc-50 dark:hover:decoration-zinc-50"
-            >
-              <FileText :size="15" aria-hidden="true" />
-              <span>{{ text.home.tosLink }}</span>
-            </RouterLink>
-          </div>
         </div>
       </div>
 
-      <div v-if="!loading && !displayedBoard" class="mx-auto mt-8 flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center">
-        <span aria-hidden="true" class="flex size-16 items-center justify-center rounded-2xl bg-orange-100 text-orange-700 dark:bg-zinc-800 dark:text-orange-300">
-          <FileText :size="30" />
-        </span>
-        <h2 class="mt-6 font-sniglet text-3xl font-bold text-zinc-950 dark:text-zinc-50">
-          {{ text.home.noActiveBoardTitle }}
-        </h2>
-        <p class="mt-3 max-w-sm leading-7 text-zinc-600 dark:text-zinc-300">{{ text.home.noActiveBoardDescription }}</p>
+      <div
+        v-if="loading"
+        class="mx-auto mt-12 flex min-h-48 w-full max-w-384 items-center justify-center text-zinc-600 dark:text-zinc-300"
+      >
+        <LoadingIndicator :label="text.site.loading" />
       </div>
 
-      <div v-else-if="displayedBoard" class="surface-shadow mx-auto mt-8 w-full max-w-384 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
+      <EmptyState
+        v-else-if="!displayedBoard"
+        :title="text.home.noActiveBoardTitle"
+        :description="text.home.noActiveBoardDescription"
+        class="mx-auto mt-12 py-12"
+      />
+
+      <div v-else-if="displayedBoard" class="surface-shadow mx-auto mt-12 w-full max-w-384 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 class="text-2xl font-bold text-zinc-950 sm:text-3xl dark:text-zinc-50">
@@ -460,49 +455,73 @@ async function onColumnDrop(targetStage: string, event: DragEvent) {
               </div>
             </form>
 
-            <button
+            <MotionButton
               v-if="signedIn && activeBoard && viewMode === 'active'"
               type="button"
-              class="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              class="min-h-11 gap-1.5"
               @click="openAddCard"
             >
               <Plus :size="16" aria-hidden="true" />
               <span>{{ text.home.addCard }}</span>
-            </button>
+            </MotionButton>
           </div>
         </div>
 
         <div
-          class="mt-4 flex flex-wrap items-center gap-2"
-          role="group"
-          :aria-label="text.home.filterTypeLabel"
+          class="mt-4 flex flex-wrap items-center justify-between gap-3"
         >
-          <button
-            type="button"
-            :class="[
-              'min-h-9 rounded-full px-3.5 py-1 text-xs font-medium transition-colors',
-              selectedType === 'all'
-                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700',
-            ]"
-            @click="selectedType = 'all'"
+          <div
+            class="flex flex-wrap items-center gap-2"
+            role="group"
+            :aria-label="text.home.filterTypeLabel"
           >
-            {{ text.home.filterAllTypes }}
-          </button>
-          <button
-            v-for="typeOption in COMMISSION_TYPES"
-            :key="typeOption"
-            type="button"
-            :class="[
-              'min-h-9 rounded-full px-3.5 py-1 text-xs font-medium transition-colors',
-              selectedType === typeOption
-                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700',
-            ]"
-            @click="selectedType = typeOption"
+            <button
+              type="button"
+              :class="[
+                'min-h-9 rounded-full px-3.5 py-1 text-xs font-medium transition-colors',
+                selectedType === 'all'
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700',
+              ]"
+              @click="selectedType = 'all'"
+            >
+              {{ text.home.filterAllTypes }}
+            </button>
+            <button
+              v-for="typeOption in COMMISSION_TYPES"
+              :key="typeOption"
+              type="button"
+              :class="[
+                'min-h-9 rounded-full px-3.5 py-1 text-xs font-medium transition-colors',
+                selectedType === typeOption
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700',
+              ]"
+              @click="selectedType = typeOption"
+            >
+              {{ text.home.commissionTypes[typeOption] }}
+            </button>
+          </div>
+
+          <div
+            v-if="searchQuery.trim() || selectedType !== 'all'"
+            class="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400"
           >
-            {{ text.home.commissionTypes[typeOption] }}
-          </button>
+            <span class="tabular-nums">
+              {{
+                text.home.showingCount
+                  .replace('{shown}', String(filteredBoardCards.length))
+                  .replace('{total}', String(boardCardsCount))
+              }}
+            </span>
+            <button
+              type="button"
+              class="rounded-full border border-zinc-300 px-2.5 py-1 text-xs text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              @click="clearFilters"
+            >
+              {{ text.home.resetFilters }}
+            </button>
+          </div>
         </div>
 
         <KanbanCardFormDialog
@@ -522,38 +541,31 @@ async function onColumnDrop(targetStage: string, event: DragEvent) {
           @close="closeDetailCard"
         />
 
-        <div
-          v-if="boardCardsCount === 0 && viewMode === 'active'"
-          class="mt-6 flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 px-6 py-12 text-center dark:border-zinc-700"
+        <EmptyState
+          v-if="boardCardsCount === 0"
+          variant="card"
+          heading="h3"
+          :title="text.home.previewEmptyCards"
+          :description="text.home.emptyBoardDescription"
+          class="mt-6"
         >
-          <span
-            aria-hidden="true"
-            class="flex size-14 items-center justify-center rounded-2xl bg-orange-100 text-orange-700 dark:bg-zinc-800 dark:text-orange-300"
-          >
-            <FileText :size="26" />
-          </span>
-          <h3 class="mt-5 font-sniglet text-2xl font-bold text-zinc-950 dark:text-zinc-50">
-            {{ text.home.previewEmptyCards }}
-          </h3>
-          <p class="mt-2 max-w-sm text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-            {{ text.home.emptyBoardDescription }}
-          </p>
-          <button
-            v-if="signedIn"
+          <MotionButton
+            v-if="signedIn && viewMode === 'active'"
             type="button"
-            class="mt-5 inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            class="mt-5 min-h-11 gap-1.5"
             @click="openAddCard"
           >
             <Plus :size="16" aria-hidden="true" />
             <span>{{ text.home.addCard }}</span>
-          </button>
-        </div>
+          </MotionButton>
+        </EmptyState>
 
-        <div
+        <EmptyState
           v-else-if="filteredBoardCards.length === 0"
-          class="mt-6 flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 px-6 py-10 text-center dark:border-zinc-700"
+          variant="card"
+          :description="text.home.noFilteredCards"
+          class="mt-6"
         >
-          <p class="text-sm text-zinc-500 dark:text-zinc-400">{{ text.home.noFilteredCards }}</p>
           <button
             type="button"
             class="mt-3 inline-flex min-h-9 items-center rounded-full border border-zinc-300 px-3.5 py-1 text-xs text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
@@ -561,7 +573,7 @@ async function onColumnDrop(targetStage: string, event: DragEvent) {
           >
             {{ text.home.resetFilters }}
           </button>
-        </div>
+        </EmptyState>
 
         <div v-else-if="viewMode === 'completed'" class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <CommissionCard
@@ -575,14 +587,33 @@ async function onColumnDrop(targetStage: string, event: DragEvent) {
           />
         </div>
 
-        <div v-else class="mt-6 flex gap-3 overflow-x-auto" :aria-label="text.home.stagesLabel">
-          <div
-            v-for="stage in text.home.stages"
-            :key="stage.number"
-            :class="[
-              'flex min-w-56 flex-1 flex-col gap-3 rounded-xl p-3.5 text-sm text-zinc-900 transition-colors dark:text-zinc-100',
-              dragOverStage === stage.number ? 'bg-orange-50/60 ring-2 ring-orange-500 dark:bg-zinc-800/80 dark:ring-orange-400' : 'bg-zinc-100 dark:bg-zinc-800',
-            ]"
+        <div v-else class="mt-6 space-y-3">
+          <nav
+            :aria-label="text.home.stagesLabel"
+            class="flex gap-2 overflow-x-auto pb-1 xl:hidden"
+          >
+            <button
+              v-for="stage in text.home.stages"
+              :key="`jump-${stage.number}`"
+              type="button"
+              class="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              @click="scrollToStage(stage.number)"
+            >
+              <span :class="['size-2 rounded-full', stageStyle(stage.number).dot]" aria-hidden="true" />
+              <span>{{ stage.label }}</span>
+              <span class="tabular-nums text-zinc-500 dark:text-zinc-400">{{ cardsForStage(stage.number).length }}</span>
+            </button>
+          </nav>
+
+          <div class="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-3 scroll-pl-1 xl:overflow-visible xl:pb-0" :aria-label="text.home.stagesLabel">
+            <div
+              v-for="stage in text.home.stages"
+              :key="stage.number"
+              :ref="(el) => setStageColumnRef(stage.number, el)"
+              :class="[
+                'flex w-[min(17.5rem,78vw)] shrink-0 snap-start flex-col gap-3 rounded-xl p-3.5 text-sm text-zinc-900 transition-colors xl:w-auto xl:min-w-0 xl:flex-1 dark:text-zinc-100',
+                dragOverStage === stage.number ? 'bg-orange-50/60 ring-2 ring-orange-500 dark:bg-zinc-800/80 dark:ring-orange-400' : 'bg-zinc-100 dark:bg-zinc-800',
+              ]"
             @dragover.prevent="onColumnDragOver(stage.number, $event)"
             @dragenter.prevent="onColumnDragOver(stage.number, $event)"
             @dragleave="onColumnDragLeave(stage.number, $event)"
@@ -603,7 +634,7 @@ async function onColumnDrop(targetStage: string, event: DragEvent) {
                 v-for="card in cardsForStage(stage.number)"
                 :key="card.id"
                 :card="card"
-                :editable="signedIn"
+                :editable="Boolean(signedIn)"
                 :dragging="draggingCardId === card.id"
                 :can-move-prev="Boolean(adjacentStage(card.stageNumber, -1))"
                 :can-move-next="Boolean(adjacentStage(card.stageNumber, 1))"
@@ -618,6 +649,13 @@ async function onColumnDrop(targetStage: string, event: DragEvent) {
                 @dragstart="onCardDragStart(card.id, $event)"
                 @dragend="onCardDragEnd"
               />
+            </div>
+            <div
+              v-else
+              class="flex min-h-24 items-center justify-center rounded-lg border border-dashed border-zinc-300/80 px-3 py-4 text-center text-xs text-zinc-400 dark:border-zinc-700/80 dark:text-zinc-500"
+            >
+              {{ text.home.emptyStage }}
+            </div>
             </div>
           </div>
         </div>
