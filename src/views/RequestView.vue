@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ArrowLeft, ArrowRight, CheckCircle2, Lock, UploadCloud } from '@lucide/vue'
+import { ArrowLeft, ArrowRight, CheckCircle2, Lock } from '@lucide/vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import CommissionStatusBadge from '../components/commission/CommissionStatusBadge.vue'
 import TosDialog from '../components/tos/TosDialog.vue'
+import ImageUploadField from '../components/ui/ImageUploadField.vue'
 import SelectField from '../components/ui/SelectField.vue'
 import { useLanguage } from '../composables/useLanguage'
 import {
@@ -11,7 +12,7 @@ import {
   fetchCommissionOffers,
 } from '../lib/commissionOffers'
 import { type CommissionStatus, fetchCommissionStatus } from '../lib/commissionStatus'
-import { kanbanImageExtension, optimizeKanbanImage } from '../lib/kanbanImage'
+import { uploadKanbanImage } from '../lib/kanbanImage'
 import { supabase } from '../lib/supabase'
 
 const CONTACT_CHANNELS = ['email', 'discord', 'twitter', 'instagram'] as const
@@ -34,10 +35,7 @@ const selectedOffer = ref<CommissionOffer | null>(null)
 const contactChannel = ref<ContactChannel>('discord')
 const contactValue = ref('')
 const imageFile = ref<File | null>(null)
-const previewUrl = ref('')
-const dragging = ref(false)
 const imageError = ref('')
-const fileInput = ref<HTMLInputElement | null>(null)
 const tosAccepted = ref(false)
 const tosDialogOpen = ref(false)
 const submitting = ref(false)
@@ -66,13 +64,6 @@ const contactChannelOptions = computed(() =>
 const fieldClass =
   'mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-base text-zinc-950 outline-none placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:border-zinc-300 dark:focus:ring-zinc-300'
 
-function revokePreview() {
-  if (previewUrl.value) {
-    URL.revokeObjectURL(previewUrl.value)
-    previewUrl.value = ''
-  }
-}
-
 onMounted(async () => {
   if (!supabase) return
   try {
@@ -96,7 +87,6 @@ onMounted(async () => {
 onUnmounted(() => {
   active = false
   authSubscription?.data.subscription.unsubscribe()
-  revokePreview()
 })
 
 function selectOffer(offer: CommissionOffer) {
@@ -110,57 +100,12 @@ function changeOffer() {
   formError.value = ''
 }
 
-function selectImage(file: File | null) {
-  revokePreview()
-  if (file && !kanbanImageExtension(file)) {
-    imageFile.value = null
-    if (fileInput.value) fileInput.value.value = ''
-    imageError.value = text.value.home.imageInvalid
-    return
-  }
-  imageFile.value = file
-  if (file) previewUrl.value = URL.createObjectURL(file)
-  imageError.value = ''
-  formError.value = ''
-}
-
-function onFileChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  selectImage(input.files?.[0] ?? null)
-}
-
-function onDragEnter(event: DragEvent) {
-  if (event.dataTransfer?.types.includes('Files')) dragging.value = true
-}
-
-function onDragLeave(event: DragEvent) {
-  const currentTarget = event.currentTarget as HTMLElement | null
-  const related = event.relatedTarget as Node | null
-  if (!related || !currentTarget?.contains(related)) dragging.value = false
-}
-
-function onDrop(event: DragEvent) {
-  dragging.value = false
-  const files = event.dataTransfer?.files
-  if (!files || files.length !== 1) {
-    selectImage(null)
-    imageError.value = text.value.home.imageSingle
-    return
-  }
-  if (fileInput.value) fileInput.value.value = ''
-  selectImage(files[0] ?? null)
-}
-
-function clearImage() {
-  if (fileInput.value) fileInput.value.value = ''
-  selectImage(null)
-}
-
 function resetFlow() {
   selectedOffer.value = null
   contactChannel.value = 'discord'
   contactValue.value = ''
-  clearImage()
+  imageFile.value = null
+  imageError.value = ''
   tosAccepted.value = false
   formError.value = ''
   submitted.value = false
@@ -189,18 +134,7 @@ async function submitRequest() {
   submitting.value = true
   try {
     if (supabase) {
-      let uploadedPath: string | null = null
-      if (imageFile.value) {
-        const optimized = await optimizeKanbanImage(imageFile.value)
-        const ext = kanbanImageExtension(optimized)
-        if (!ext) throw new Error('Invalid image')
-        uploadedPath = `${crypto.randomUUID()}.${ext}`
-        const { error: uploadError } = await supabase.storage
-          .from('kanban-images')
-          .upload(uploadedPath, optimized, { contentType: optimized.type, upsert: false })
-        if (uploadError) throw uploadError
-      }
-
+      const uploadedPath = imageFile.value ? await uploadKanbanImage(imageFile.value) : null
       const { error } = await supabase.rpc('submit_commission_request', {
         p_offer_id: selectedOffer.value.id,
         p_contact_channel: contactChannel.value,
@@ -356,6 +290,12 @@ async function submitRequest() {
               class="surface-shadow group flex cursor-pointer flex-col rounded-2xl border border-zinc-200 bg-white p-6 text-left transition-all hover:-translate-y-0.5 hover:border-zinc-400 focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600"
               @click="selectOffer(offer)"
             >
+              <img
+                v-if="offer.imageUrl"
+                :src="offer.imageUrl"
+                :alt="offer.title"
+                class="mb-4 aspect-4/3 w-full rounded-xl bg-zinc-100 object-cover dark:bg-zinc-800"
+              />
               <div class="flex w-full items-start justify-between gap-3">
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
@@ -392,24 +332,32 @@ async function submitRequest() {
           @submit.prevent="submitRequest"
         >
           <div class="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/60">
-            <div class="min-w-0 flex-1">
-              <p class="text-xs uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
-                {{ text.request.selectedLabel }}
-              </p>
-              <div class="mt-1.5 flex flex-wrap items-center gap-2">
-                <h2 class="text-lg font-bold text-zinc-950 dark:text-zinc-50">
-                  {{ selectedOffer.title }}
-                </h2>
-                <span class="rounded-full bg-white px-2.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
-                  {{ text.home.commissionTypes[selectedOffer.commissionType] }}
-                </span>
-                <span class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-800 dark:bg-orange-950/60 dark:text-orange-200">
-                  {{ selectedOffer.price }}
-                </span>
+            <div class="flex min-w-0 flex-1 items-start gap-3">
+              <img
+                v-if="selectedOffer.imageUrl"
+                :src="selectedOffer.imageUrl"
+                :alt="selectedOffer.title"
+                class="size-16 shrink-0 rounded-xl bg-white object-cover dark:bg-zinc-900"
+              />
+              <div class="min-w-0 flex-1">
+                <p class="text-xs uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
+                  {{ text.request.selectedLabel }}
+                </p>
+                <div class="mt-1.5 flex flex-wrap items-center gap-2">
+                  <h2 class="text-lg font-bold text-zinc-950 dark:text-zinc-50">
+                    {{ selectedOffer.title }}
+                  </h2>
+                  <span class="rounded-full bg-white px-2.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+                    {{ text.home.commissionTypes[selectedOffer.commissionType] }}
+                  </span>
+                  <span class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-800 dark:bg-orange-950/60 dark:text-orange-200">
+                    {{ selectedOffer.price }}
+                  </span>
+                </div>
+                <p class="mt-1.5 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                  {{ selectedOffer.description }}
+                </p>
               </div>
-              <p class="mt-1.5 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                {{ selectedOffer.description }}
-              </p>
             </div>
             <button
               type="button"
@@ -449,67 +397,12 @@ async function submitRequest() {
             </div>
           </div>
 
-          <div>
-            <p id="request-image-label" class="block text-sm text-zinc-800 dark:text-zinc-200">
-              {{ text.request.referenceImageLabel }}
-            </p>
-            <div
-              :class="[
-                'mt-2 rounded-xl border-2 border-dashed p-5 focus-within:ring-2 focus-within:ring-zinc-900 dark:focus-within:ring-zinc-300',
-                dragging ? 'border-orange-500 bg-orange-50 dark:border-orange-400 dark:bg-zinc-800' : 'border-zinc-300 dark:border-zinc-600',
-              ]"
-              @dragenter.prevent="onDragEnter"
-              @dragover.prevent
-              @dragleave="onDragLeave"
-              @drop.prevent="onDrop"
-            >
-              <input
-                id="request-image"
-                ref="fileInput"
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                aria-labelledby="request-image-label"
-                :aria-describedby="imageError ? 'request-image-help request-image-error' : 'request-image-help'"
-                :aria-invalid="Boolean(imageError)"
-                class="sr-only"
-                @change="onFileChange"
-              />
-              <div class="flex flex-wrap items-center gap-3">
-                <UploadCloud :size="22" aria-hidden="true" class="text-zinc-500 dark:text-zinc-400" />
-                <label
-                  for="request-image"
-                  class="cursor-pointer rounded-xl bg-zinc-100 px-4 py-2 text-sm text-zinc-900 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-600"
-                >
-                  {{ text.home.chooseImage }}
-                </label>
-                <span class="text-sm text-zinc-600 dark:text-zinc-300">{{ text.home.dropImage }}</span>
-              </div>
-
-              <img
-                v-if="previewUrl"
-                :src="previewUrl"
-                :alt="text.home.imagePreview"
-                class="mt-4 max-h-64 w-full rounded-xl bg-zinc-100 object-contain dark:bg-zinc-800"
-              />
-
-              <div v-if="imageFile || imageError || previewUrl" class="mt-4 flex items-center justify-between gap-3">
-                <span role="status" class="min-w-0 wrap-break-words text-sm">{{ imageFile?.name }}</span>
-                <button
-                  type="button"
-                  class="shrink-0 rounded-xl px-3 py-2 text-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
-                  @click="clearImage"
-                >
-                  {{ text.home.removeImage }}
-                </button>
-              </div>
-            </div>
-            <p id="request-image-help" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-              {{ text.home.imageHelp }}
-            </p>
-            <p v-if="imageError" id="request-image-error" role="alert" class="mt-2 text-sm text-red-700 dark:text-red-400">
-              {{ imageError }}
-            </p>
-          </div>
+          <ImageUploadField
+            v-model:file="imageFile"
+            v-model:error="imageError"
+            id-prefix="request-reference"
+            :label="text.request.referenceImageLabel"
+          />
 
           <div class="flex items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/60">
             <input

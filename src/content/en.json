@@ -221,6 +221,7 @@
       "deleteError": "Could not delete commission option.",
       "priceLabel": "Price",
       "pricePlaceholder": "e.g. $25 or Rp 150.000",
+      "exampleImageLabel": "Example image (optional)",
       "openToggle": "Open for requests",
       "openBadge": "Open",
       "closedBadge": "Closed",

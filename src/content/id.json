@@ -221,6 +221,7 @@
       "deleteError": "Opsi komisi belum bisa dihapus.",
       "priceLabel": "Harga",
       "pricePlaceholder": "cth. Rp 150.000 atau $25",
+      "exampleImageLabel": "Gambar contoh (opsional)",
       "openToggle": "Buka untuk permintaan",
       "openBadge": "Buka",
       "closedBadge": "Tutup",

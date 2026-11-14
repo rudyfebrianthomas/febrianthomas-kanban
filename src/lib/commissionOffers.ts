@@ -1,4 +1,5 @@
 import { type CommissionType } from './commissionStatus'
+import { kanbanImageUrl } from './kanbanCard'
 import { supabase } from './supabase'
 
 export interface CommissionOffer {
@@ -7,6 +8,8 @@ export interface CommissionOffer {
   title: string
   description: string
   price: string
+  imagePath: string | null
+  imageUrl?: string
   isOpen: boolean
   sortOrder: number
 }
@@ -17,6 +20,7 @@ export interface CommissionOfferRow {
   title: string
   description: string
   price: string
+  image_path: string | null
   is_open: boolean
   sort_order: number
 }
@@ -28,6 +32,7 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     title: 'Custom Emote',
     description: 'Expressive static emote for Twitch, Discord, or YouTube.',
     price: '$20',
+    imagePath: null,
     isOpen: true,
     sortOrder: 1,
   },
@@ -37,6 +42,7 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     title: 'Animated GIF / Emote',
     description: 'Looping animated emote or reaction GIF with smooth motion.',
     price: '$35',
+    imagePath: null,
     isOpen: true,
     sortOrder: 2,
   },
@@ -46,6 +52,7 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     title: 'Character Illustration',
     description: 'Clean lined and rendered illustration of your character.',
     price: '$60',
+    imagePath: null,
     isOpen: true,
     sortOrder: 3,
   },
@@ -55,6 +62,7 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     title: '2D Character Animation',
     description: 'Short 2D loop or character animation with shading.',
     price: '$90',
+    imagePath: null,
     isOpen: true,
     sortOrder: 4,
   },
@@ -64,6 +72,7 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     title: 'Stream Stinger Transition',
     description: 'Custom animated transition tailored to your stream branding.',
     price: '$80',
+    imagePath: null,
     isOpen: true,
     sortOrder: 5,
   },
@@ -76,6 +85,8 @@ export function toCommissionOffer(row: CommissionOfferRow): CommissionOffer {
     title: row.title,
     description: row.description,
     price: row.price,
+    imagePath: row.image_path,
+    imageUrl: kanbanImageUrl(row.image_path),
     isOpen: row.is_open,
     sortOrder: row.sort_order,
   }
@@ -90,7 +101,7 @@ export async function fetchCommissionOffers(includeClosed = false): Promise<Comm
 
   let query = supabase
     .from('commission_offers')
-    .select('id,commission_type,title,description,price,is_open,sort_order')
+    .select('id,commission_type,title,description,price,image_path,is_open,sort_order')
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })
 

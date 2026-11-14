@@ -10,7 +10,7 @@ import {
   DialogRoot,
   DialogTitle,
 } from 'reka-ui'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useLanguage } from '../../composables/useLanguage'
 import {
   type CommissionOffer,
@@ -20,8 +20,10 @@ import {
   toCommissionOffer,
 } from '../../lib/commissionOffers'
 import { COMMISSION_TYPES, type CommissionType } from '../../lib/commissionStatus'
+import { uploadKanbanImage } from '../../lib/kanbanImage'
 import { supabase } from '../../lib/supabase'
 import ConfirmDialog from '../ui/ConfirmDialog.vue'
+import ImageUploadField from '../ui/ImageUploadField.vue'
 import SelectField from '../ui/SelectField.vue'
 
 const { text } = useLanguage()
@@ -39,6 +41,9 @@ const titleInput = ref('')
 const priceInput = ref('')
 const descriptionInput = ref('')
 const openInput = ref(true)
+const imageFile = ref<File | null>(null)
+const removeExistingImage = ref(false)
+const imageError = ref('')
 const saving = ref(false)
 const formError = ref('')
 
@@ -60,6 +65,18 @@ onMounted(async () => {
   }
 })
 
+onUnmounted(() => {
+  for (const offer of offers.value) {
+    if (offer.imageUrl?.startsWith('blob:')) URL.revokeObjectURL(offer.imageUrl)
+  }
+})
+
+function resetImageState() {
+  imageFile.value = null
+  removeExistingImage.value = false
+  imageError.value = ''
+}
+
 function openCreate() {
   editingOffer.value = null
   typeInput.value = 'Illustration'
@@ -67,6 +84,7 @@ function openCreate() {
   priceInput.value = ''
   descriptionInput.value = ''
   openInput.value = true
+  resetImageState()
   formError.value = ''
   dialogOpen.value = true
 }
@@ -78,6 +96,7 @@ function openEdit(offer: CommissionOffer) {
   priceInput.value = offer.price
   descriptionInput.value = offer.description
   openInput.value = offer.isOpen
+  resetImageState()
   formError.value = ''
   dialogOpen.value = true
 }
@@ -85,10 +104,11 @@ function openEdit(offer: CommissionOffer) {
 function onOpenChange(nextOpen: boolean) {
   if (saving.value) return
   dialogOpen.value = nextOpen
+  if (!nextOpen) resetImageState()
 }
 
 async function saveOffer() {
-  if (saving.value) return
+  if (saving.value || imageError.value) return
   const title = titleInput.value.trim()
   const price = priceInput.value.trim()
   const description = descriptionInput.value.trim()
@@ -103,6 +123,14 @@ async function saveOffer() {
     const editing = editingOffer.value
     if (!supabase) {
       if (editing) {
+        const nextUrl = imageFile.value
+          ? URL.createObjectURL(imageFile.value)
+          : removeExistingImage.value
+            ? undefined
+            : editing.imageUrl
+        if ((imageFile.value || removeExistingImage.value) && editing.imageUrl?.startsWith('blob:')) {
+          URL.revokeObjectURL(editing.imageUrl)
+        }
         offers.value = offers.value.map((item) =>
           item.id === editing.id
             ? {
@@ -111,6 +139,7 @@ async function saveOffer() {
                 title,
                 price,
                 description,
+                imageUrl: nextUrl,
                 isOpen: openInput.value,
               }
             : item,
@@ -122,16 +151,26 @@ async function saveOffer() {
           title,
           price,
           description,
+          imagePath: null,
+          imageUrl: imageFile.value ? URL.createObjectURL(imageFile.value) : undefined,
           isOpen: openInput.value,
           sortOrder: offers.value.length + 1,
         })
       }
       dialogOpen.value = false
+      resetImageState()
       return
     }
 
-    const selectColumns = 'id,commission_type,title,description,price,is_open,sort_order'
+    let uploadedPath: string | null = null
+    if (imageFile.value) {
+      uploadedPath = await uploadKanbanImage(imageFile.value)
+    }
+
+    const selectColumns = 'id,commission_type,title,description,price,image_path,is_open,sort_order'
     if (editing) {
+      const oldImagePath = editing.imagePath
+      const nextImagePath = uploadedPath ?? (removeExistingImage.value ? null : oldImagePath)
       const { data, error } = await supabase
         .from('commission_offers')
         .update({
@@ -139,12 +178,16 @@ async function saveOffer() {
           title,
           price,
           description,
+          image_path: nextImagePath,
           is_open: openInput.value,
         })
         .eq('id', editing.id)
         .select(selectColumns)
         .single()
       if (error || !data) throw error
+      if (oldImagePath && (uploadedPath || removeExistingImage.value)) {
+        await supabase.storage.from('kanban-images').remove([oldImagePath]).catch(() => {})
+      }
       const updated = toCommissionOffer(data as CommissionOfferRow)
       offers.value = offers.value.map((item) => (item.id === updated.id ? updated : item))
     } else {
@@ -156,6 +199,7 @@ async function saveOffer() {
           title,
           price,
           description,
+          image_path: uploadedPath,
           is_open: openInput.value,
           sort_order: nextSort,
         })
@@ -165,6 +209,7 @@ async function saveOffer() {
       offers.value.push(toCommissionOffer(data as CommissionOfferRow))
     }
     dialogOpen.value = false
+    resetImageState()
   } catch {
     formError.value = text.value.setting.offers.saveError
   } finally {
@@ -197,6 +242,11 @@ async function deleteOffer(offer: CommissionOffer) {
   if (supabase) {
     const { error } = await supabase.from('commission_offers').delete().eq('id', offer.id)
     if (error) throw error
+    if (offer.imagePath) {
+      await supabase.storage.from('kanban-images').remove([offer.imagePath]).catch(() => {})
+    }
+  } else if (offer.imageUrl?.startsWith('blob:')) {
+    URL.revokeObjectURL(offer.imageUrl)
   }
   offers.value = offers.value.filter((item) => item.id !== offer.id)
 }
@@ -242,17 +292,25 @@ async function deleteOffer(offer: CommissionOffer) {
         :key="offer.id"
         class="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
       >
-        <div class="min-w-0 flex-1">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ offer.title }}</span>
-            <span class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-950/60 dark:text-orange-200">
-              {{ offer.price }}
-            </span>
-            <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-              {{ text.home.commissionTypes[offer.commissionType] }}
-            </span>
+        <div class="flex min-w-0 flex-1 items-center gap-3">
+          <img
+            v-if="offer.imageUrl"
+            :src="offer.imageUrl"
+            :alt="offer.title"
+            class="size-12 shrink-0 rounded-lg bg-zinc-100 object-cover dark:bg-zinc-800"
+          />
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ offer.title }}</span>
+              <span class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-950/60 dark:text-orange-200">
+                {{ offer.price }}
+              </span>
+              <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                {{ text.home.commissionTypes[offer.commissionType] }}
+              </span>
+            </div>
+            <p class="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">{{ offer.description }}</p>
           </div>
-          <p class="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">{{ offer.description }}</p>
         </div>
 
         <div class="flex shrink-0 items-center gap-2">
@@ -393,6 +451,15 @@ async function deleteOffer(offer: CommissionOffer) {
                   class="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
                 />
               </div>
+
+              <ImageUploadField
+                v-model:file="imageFile"
+                v-model:removed="removeExistingImage"
+                v-model:error="imageError"
+                id-prefix="offer-example"
+                :label="text.setting.offers.exampleImageLabel"
+                :existing-url="editingOffer?.imageUrl"
+              />
 
               <label class="inline-flex cursor-pointer items-center gap-2.5 text-sm text-zinc-800 dark:text-zinc-200">
                 <input

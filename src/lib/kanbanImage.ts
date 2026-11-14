@@ -1,3 +1,5 @@
+import { supabase } from './supabase'
+
 const imageExtensions: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -61,4 +63,17 @@ export async function optimizeKanbanImage(file: File): Promise<File> {
   } catch {
     return file
   }
+}
+
+export async function uploadKanbanImage(file: File): Promise<string> {
+  if (!supabase) throw new Error('Supabase is not configured')
+  const optimized = await optimizeKanbanImage(file)
+  const ext = kanbanImageExtension(optimized)
+  if (!ext) throw new Error('Invalid image')
+  const path = `${crypto.randomUUID()}.${ext}`
+  const { error } = await supabase.storage
+    .from('kanban-images')
+    .upload(path, optimized, { contentType: optimized.type, upsert: false })
+  if (error) throw error
+  return path
 }
