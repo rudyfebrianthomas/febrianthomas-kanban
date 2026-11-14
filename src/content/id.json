@@ -220,13 +220,14 @@
       "deleting": "Menghapus…",
       "deleteError": "Opsi komisi belum bisa dihapus.",
       "priceLabel": "Harga",
-      "pricePlaceholder": "cth. Rp 150.000 atau $25",
+      "pricePlaceholder": "cth. 150000",
       "exampleImageLabel": "Gambar contoh (opsional)",
       "openToggle": "Buka untuk permintaan",
       "openBadge": "Buka",
       "closedBadge": "Tutup",
       "empty": "Belum ada opsi komisi. Tambahkan dulu agar pengunjung bisa memilih.",
       "requiredFields": "Isi judul, deskripsi, dan harga dulu, ya.",
+      "invalidPrice": "Masukkan harga berupa angka yang valid, ya.",
       "saveError": "Opsi komisi belum bisa disimpan. Coba lagi, ya."
     }
   },

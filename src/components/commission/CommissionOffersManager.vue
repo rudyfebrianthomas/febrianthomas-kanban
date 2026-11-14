@@ -17,6 +17,7 @@ import {
   type CommissionOfferRow,
   DEFAULT_COMMISSION_OFFERS,
   fetchCommissionOffers,
+  formatOfferPrice,
   toCommissionOffer,
 } from '../../lib/commissionOffers'
 import { COMMISSION_TYPES, type CommissionType } from '../../lib/commissionStatus'
@@ -26,7 +27,7 @@ import ConfirmDialog from '../ui/ConfirmDialog.vue'
 import ImageUploadField from '../ui/ImageUploadField.vue'
 import SelectField from '../ui/SelectField.vue'
 
-const { text } = useLanguage()
+const { language, text } = useLanguage()
 const reducedMotion = useReducedMotion()
 
 const offers = ref<CommissionOffer[]>(supabase ? [] : DEFAULT_COMMISSION_OFFERS)
@@ -93,7 +94,7 @@ function openEdit(offer: CommissionOffer) {
   editingOffer.value = offer
   typeInput.value = offer.commissionType
   titleInput.value = offer.title
-  priceInput.value = offer.price
+  priceInput.value = offer.price.replace(/[^0-9.]/g, '')
   descriptionInput.value = offer.description
   openInput.value = offer.isOpen
   resetImageState()
@@ -110,12 +111,18 @@ function onOpenChange(nextOpen: boolean) {
 async function saveOffer() {
   if (saving.value || imageError.value) return
   const title = titleInput.value.trim()
-  const price = priceInput.value.trim()
+  const rawPrice = String(priceInput.value ?? '').trim()
   const description = descriptionInput.value.trim()
-  if (!title || !price || !description) {
+  if (!title || !rawPrice || !description) {
     formError.value = text.value.setting.offers.requiredFields
     return
   }
+  const numericPrice = Number(rawPrice)
+  if (!/^\d+(\.\d+)?$/.test(rawPrice) || !Number.isFinite(numericPrice) || numericPrice < 0) {
+    formError.value = text.value.setting.offers.invalidPrice
+    return
+  }
+  const price = String(numericPrice)
 
   saving.value = true
   formError.value = ''
@@ -303,7 +310,7 @@ async function deleteOffer(offer: CommissionOffer) {
             <div class="flex flex-wrap items-center gap-2">
               <span class="text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ offer.title }}</span>
               <span class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-950/60 dark:text-orange-200">
-                {{ offer.price }}
+                {{ formatOfferPrice(offer.price, language) }}
               </span>
               <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                 {{ text.home.commissionTypes[offer.commissionType] }}
@@ -415,8 +422,10 @@ async function deleteOffer(offer: CommissionOffer) {
                   <input
                     id="offer-price"
                     v-model="priceInput"
-                    type="text"
-                    maxlength="60"
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputmode="decimal"
                     required
                     :placeholder="text.setting.offers.pricePlaceholder"
                     class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"

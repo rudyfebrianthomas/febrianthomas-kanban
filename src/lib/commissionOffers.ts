@@ -1,3 +1,4 @@
+import { type Language } from '../composables/useLanguage'
 import { type CommissionType } from './commissionStatus'
 import { kanbanImageUrl } from './kanbanCard'
 import { supabase } from './supabase'
@@ -31,7 +32,7 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     commissionType: 'Emote',
     title: 'Custom Emote',
     description: 'Expressive static emote for Twitch, Discord, or YouTube.',
-    price: '$20',
+    price: '20',
     imagePath: null,
     isOpen: true,
     sortOrder: 1,
@@ -41,7 +42,7 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     commissionType: 'GIF',
     title: 'Animated GIF / Emote',
     description: 'Looping animated emote or reaction GIF with smooth motion.',
-    price: '$35',
+    price: '35',
     imagePath: null,
     isOpen: true,
     sortOrder: 2,
@@ -51,7 +52,7 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     commissionType: 'Illustration',
     title: 'Character Illustration',
     description: 'Clean lined and rendered illustration of your character.',
-    price: '$60',
+    price: '60',
     imagePath: null,
     isOpen: true,
     sortOrder: 3,
@@ -61,7 +62,7 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     commissionType: 'Animation',
     title: '2D Character Animation',
     description: 'Short 2D loop or character animation with shading.',
-    price: '$90',
+    price: '90',
     imagePath: null,
     isOpen: true,
     sortOrder: 4,
@@ -71,12 +72,22 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     commissionType: 'Transition',
     title: 'Stream Stinger Transition',
     description: 'Custom animated transition tailored to your stream branding.',
-    price: '$80',
+    price: '80',
     imagePath: null,
     isOpen: true,
     sortOrder: 5,
   },
 ]
+
+export function formatOfferPrice(price: string, language: Language): string {
+  const trimmed = price.trim()
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) return price
+  const numeric = Number(trimmed)
+  if (!Number.isFinite(numeric)) return price
+  return new Intl.NumberFormat(language === 'id' ? 'id-ID' : 'en-US', {
+    maximumFractionDigits: 2,
+  }).format(numeric)
+}
 
 export function toCommissionOffer(row: CommissionOfferRow): CommissionOffer {
   return {

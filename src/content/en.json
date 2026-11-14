@@ -220,13 +220,14 @@
       "deleting": "Deleting…",
       "deleteError": "Could not delete commission option.",
       "priceLabel": "Price",
-      "pricePlaceholder": "e.g. $25 or Rp 150.000",
+      "pricePlaceholder": "e.g. 25",
       "exampleImageLabel": "Example image (optional)",
       "openToggle": "Open for requests",
       "openBadge": "Open",
       "closedBadge": "Closed",
       "empty": "No commission options yet. Add one so visitors can pick what to request.",
       "requiredFields": "Please fill in title, description, and price.",
+      "invalidPrice": "Please enter a valid number for the price.",
       "saveError": "Could not save commission option. Please try again."
     }
   },

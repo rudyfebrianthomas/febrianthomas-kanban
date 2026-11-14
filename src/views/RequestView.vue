@@ -10,6 +10,7 @@ import {
   type CommissionOffer,
   DEFAULT_COMMISSION_OFFERS,
   fetchCommissionOffers,
+  formatOfferPrice,
 } from '../lib/commissionOffers'
 import { type CommissionStatus, fetchCommissionStatus } from '../lib/commissionStatus'
 import { uploadKanbanImage } from '../lib/kanbanImage'
@@ -18,7 +19,7 @@ import { supabase } from '../lib/supabase'
 const CONTACT_CHANNELS = ['email', 'discord', 'twitter', 'instagram'] as const
 type ContactChannel = (typeof CONTACT_CHANNELS)[number]
 
-const { text } = useLanguage()
+const { language, text } = useLanguage()
 
 const signedIn = ref(false)
 const authSubscription = supabase?.auth.onAuthStateChange((_event, session) => {
@@ -309,7 +310,7 @@ async function submitRequest() {
                   </span>
                 </div>
                 <span class="shrink-0 rounded-full bg-orange-100 px-3 py-1 text-sm font-bold text-orange-800 dark:bg-orange-950/60 dark:text-orange-200">
-                  {{ offer.price }}
+                  {{ formatOfferPrice(offer.price, language) }}
                 </span>
               </div>
               <h3 class="mt-4 text-xl font-bold text-zinc-950 dark:text-zinc-50">
@@ -351,7 +352,7 @@ async function submitRequest() {
                     {{ text.home.commissionTypes[selectedOffer.commissionType] }}
                   </span>
                   <span class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-800 dark:bg-orange-950/60 dark:text-orange-200">
-                    {{ selectedOffer.price }}
+                    {{ formatOfferPrice(selectedOffer.price, language) }}
                   </span>
                 </div>
                 <p class="mt-1.5 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
