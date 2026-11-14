@@ -4,13 +4,6 @@ import { useRouter } from 'vue-router'
 import { Check, FileText, Pencil, Plus, Search, Trash2, X } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import {
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogOverlay,
-  AlertDialogPortal,
-  AlertDialogRoot,
-  AlertDialogTitle,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -23,6 +16,7 @@ import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
 import KanbanCardFormDialog from '../components/commission/KanbanCardFormDialog.vue'
 import SelectField from '../components/ui/SelectField.vue'
 import { useLanguage } from '../composables/useLanguage'
+import { isBoardCompleted, type KanbanBoard } from '../lib/kanbanBoard'
 import {
   deleteKanbanCard,
   formatCardDate,
@@ -32,15 +26,6 @@ import {
 } from '../lib/kanbanCard'
 import { stageLabel, stageProgress } from '../lib/kanbanStage'
 import { supabase } from '../lib/supabase'
-
-interface KanbanBoard {
-  id: string
-  title: string
-  description: string | null
-  is_active: boolean
-  is_backlog: boolean
-  created_at?: string
-}
 
 const BACKLOG_BOARD_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -81,8 +66,6 @@ const formError = ref('')
 const activeBusyId = ref('')
 const switchTargetBoard = ref<KanbanBoard | null>(null)
 const switchDialogOpen = ref(false)
-const switchPending = ref(false)
-const switchError = ref('')
 
 const cardDialogOpen = ref(false)
 const targetCardBoard = ref<KanbanBoard | null>(null)
@@ -91,12 +74,6 @@ const editingCard = ref<KanbanCard | null>(null)
 const selectedCardIds = ref<string[]>([])
 const draggingCardIds = ref<string[]>([])
 const dragOverBoardId = ref('')
-
-function isBoardCompleted(board: KanbanBoard): boolean {
-  if (board.is_backlog) return false
-  const boardCards = cardsForBoard(board.id)
-  return boardCards.length > 0 && boardCards.every((card) => card.stageNumber === '06')
-}
 
 const filteredBoards = computed(() => {
   const q = query.value.trim().toLowerCase()
@@ -108,7 +85,7 @@ const filteredBoards = computed(() => {
           ? board.is_backlog || board.is_active
           : statusFilter.value === 'inactive'
             ? board.is_backlog || !board.is_active
-            : !board.is_backlog && isBoardCompleted(board)
+            : !board.is_backlog && isBoardCompleted(board, cards.value)
 
     if (!matchesStatus) return false
     if (!q) return true
@@ -457,7 +434,6 @@ async function handleActiveClick(board: KanbanBoard) {
   const hasOtherActive = boards.value.some((item) => item.is_active && item.id !== board.id)
   if (hasOtherActive) {
     switchTargetBoard.value = board
-    switchError.value = ''
     switchDialogOpen.value = true
     return
   }
@@ -474,29 +450,15 @@ async function handleActiveClick(board: KanbanBoard) {
 }
 
 function onSwitchDialogOpenChange(open: boolean) {
-  if (switchPending.value) return
   switchDialogOpen.value = open
-  if (!open) {
-    switchTargetBoard.value = null
-    switchError.value = ''
-  }
+  if (!open) switchTargetBoard.value = null
 }
 
 async function confirmSwitchActive() {
   const target = switchTargetBoard.value
-  if (!target || switchPending.value) return
-
-  switchPending.value = true
-  switchError.value = ''
-  try {
-    await activateBoard(target)
-    switchDialogOpen.value = false
-    switchTargetBoard.value = null
-  } catch {
-    switchError.value = text.value.setting.switchActiveError
-  } finally {
-    switchPending.value = false
-  }
+  if (!target) return
+  await activateBoard(target)
+  switchTargetBoard.value = null
 }
 
 function openAddCard(board: KanbanBoard) {
@@ -764,47 +726,17 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
         @saved="onCardSaved"
       />
 
-      <AlertDialogRoot :open="switchDialogOpen" @update:open="onSwitchDialogOpenChange">
-        <AlertDialogPortal>
-          <AlertDialogOverlay class="fixed inset-0 z-60 bg-zinc-950/50" />
-          <div class="pointer-events-none fixed inset-0 z-70 flex items-center justify-center p-6">
-            <AlertDialogContent as-child>
-              <motion.div
-                :initial="prefersReducedMotion ? false : { opacity: 0, scale: 0.96, y: 8 }"
-                :animate="{ opacity: 1, scale: 1, y: 0 }"
-                :transition="{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }"
-                class="surface-shadow pointer-events-auto w-full max-w-sm rounded-3xl bg-white p-7 text-zinc-950 focus:outline-none dark:bg-zinc-900 dark:text-zinc-50"
-              >
-                <AlertDialogTitle class="text-3xl font-bold">
-                  {{ text.setting.switchActiveTitle }}
-                </AlertDialogTitle>
-                <AlertDialogDescription class="mt-3 leading-6 text-zinc-600 dark:text-zinc-300">
-                  {{ text.setting.switchActiveDescription }}
-                </AlertDialogDescription>
-                <p v-if="switchError" role="alert" class="mt-4 text-sm text-red-700 dark:text-red-400">
-                  {{ switchError }}
-                </p>
-                <div class="mt-7 flex flex-wrap justify-end gap-3">
-                  <AlertDialogCancel
-                    :disabled="switchPending"
-                    class="min-h-11 rounded-full px-5 text-sm hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 dark:hover:bg-zinc-800"
-                  >
-                    {{ text.setting.switchActiveCancel }}
-                  </AlertDialogCancel>
-                  <button
-                    type="button"
-                    :disabled="switchPending"
-                    class="min-h-11 rounded-full bg-zinc-900 px-5 text-sm text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-                    @click="confirmSwitchActive"
-                  >
-                    {{ switchPending ? text.setting.switchingActive : text.setting.switchActiveConfirm }}
-                  </button>
-                </div>
-              </motion.div>
-            </AlertDialogContent>
-          </div>
-        </AlertDialogPortal>
-      </AlertDialogRoot>
+      <ConfirmDialog
+        :open="switchDialogOpen"
+        :title="text.setting.switchActiveTitle"
+        :description="text.setting.switchActiveDescription"
+        :cancel-label="text.setting.switchActiveCancel"
+        :confirm-label="text.setting.switchActiveConfirm"
+        :pending-label="text.setting.switchingActive"
+        :error-message="text.setting.switchActiveError"
+        :on-confirm="confirmSwitchActive"
+        @update:open="onSwitchDialogOpenChange"
+      />
 
       <form class="mt-8 flex flex-wrap gap-3" role="search" @submit.prevent>
         <label for="board-search" class="sr-only">{{ text.setting.searchBoards }}</label>

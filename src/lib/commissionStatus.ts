@@ -49,3 +49,7 @@ export async function fetchCommissionStatus(): Promise<CommissionStatus | null> 
     slotsTotal: row.slots_total,
   }
 }
+
+export function canAccessRequests(signedIn: boolean, status: CommissionStatus | null): boolean {
+  return signedIn || (status !== null && status.status !== 'closed')
+}

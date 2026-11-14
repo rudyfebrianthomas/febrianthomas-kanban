@@ -336,10 +336,10 @@ async function deleteOffer(offer: CommissionOffer) {
       </div>
       <button
         type="button"
-        class="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-zinc-900 px-3.5 py-2 text-xs text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+        class="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
         @click="openCreate"
       >
-        <Plus :size="14" aria-hidden="true" />
+        <Plus :size="16" aria-hidden="true" />
         <span>{{ text.setting.offers.addOffer }}</span>
       </button>
     </div>

@@ -36,7 +36,7 @@ async function mayBeAnimated(file: File): Promise<boolean> {
   return true
 }
 
-export async function optimizeKanbanImage(file: File): Promise<File> {
+async function optimizeKanbanImage(file: File): Promise<File> {
   try {
     if (await mayBeAnimated(file)) return file
     const url = URL.createObjectURL(file)

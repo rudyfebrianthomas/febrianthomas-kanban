@@ -11,7 +11,7 @@ import {
   formatOfferPrices,
   isOfferLimitReached,
 } from '../lib/commissionOffers'
-import { type CommissionStatus, fetchCommissionStatus } from '../lib/commissionStatus'
+import { canAccessRequests, type CommissionStatus, fetchCommissionStatus } from '../lib/commissionStatus'
 import { supabase } from '../lib/supabase'
 
 const { language, text } = useLanguage()
@@ -32,10 +32,8 @@ const submitted = ref(false)
 
 let active = true
 
-const canAccess = computed(
-  () =>
-    signedIn.value ||
-    (commissionStatus.value !== null && commissionStatus.value.status !== 'closed'),
+const canAccess = computed(() =>
+  canAccessRequests(signedIn.value, commissionStatus.value),
 )
 
 const visibleOffers = computed(() =>
@@ -284,19 +282,13 @@ function resetFlow() {
             <p class="mt-2 flex-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
               {{ offer.description }}
             </p>
-            <span
-              v-if="isOfferLimitReached(offer)"
-              class="mt-5 inline-flex items-center text-sm font-medium text-zinc-500 dark:text-zinc-400"
-            >
-              {{ text.request.disabledOfferBadge }}
-            </span>
-            <span
-              v-else
-              class="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              <span>{{ text.request.selectOffer }}</span>
-              <ArrowRight :size="15" aria-hidden="true" class="transition-transform group-hover:translate-x-1" />
-            </span>
+              <span
+                v-if="!isOfferLimitReached(offer)"
+                class="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-zinc-950 dark:text-zinc-50"
+              >
+                <span>{{ text.request.selectOffer }}</span>
+                <ArrowRight :size="15" aria-hidden="true" class="transition-transform group-hover:translate-x-1" />
+              </span>
           </button>
         </div>
       </div>

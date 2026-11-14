@@ -60,13 +60,13 @@ async function signIn() {
         <form class="mt-10 space-y-5" @submit.prevent="signIn">
           <div>
             <label for="email" class="block text-sm text-zinc-900 dark:text-zinc-100">{{ text.login.email }}</label>
-            <input id="email" v-model="email" type="email" autocomplete="email" :placeholder="text.login.emailPlaceholder" required class="mt-2 h-12 w-full rounded-md border border-zinc-300 bg-white px-3 text-base outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-300" />
+            <input id="email" v-model="email" type="email" autocomplete="email" :placeholder="text.login.emailPlaceholder" required class="mt-2 h-12 w-full rounded-xl border border-zinc-300 bg-white px-3.5 text-base outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-300" />
           </div>
           <div>
             <label for="password" class="block text-sm text-zinc-900 dark:text-zinc-100">{{ text.login.password }}</label>
             <div class="relative mt-2">
-              <input id="password" v-model="password" :type="showPassword ? 'text' : 'password'" autocomplete="current-password" :placeholder="text.login.passwordPlaceholder" required class="h-12 w-full rounded-md border border-zinc-300 bg-white px-3 pr-12 text-base outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-300" />
-              <button type="button" class="absolute right-0 top-0 flex size-12 items-center justify-center rounded-md text-zinc-500 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-400 dark:hover:text-zinc-100" :aria-label="showPassword ? text.login.hidePassword : text.login.showPassword" :aria-pressed="showPassword" aria-controls="password" @click="showPassword = !showPassword">
+              <input id="password" v-model="password" :type="showPassword ? 'text' : 'password'" autocomplete="current-password" :placeholder="text.login.passwordPlaceholder" required class="h-12 w-full rounded-xl border border-zinc-300 bg-white px-3.5 pr-12 text-base outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-300" />
+              <button type="button" class="absolute right-0 top-0 flex size-12 items-center justify-center rounded-xl text-zinc-500 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-400 dark:hover:text-zinc-100" :aria-label="showPassword ? text.login.hidePassword : text.login.showPassword" :aria-pressed="showPassword" aria-controls="password" @click="showPassword = !showPassword">
                 <EyeOff v-if="showPassword" :size="20" aria-hidden="true" />
                 <Eye v-else :size="20" aria-hidden="true" />
               </button>
@@ -78,7 +78,7 @@ async function signIn() {
             :disabled="loading || !supabase"
             :while-tap="reducedMotion ? undefined : { scale: 0.98 }"
             :transition="{ duration: 0.14 }"
-            class="inline-flex h-12 w-full items-center justify-center rounded-md bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
+            class="inline-flex h-12 w-full items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:focus-visible:outline-zinc-100"
           >
             {{ loading ? text.login.signingIn : text.login.signIn }}
           </motion.button>

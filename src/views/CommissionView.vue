@@ -2,13 +2,20 @@
 import { ArrowRight, FileText, Plus, Search } from '@lucide/vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { COMMISSION_TYPES, type CommissionStatus, type CommissionType, fetchCommissionStatus } from '../lib/commissionStatus'
+import {
+  canAccessRequests,
+  COMMISSION_TYPES,
+  type CommissionStatus,
+  type CommissionType,
+  fetchCommissionStatus,
+} from '../lib/commissionStatus'
 import CommissionCard from '../components/commission/CommissionCard.vue'
 import CommissionCardDetailDialog from '../components/commission/CommissionCardDetailDialog.vue'
 import CommissionStatusBadge from '../components/commission/CommissionStatusBadge.vue'
 import KanbanCardFormDialog from '../components/commission/KanbanCardFormDialog.vue'
 import SelectField from '../components/ui/SelectField.vue'
 import { useLanguage } from '../composables/useLanguage'
+import { isBoardCompleted, type KanbanBoard } from '../lib/kanbanBoard'
 import {
   deleteKanbanCard,
   formatCardDate as formatCardDateForLanguage,
@@ -19,16 +26,6 @@ import {
 } from '../lib/kanbanCard'
 import { stageLabel as getStageLabel, stageProgress as getStageProgress, stageStyle } from '../lib/kanbanStage'
 import { supabase } from '../lib/supabase'
-
-interface KanbanBoard {
-  id: string
-  title: string
-  description: string | null
-  is_active: boolean
-  is_backlog: boolean
-  created_at?: string
-  updated_at?: string | null
-}
 
 const DEFAULT_BOARD_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -61,10 +58,8 @@ const detailCard = ref<KanbanCard | null>(null)
 const draggingCardId = ref('')
 const dragOverStage = ref('')
 
-const canRequestCommission = computed(
-  () =>
-    signedIn.value ||
-    (commissionStatus.value !== null && commissionStatus.value.status !== 'closed'),
+const canRequestCommission = computed(() =>
+  canAccessRequests(signedIn.value, commissionStatus.value),
 )
 
 function formatCardDate(iso?: string | null): string {
@@ -81,16 +76,10 @@ function boardSortTime(board: KanbanBoard): number {
   return latest
 }
 
-function isBoardCompleted(board: KanbanBoard): boolean {
-  if (board.is_backlog) return false
-  const boardCards = cards.value.filter((card) => card.boardId === board.id)
-  return boardCards.length > 0 && boardCards.every((card) => card.stageNumber === '06')
-}
-
 const activeBoard = computed(() => boards.value.find((board) => board.is_active) ?? null)
 const completedBoards = computed(() =>
   boards.value
-    .filter((board) => !board.is_active && isBoardCompleted(board))
+    .filter((board) => !board.is_active && isBoardCompleted(board, cards.value))
     .sort((a, b) => boardSortTime(b) - boardSortTime(a)),
 )
 const completedBoardOptions = computed(() =>

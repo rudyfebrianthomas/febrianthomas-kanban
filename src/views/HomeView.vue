@@ -2,7 +2,12 @@
 import { ArrowRight, FileText } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { type CommissionStatus, type CommissionType, fetchCommissionStatus } from '../lib/commissionStatus'
+import {
+  canAccessRequests,
+  type CommissionStatus,
+  type CommissionType,
+  fetchCommissionStatus,
+} from '../lib/commissionStatus'
 import CommissionStatusBadge from '../components/commission/CommissionStatusBadge.vue'
 import { useLanguage } from '../composables/useLanguage'
 import { kanbanImageUrl, latestTimestamp } from '../lib/kanbanCard'
@@ -53,10 +58,8 @@ const commissionStatus = ref<CommissionStatus | null>(supabase ? null : { status
 const activeBoard = ref<ActiveBoardSummary | null>(null)
 const boardCards = ref<PreviewCard[]>([])
 
-const canRequestCommission = computed(
-  () =>
-    signedIn.value ||
-    (commissionStatus.value !== null && commissionStatus.value.status !== 'closed'),
+const canRequestCommission = computed(() =>
+  canAccessRequests(signedIn.value, commissionStatus.value),
 )
 
 const recentCards = computed(() =>
