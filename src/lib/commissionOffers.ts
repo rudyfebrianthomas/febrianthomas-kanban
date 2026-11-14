@@ -14,6 +14,8 @@ export interface CommissionOffer {
   imageUrl?: string
   isOpen: boolean
   sortOrder: number
+  maxRequests: number | null
+  requestCount: number
 }
 
 export interface CommissionOfferRow {
@@ -26,6 +28,8 @@ export interface CommissionOfferRow {
   image_path: string | null
   is_open: boolean
   sort_order: number
+  max_requests: number | null
+  request_count: number | null
 }
 
 export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
@@ -39,6 +43,8 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     imagePath: null,
     isOpen: true,
     sortOrder: 1,
+    maxRequests: null,
+    requestCount: 0,
   },
   {
     id: '00000000-0000-0000-0000-000000000102',
@@ -50,6 +56,8 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     imagePath: null,
     isOpen: true,
     sortOrder: 2,
+    maxRequests: null,
+    requestCount: 0,
   },
   {
     id: '00000000-0000-0000-0000-000000000103',
@@ -61,6 +69,8 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     imagePath: null,
     isOpen: true,
     sortOrder: 3,
+    maxRequests: null,
+    requestCount: 0,
   },
   {
     id: '00000000-0000-0000-0000-000000000104',
@@ -72,6 +82,8 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     imagePath: null,
     isOpen: true,
     sortOrder: 4,
+    maxRequests: null,
+    requestCount: 0,
   },
   {
     id: '00000000-0000-0000-0000-000000000105',
@@ -83,8 +95,16 @@ export const DEFAULT_COMMISSION_OFFERS: CommissionOffer[] = [
     imagePath: null,
     isOpen: true,
     sortOrder: 5,
+    maxRequests: null,
+    requestCount: 0,
   },
 ]
+
+export function isOfferLimitReached(
+  offer: Pick<CommissionOffer, 'maxRequests' | 'requestCount'>,
+): boolean {
+  return offer.maxRequests !== null && offer.requestCount >= offer.maxRequests
+}
 
 export function formatOfferPrices(
   offer: Pick<CommissionOffer, 'priceUsd' | 'priceIdr'>,
@@ -118,6 +138,8 @@ export function toCommissionOffer(row: CommissionOfferRow): CommissionOffer {
     imageUrl: kanbanImageUrl(row.image_path),
     isOpen: row.is_open,
     sortOrder: row.sort_order,
+    maxRequests: row.max_requests ?? null,
+    requestCount: Math.max(0, Number(row.request_count) || 0),
   }
 }
 
@@ -130,7 +152,9 @@ export async function fetchCommissionOffers(includeClosed = false): Promise<Comm
 
   let query = supabase
     .from('commission_offers')
-    .select('id,commission_type,title,description,price_usd,price_idr,image_path,is_open,sort_order')
+    .select(
+      'id,commission_type,title,description,price_usd,price_idr,image_path,is_open,sort_order,max_requests,request_count',
+    )
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })
 

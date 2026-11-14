@@ -11,6 +11,7 @@ import {
   DEFAULT_COMMISSION_OFFERS,
   fetchCommissionOffers,
   formatOfferPrices,
+  isOfferLimitReached,
 } from '../lib/commissionOffers'
 import { type CommissionStatus, fetchCommissionStatus } from '../lib/commissionStatus'
 import { uploadKanbanImage } from '../lib/kanbanImage'
@@ -92,6 +93,7 @@ onUnmounted(() => {
 })
 
 function selectOffer(offer: CommissionOffer) {
+  if (isOfferLimitReached(offer)) return
   selectedOffer.value = offer
   formError.value = ''
   submitted.value = false
@@ -112,10 +114,23 @@ function resetFlow() {
   tosAccepted.value = false
   formError.value = ''
   submitted.value = false
+  if (supabase) {
+    void fetchCommissionOffers(signedIn.value).then((loadedOffers) => {
+      if (active) offers.value = loadedOffers
+    })
+  }
 }
 
 async function submitRequest() {
-  if (submitting.value || !canAccess.value || !selectedOffer.value || imageError.value) return
+  if (
+    submitting.value ||
+    !canAccess.value ||
+    !selectedOffer.value ||
+    isOfferLimitReached(selectedOffer.value) ||
+    imageError.value
+  ) {
+    return
+  }
   formError.value = ''
 
   const trimmedDescription = description.value.trim()
@@ -149,6 +164,11 @@ async function submitRequest() {
       })
       if (error) throw error
     }
+    const targetId = selectedOffer.value.id
+    offers.value = offers.value.map((item) =>
+      item.id === targetId ? { ...item, requestCount: item.requestCount + 1 } : item,
+    )
+    selectedOffer.value.requestCount += 1
     submitted.value = true
   } catch {
     formError.value = text.value.request.submitError
@@ -292,7 +312,13 @@ async function submitRequest() {
               v-for="offer in visibleOffers"
               :key="offer.id"
               type="button"
-              class="surface-shadow group flex cursor-pointer flex-col rounded-2xl border border-zinc-200 bg-white p-6 text-left transition-all hover:-translate-y-0.5 hover:border-zinc-400 focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600"
+              :disabled="isOfferLimitReached(offer)"
+              :class="[
+                'surface-shadow group flex flex-col rounded-2xl border border-zinc-200 bg-white p-6 text-left transition-all focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-zinc-800 dark:bg-zinc-900',
+                isOfferLimitReached(offer)
+                  ? 'cursor-not-allowed opacity-60'
+                  : 'cursor-pointer hover:-translate-y-0.5 hover:border-zinc-400 dark:hover:border-zinc-600',
+              ]"
               @click="selectOffer(offer)"
             >
               <img
@@ -305,6 +331,23 @@ async function submitRequest() {
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
                     {{ text.home.commissionTypes[offer.commissionType] }}
+                  </span>
+                  <span
+                    v-if="offer.maxRequests !== null"
+                    :class="[
+                      'rounded-full px-2.5 py-0.5 text-xs font-medium tabular-nums',
+                      isOfferLimitReached(offer)
+                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-200'
+                        : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200',
+                    ]"
+                  >
+                    {{ offer.requestCount }}/{{ offer.maxRequests }}
+                  </span>
+                  <span
+                    v-if="isOfferLimitReached(offer)"
+                    class="rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-medium text-rose-700 dark:bg-rose-950/60 dark:text-rose-200"
+                  >
+                    {{ text.request.disabledOfferBadge }}
                   </span>
                   <span
                     v-if="!offer.isOpen"
@@ -323,7 +366,16 @@ async function submitRequest() {
               <p class="mt-2 flex-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
                 {{ offer.description }}
               </p>
-              <span class="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-zinc-950 dark:text-zinc-50">
+              <span
+                v-if="isOfferLimitReached(offer)"
+                class="mt-5 inline-flex items-center text-sm font-medium text-zinc-500 dark:text-zinc-400"
+              >
+                {{ text.request.disabledOfferBadge }}
+              </span>
+              <span
+                v-else
+                class="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-zinc-950 dark:text-zinc-50"
+              >
                 <span>{{ text.request.selectOffer }}</span>
                 <ArrowRight :size="15" aria-hidden="true" class="transition-transform group-hover:translate-x-1" />
               </span>

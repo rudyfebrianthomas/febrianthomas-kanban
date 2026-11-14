@@ -18,6 +18,7 @@ import {
   DEFAULT_COMMISSION_OFFERS,
   fetchCommissionOffers,
   formatOfferPrices,
+  isOfferLimitReached,
   toCommissionOffer,
 } from '../../lib/commissionOffers'
 import { COMMISSION_TYPES, type CommissionType } from '../../lib/commissionStatus'
@@ -34,6 +35,7 @@ const offers = ref<CommissionOffer[]>(supabase ? [] : DEFAULT_COMMISSION_OFFERS)
 const loading = ref(!!supabase)
 const loadError = ref('')
 const togglingId = ref('')
+const resettingId = ref('')
 
 const dialogOpen = ref(false)
 const editingOffer = ref<CommissionOffer | null>(null)
@@ -41,6 +43,7 @@ const typeInput = ref<CommissionType>('Illustration')
 const titleInput = ref('')
 const priceUsdInput = ref<number | string>('')
 const priceIdrInput = ref<number | string>('')
+const maxRequestsInput = ref<number | string>('')
 const descriptionInput = ref('')
 const openInput = ref(true)
 const imageFile = ref<File | null>(null)
@@ -85,6 +88,7 @@ function openCreate() {
   titleInput.value = ''
   priceUsdInput.value = ''
   priceIdrInput.value = ''
+  maxRequestsInput.value = ''
   descriptionInput.value = ''
   openInput.value = true
   resetImageState()
@@ -98,6 +102,7 @@ function openEdit(offer: CommissionOffer) {
   titleInput.value = offer.title
   priceUsdInput.value = offer.priceUsd
   priceIdrInput.value = offer.priceIdr
+  maxRequestsInput.value = offer.maxRequests ?? ''
   descriptionInput.value = offer.description
   openInput.value = offer.isOpen
   resetImageState()
@@ -118,6 +123,14 @@ function parseNonNegativePrice(rawInput: number | string): number | null {
   return Number.isFinite(value) && value >= 0 ? value : null
 }
 
+function parseOptionalPositiveInt(rawInput: number | string): number | null | 'invalid' {
+  const raw = String(rawInput ?? '').trim()
+  if (!raw) return null
+  if (!/^\d+$/.test(raw)) return 'invalid'
+  const value = Number(raw)
+  return Number.isInteger(value) && value >= 1 ? value : 'invalid'
+}
+
 async function saveOffer() {
   if (saving.value || imageError.value) return
   const title = titleInput.value.trim()
@@ -133,6 +146,12 @@ async function saveOffer() {
   const priceIdr = parseNonNegativePrice(rawIdr)
   if (priceUsd === null || priceIdr === null) {
     formError.value = text.value.setting.offers.invalidPrice
+    return
+  }
+
+  const maxRequests = parseOptionalPositiveInt(maxRequestsInput.value)
+  if (maxRequests === 'invalid') {
+    formError.value = text.value.setting.offers.invalidMaxRequests
     return
   }
   const roundedIdr = Math.round(priceIdr)
@@ -162,6 +181,7 @@ async function saveOffer() {
                 description,
                 imageUrl: nextUrl,
                 isOpen: openInput.value,
+                maxRequests,
               }
             : item,
         )
@@ -177,6 +197,8 @@ async function saveOffer() {
           imageUrl: imageFile.value ? URL.createObjectURL(imageFile.value) : undefined,
           isOpen: openInput.value,
           sortOrder: offers.value.length + 1,
+          maxRequests,
+          requestCount: 0,
         })
       }
       dialogOpen.value = false
@@ -189,7 +211,8 @@ async function saveOffer() {
       uploadedPath = await uploadKanbanImage(imageFile.value)
     }
 
-    const selectColumns = 'id,commission_type,title,description,price_usd,price_idr,image_path,is_open,sort_order'
+    const selectColumns =
+      'id,commission_type,title,description,price_usd,price_idr,image_path,is_open,sort_order,max_requests,request_count'
     if (editing) {
       const oldImagePath = editing.imagePath
       const nextImagePath = uploadedPath ?? (removeExistingImage.value ? null : oldImagePath)
@@ -204,6 +227,7 @@ async function saveOffer() {
           description,
           image_path: nextImagePath,
           is_open: openInput.value,
+          max_requests: maxRequests,
         })
         .eq('id', editing.id)
         .select(selectColumns)
@@ -228,6 +252,7 @@ async function saveOffer() {
           image_path: uploadedPath,
           is_open: openInput.value,
           sort_order: nextSort,
+          max_requests: maxRequests,
         })
         .select(selectColumns)
         .single()
@@ -261,6 +286,26 @@ async function toggleOpen(offer: CommissionOffer) {
     loadError.value = text.value.setting.offers.saveError
   } finally {
     togglingId.value = ''
+  }
+}
+
+async function resetRequestCount(offer: CommissionOffer) {
+  if (resettingId.value || offer.requestCount === 0) return
+  resettingId.value = offer.id
+  loadError.value = ''
+  try {
+    if (supabase) {
+      const { error } = await supabase
+        .from('commission_offers')
+        .update({ request_count: 0 })
+        .eq('id', offer.id)
+      if (error) throw error
+    }
+    offer.requestCount = 0
+  } catch {
+    loadError.value = text.value.setting.offers.saveError
+  } finally {
+    resettingId.value = ''
   }
 }
 
@@ -334,6 +379,27 @@ async function deleteOffer(offer: CommissionOffer) {
               <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                 {{ text.home.commissionTypes[offer.commissionType] }}
               </span>
+              <span
+                v-if="offer.maxRequests !== null"
+                :class="[
+                  'rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums',
+                  isOfferLimitReached(offer)
+                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-200'
+                    : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+                ]"
+              >
+                {{ offer.requestCount }}/{{ offer.maxRequests }}
+              </span>
+              <button
+                v-if="offer.requestCount > 0"
+                type="button"
+                :disabled="resettingId === offer.id"
+                :aria-label="`${text.setting.offers.resetRequestsLabel}: ${offer.title}`"
+                class="rounded-full border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                @click="resetRequestCount(offer)"
+              >
+                {{ text.setting.offers.resetRequests }}
+              </button>
             </div>
             <p class="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">{{ offer.description }}</p>
           </div>
@@ -467,6 +533,22 @@ async function deleteOffer(offer: CommissionOffer) {
                     class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label for="offer-max-requests" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
+                  {{ text.setting.offers.maxRequestsLabel }}
+                </label>
+                <input
+                  id="offer-max-requests"
+                  v-model="maxRequestsInput"
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputmode="numeric"
+                  :placeholder="text.setting.offers.maxRequestsPlaceholder"
+                  class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
+                />
               </div>
 
               <div>
