@@ -17,7 +17,7 @@ import {
   type CommissionOfferRow,
   DEFAULT_COMMISSION_OFFERS,
   fetchCommissionOffers,
-  formatOfferPrice,
+  formatOfferPrices,
   toCommissionOffer,
 } from '../../lib/commissionOffers'
 import { COMMISSION_TYPES, type CommissionType } from '../../lib/commissionStatus'
@@ -39,7 +39,8 @@ const dialogOpen = ref(false)
 const editingOffer = ref<CommissionOffer | null>(null)
 const typeInput = ref<CommissionType>('Illustration')
 const titleInput = ref('')
-const priceInput = ref('')
+const priceUsdInput = ref<number | string>('')
+const priceIdrInput = ref<number | string>('')
 const descriptionInput = ref('')
 const openInput = ref(true)
 const imageFile = ref<File | null>(null)
@@ -82,7 +83,8 @@ function openCreate() {
   editingOffer.value = null
   typeInput.value = 'Illustration'
   titleInput.value = ''
-  priceInput.value = ''
+  priceUsdInput.value = ''
+  priceIdrInput.value = ''
   descriptionInput.value = ''
   openInput.value = true
   resetImageState()
@@ -94,7 +96,8 @@ function openEdit(offer: CommissionOffer) {
   editingOffer.value = offer
   typeInput.value = offer.commissionType
   titleInput.value = offer.title
-  priceInput.value = offer.price.replace(/[^0-9.]/g, '')
+  priceUsdInput.value = offer.priceUsd
+  priceIdrInput.value = offer.priceIdr
   descriptionInput.value = offer.description
   openInput.value = offer.isOpen
   resetImageState()
@@ -108,21 +111,31 @@ function onOpenChange(nextOpen: boolean) {
   if (!nextOpen) resetImageState()
 }
 
+function parseNonNegativePrice(rawInput: number | string): number | null {
+  const raw = String(rawInput ?? '').trim()
+  if (!/^\d+(\.\d+)?$/.test(raw)) return null
+  const value = Number(raw)
+  return Number.isFinite(value) && value >= 0 ? value : null
+}
+
 async function saveOffer() {
   if (saving.value || imageError.value) return
   const title = titleInput.value.trim()
-  const rawPrice = String(priceInput.value ?? '').trim()
+  const rawUsd = String(priceUsdInput.value ?? '').trim()
+  const rawIdr = String(priceIdrInput.value ?? '').trim()
   const description = descriptionInput.value.trim()
-  if (!title || !rawPrice || !description) {
+  if (!title || !rawUsd || !rawIdr || !description) {
     formError.value = text.value.setting.offers.requiredFields
     return
   }
-  const numericPrice = Number(rawPrice)
-  if (!/^\d+(\.\d+)?$/.test(rawPrice) || !Number.isFinite(numericPrice) || numericPrice < 0) {
+
+  const priceUsd = parseNonNegativePrice(rawUsd)
+  const priceIdr = parseNonNegativePrice(rawIdr)
+  if (priceUsd === null || priceIdr === null) {
     formError.value = text.value.setting.offers.invalidPrice
     return
   }
-  const price = String(numericPrice)
+  const roundedIdr = Math.round(priceIdr)
 
   saving.value = true
   formError.value = ''
@@ -144,7 +157,8 @@ async function saveOffer() {
                 ...item,
                 commissionType: typeInput.value,
                 title,
-                price,
+                priceUsd,
+                priceIdr: roundedIdr,
                 description,
                 imageUrl: nextUrl,
                 isOpen: openInput.value,
@@ -156,7 +170,8 @@ async function saveOffer() {
           id: crypto.randomUUID(),
           commissionType: typeInput.value,
           title,
-          price,
+          priceUsd,
+          priceIdr: roundedIdr,
           description,
           imagePath: null,
           imageUrl: imageFile.value ? URL.createObjectURL(imageFile.value) : undefined,
@@ -174,7 +189,7 @@ async function saveOffer() {
       uploadedPath = await uploadKanbanImage(imageFile.value)
     }
 
-    const selectColumns = 'id,commission_type,title,description,price,image_path,is_open,sort_order'
+    const selectColumns = 'id,commission_type,title,description,price_usd,price_idr,image_path,is_open,sort_order'
     if (editing) {
       const oldImagePath = editing.imagePath
       const nextImagePath = uploadedPath ?? (removeExistingImage.value ? null : oldImagePath)
@@ -183,7 +198,9 @@ async function saveOffer() {
         .update({
           commission_type: typeInput.value,
           title,
-          price,
+          price: String(priceUsd),
+          price_usd: priceUsd,
+          price_idr: roundedIdr,
           description,
           image_path: nextImagePath,
           is_open: openInput.value,
@@ -204,7 +221,9 @@ async function saveOffer() {
         .insert({
           commission_type: typeInput.value,
           title,
-          price,
+          price: String(priceUsd),
+          price_usd: priceUsd,
+          price_idr: roundedIdr,
           description,
           image_path: uploadedPath,
           is_open: openInput.value,
@@ -310,7 +329,7 @@ async function deleteOffer(offer: CommissionOffer) {
             <div class="flex flex-wrap items-center gap-2">
               <span class="text-sm font-medium text-zinc-950 dark:text-zinc-50">{{ offer.title }}</span>
               <span class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-950/60 dark:text-orange-200">
-                {{ formatOfferPrice(offer.price, language) }}
+                {{ formatOfferPrices(offer, language) }}
               </span>
               <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                 {{ text.home.commissionTypes[offer.commissionType] }}
@@ -404,30 +423,47 @@ async function deleteOffer(offer: CommissionOffer) {
             </div>
 
             <form class="mt-5 space-y-4" @submit.prevent="saveOffer">
+              <div>
+                <label for="offer-type" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
+                  {{ text.home.commissionTypeLabel }}
+                </label>
+                <SelectField
+                  id="offer-type"
+                  v-model="typeInput"
+                  :options="commissionTypeOptions"
+                />
+              </div>
+
               <div class="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label for="offer-type" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
-                    {{ text.home.commissionTypeLabel }}
-                  </label>
-                  <SelectField
-                    id="offer-type"
-                    v-model="typeInput"
-                    :options="commissionTypeOptions"
-                  />
-                </div>
-                <div>
-                  <label for="offer-price" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
-                    {{ text.setting.offers.priceLabel }}
+                  <label for="offer-price-usd" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
+                    {{ text.setting.offers.priceUsdLabel }}
                   </label>
                   <input
-                    id="offer-price"
-                    v-model="priceInput"
+                    id="offer-price-usd"
+                    v-model="priceUsdInput"
                     type="number"
                     min="0"
                     step="any"
                     inputmode="decimal"
                     required
-                    :placeholder="text.setting.offers.pricePlaceholder"
+                    :placeholder="text.setting.offers.priceUsdPlaceholder"
+                    class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
+                  />
+                </div>
+                <div>
+                  <label for="offer-price-idr" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
+                    {{ text.setting.offers.priceIdrLabel }}
+                  </label>
+                  <input
+                    id="offer-price-idr"
+                    v-model="priceIdrInput"
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputmode="numeric"
+                    required
+                    :placeholder="text.setting.offers.priceIdrPlaceholder"
                     class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
                   />
                 </div>

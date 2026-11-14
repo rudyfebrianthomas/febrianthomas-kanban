@@ -10,7 +10,7 @@ import {
   type CommissionOffer,
   DEFAULT_COMMISSION_OFFERS,
   fetchCommissionOffers,
-  formatOfferPrice,
+  formatOfferPrices,
 } from '../lib/commissionOffers'
 import { type CommissionStatus, fetchCommissionStatus } from '../lib/commissionStatus'
 import { uploadKanbanImage } from '../lib/kanbanImage'
@@ -33,6 +33,7 @@ const commissionStatus = ref<CommissionStatus | null>(
 const offers = ref<CommissionOffer[]>(supabase ? [] : DEFAULT_COMMISSION_OFFERS)
 const selectedOffer = ref<CommissionOffer | null>(null)
 
+const description = ref('')
 const contactChannel = ref<ContactChannel>('discord')
 const contactValue = ref('')
 const imageFile = ref<File | null>(null)
@@ -103,6 +104,7 @@ function changeOffer() {
 
 function resetFlow() {
   selectedOffer.value = null
+  description.value = ''
   contactChannel.value = 'discord'
   contactValue.value = ''
   imageFile.value = null
@@ -116,8 +118,9 @@ async function submitRequest() {
   if (submitting.value || !canAccess.value || !selectedOffer.value || imageError.value) return
   formError.value = ''
 
+  const trimmedDescription = description.value.trim()
   const trimmedContact = contactValue.value.trim()
-  if (!trimmedContact) {
+  if (!trimmedDescription || !trimmedContact) {
     formError.value = text.value.request.requiredFields
     return
   }
@@ -138,6 +141,7 @@ async function submitRequest() {
       const uploadedPath = imageFile.value ? await uploadKanbanImage(imageFile.value) : null
       const { error } = await supabase.rpc('submit_commission_request', {
         p_offer_id: selectedOffer.value.id,
+        p_description: trimmedDescription,
         p_contact_channel: contactChannel.value,
         p_contact_value: trimmedContact,
         p_image_path: uploadedPath,
@@ -310,7 +314,7 @@ async function submitRequest() {
                   </span>
                 </div>
                 <span class="shrink-0 rounded-full bg-orange-100 px-3 py-1 text-sm font-bold text-orange-800 dark:bg-orange-950/60 dark:text-orange-200">
-                  {{ formatOfferPrice(offer.price, language) }}
+                  {{ formatOfferPrices(offer, language) }}
                 </span>
               </div>
               <h3 class="mt-4 text-xl font-bold text-zinc-950 dark:text-zinc-50">
@@ -352,7 +356,7 @@ async function submitRequest() {
                     {{ text.home.commissionTypes[selectedOffer.commissionType] }}
                   </span>
                   <span class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-800 dark:bg-orange-950/60 dark:text-orange-200">
-                    {{ formatOfferPrice(selectedOffer.price, language) }}
+                    {{ formatOfferPrices(selectedOffer, language) }}
                   </span>
                 </div>
                 <p class="mt-1.5 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
@@ -367,6 +371,26 @@ async function submitRequest() {
             >
               {{ text.request.changeOffer }}
             </button>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between gap-2">
+              <label for="request-description" class="block text-sm text-zinc-800 dark:text-zinc-200">
+                {{ text.request.descriptionLabel }}
+              </label>
+              <span class="text-xs text-zinc-500 dark:text-zinc-400">
+                {{ description.length }}/240
+              </span>
+            </div>
+            <textarea
+              id="request-description"
+              v-model="description"
+              rows="4"
+              maxlength="240"
+              required
+              :placeholder="text.request.descriptionPlaceholder"
+              :class="fieldClass"
+            />
           </div>
 
           <div class="grid gap-4 sm:grid-cols-[12rem_1fr]">
