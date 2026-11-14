@@ -9,6 +9,7 @@
     "commission": "Commission",
     "about": "About",
     "setting": "Manage",
+    "commissionSettings": "Offers",
     "signIn": "Sign in",
     "signOut": "Sign out",
     "signingOut": "Signing out…",
@@ -145,6 +146,11 @@
         "imagePosition": "right"
       }
     ]
+  },
+  "commissionSettings": {
+    "eyebrow": "COMMISSION SETTINGS",
+    "title": "Offers.",
+    "description": "Set commission availability, slot counts, and the open commission list shown on /request."
   },
   "setting": {
     "eyebrow": "BOARD MANAGEMENT",

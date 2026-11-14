@@ -9,6 +9,7 @@
     "commission": "Komisi",
     "about": "Tentang",
     "setting": "Kelola",
+    "commissionSettings": "Atur Komisi",
     "signIn": "Masuk",
     "signOut": "Keluar",
     "signingOut": "Sedang keluar…",
@@ -145,6 +146,11 @@
         "imagePosition": "right"
       }
     ]
+  },
+  "commissionSettings": {
+    "eyebrow": "PENGATURAN KOMISI",
+    "title": "Komisi.",
+    "description": "Atur status komisi, jumlah slot, dan daftar komisi terbuka yang tampil di /request."
   },
   "setting": {
     "eyebrow": "MANAJEMEN PAPAN",

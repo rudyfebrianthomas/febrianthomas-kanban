@@ -19,14 +19,7 @@ import {
   DialogRoot,
   DialogTitle,
 } from 'reka-ui'
-import {
-  COMMISSION_STATUSES,
-  COMMISSION_STATUS_STYLES,
-  type CommissionStatusValue,
-  fetchCommissionStatus,
-} from '../lib/commissionStatus'
 import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
-import CommissionOffersManager from '../components/commission/CommissionOffersManager.vue'
 import KanbanCardFormDialog from '../components/commission/KanbanCardFormDialog.vue'
 import SelectField from '../components/ui/SelectField.vue'
 import { useLanguage } from '../composables/useLanguage'
@@ -99,14 +92,6 @@ const selectedCardIds = ref<string[]>([])
 const draggingCardIds = ref<string[]>([])
 const dragOverBoardId = ref('')
 
-const commissionStatusValue = ref<CommissionStatusValue>('open')
-const slotsOpenInput = ref(3)
-const slotsTotalInput = ref(5)
-const statusSaving = ref(false)
-const statusSaved = ref(false)
-const statusError = ref('')
-let statusSavedTimer: ReturnType<typeof setTimeout> | null = null
-
 function isBoardCompleted(board: KanbanBoard): boolean {
   if (board.is_backlog) return false
   const boardCards = cardsForBoard(board.id)
@@ -134,13 +119,6 @@ const filteredBoards = computed(() => {
   })
 })
 
-const commissionStatusOptions = computed(() =>
-  COMMISSION_STATUSES.map((option) => ({
-    value: option,
-    label: text.value.home.commissionStatuses[option],
-    dotClass: COMMISSION_STATUS_STYLES[option].dot,
-  })),
-)
 const boardFilterOptions = computed<{ value: BoardFilter; label: string }[]>(() => [
   { value: 'all', label: text.value.setting.filterAll },
   { value: 'active', label: text.value.setting.filterActive },
@@ -220,45 +198,10 @@ onMounted(() => {
 
 onUnmounted(() => {
   subscription?.data.subscription.unsubscribe()
-  if (statusSavedTimer) clearTimeout(statusSavedTimer)
   for (const card of cards.value) {
     if (card.imageUrl?.startsWith('blob:')) URL.revokeObjectURL(card.imageUrl)
   }
 })
-
-async function saveCommissionStatus() {
-  if (statusSaving.value) return
-  statusSaving.value = true
-  statusSaved.value = false
-  statusError.value = ''
-  const slotsOpen = Math.max(0, Math.min(99, Math.trunc(Number(slotsOpenInput.value) || 0)))
-  const slotsTotal = Math.max(0, Math.min(99, Math.trunc(Number(slotsTotalInput.value) || 0)))
-  slotsOpenInput.value = slotsOpen
-  slotsTotalInput.value = slotsTotal
-
-  try {
-    if (supabase) {
-      const { error } = await supabase
-        .from('commission_status')
-        .update({
-          status: commissionStatusValue.value,
-          slots_open: slotsOpen,
-          slots_total: slotsTotal,
-        })
-        .eq('id', 'default')
-      if (error) throw error
-    }
-    statusSaved.value = true
-    if (statusSavedTimer) clearTimeout(statusSavedTimer)
-    statusSavedTimer = setTimeout(() => {
-      statusSaved.value = false
-    }, 2000)
-  } catch {
-    statusError.value = text.value.setting.saveStatusError
-  } finally {
-    statusSaving.value = false
-  }
-}
 
 async function loadBoardsAndCards() {
   loading.value = true
@@ -269,7 +212,7 @@ async function loadBoardsAndCards() {
     return
   }
 
-  const [boardsResult, cardsResult, statusResult] = await Promise.all([
+  const [boardsResult, cardsResult] = await Promise.all([
     supabase
       .from('kanban_boards')
       .select('id,title,description,is_active,is_backlog,created_at')
@@ -279,14 +222,7 @@ async function loadBoardsAndCards() {
       .from('kanban_cards')
       .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path,created_at,updated_at')
       .order('created_at', { ascending: true }),
-    fetchCommissionStatus(),
   ])
-
-  if (statusResult) {
-    commissionStatusValue.value = statusResult.status
-    slotsOpenInput.value = statusResult.slotsOpen
-    slotsTotalInput.value = statusResult.slotsTotal
-  }
 
   if (boardsResult.error) {
     loadError.value = boardsResult.error.message
@@ -870,69 +806,7 @@ async function onBoardDrop(targetBoard: KanbanBoard, event: DragEvent) {
         </AlertDialogPortal>
       </AlertDialogRoot>
 
-      <form
-        class="surface-shadow mt-8 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900"
-        @submit.prevent="saveCommissionStatus"
-      >
-        <div class="flex flex-wrap items-end gap-4">
-          <div class="min-w-44 flex-1">
-            <label for="commission-status-select" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
-              {{ text.setting.commissionStatusTitle }}
-            </label>
-            <SelectField
-              id="commission-status-select"
-              v-model="commissionStatusValue"
-              :options="commissionStatusOptions"
-            />
-          </div>
-          <div class="w-28">
-            <label for="slots-open" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
-              {{ text.setting.slotsOpenLabel }}
-            </label>
-            <input
-              id="slots-open"
-              v-model.number="slotsOpenInput"
-              type="number"
-              min="0"
-              max="99"
-              class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
-            />
-          </div>
-          <div class="w-28">
-            <label for="slots-total" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
-              {{ text.setting.slotsTotalLabel }}
-            </label>
-            <input
-              id="slots-total"
-              v-model.number="slotsTotalInput"
-              type="number"
-              min="0"
-              max="99"
-              class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
-            />
-          </div>
-          <button
-            type="submit"
-            :disabled="statusSaving"
-            class="inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-          >
-            {{
-              statusSaving
-                ? text.setting.savingStatus
-                : statusSaved
-                  ? text.setting.savedStatus
-                  : text.setting.saveStatus
-            }}
-          </button>
-        </div>
-        <p v-if="statusError" role="alert" class="mt-3 text-sm text-red-700 dark:text-red-400">
-          {{ statusError }}
-        </p>
-      </form>
-
-      <CommissionOffersManager />
-
-      <form class="mt-6 flex flex-wrap gap-3" role="search" @submit.prevent>
+      <form class="mt-8 flex flex-wrap gap-3" role="search" @submit.prevent>
         <label for="board-search" class="sr-only">{{ text.setting.searchBoards }}</label>
         <div class="relative min-w-48 flex-1">
           <Search
