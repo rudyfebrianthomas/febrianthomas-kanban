@@ -5,7 +5,7 @@ Commission queue tracker, commission request portal, and admin workspace for **f
 ## Features
 
 - **Public commission queue (`/queue`)**: Displays active and completed kanban boards across workflow stages, with search, commission-type filters (`Emote`, `GIF`, `Animation`, `Illustration`, `Transition`), shareable card detail modals, and owner drag-and-drop or stage navigation.
-- **Commission requests (`/commissions`)**: Shows live open and waitlist slot boards with USD/IDR pricing, slot limits, optional reference image uploads (with automatic static-image WebP optimization), and a Terms of Service acceptance dialog. New submissions enter the backlog board automatically.
+- **Commission requests (`/commissions`)**: Shows live open and waitlist slot boards with USD/IDR pricing, slot limits, optional reference image uploads (with automatic static-image WebP and animated GIF compression), and a Terms of Service acceptance dialog. New submissions enter the backlog board automatically.
 - **Board & card management (`/boards`)**: Authenticated workspace for creating, copying, activating, and deleting boards, managing the backlog, multi-selecting cards, and dragging or bulk-moving cards between boards.
 - **Slot management (`/slots`)**: Authenticated workspace for organizing commission offer boards (`active`, `waitlist`, `inactive` status limits enforced both in UI and database), toggling offer availability, resetting request counts, and moving offers across boards.
 - **About & Terms (`/about`, `/terms`)**: Bilingual creator profile, toolset showcase, configurable support links, and commission Terms of Service.

@@ -36,8 +36,20 @@ async function mayBeAnimated(file: File): Promise<boolean> {
   return true
 }
 
+async function optimizeGif(file: File): Promise<File> {
+  const { default: gifsicle } = await import('gifsicle-wasm-browser')
+  const outputs = await gifsicle.run({
+    input: [{ file, name: 'input.gif' }],
+    command: ['-O2 --lossy=60 --resize-fit 1600x1600 input.gif -o /out/output.gif'],
+  })
+  const out = outputs?.[0]
+  if (!out || out.type !== 'image/gif' || out.size === 0 || out.size >= file.size) return file
+  return new File([out], 'kanban-image.gif', { type: out.type, lastModified: file.lastModified })
+}
+
 async function optimizeKanbanImage(file: File): Promise<File> {
   try {
+    if (file.type === 'image/gif') return await optimizeGif(file)
     if (await mayBeAnimated(file)) return file
     const url = URL.createObjectURL(file)
     try {
