@@ -2,6 +2,7 @@
 import Lenis from 'lenis'
 import { motion, useReducedMotion } from 'motion-v'
 import { onMounted, onUnmounted } from 'vue'
+import AudioPlayerButton from './components/ui/AudioPlayerButton.vue'
 import FloatingShapes from './components/ui/FloatingShapes.vue'
 import SiteFooter from './components/layout/SiteFooter.vue'
 import SiteHeader from './components/layout/SiteHeader.vue'
@@ -38,4 +39,5 @@ onUnmounted(() => {
     </motion.div>
   </RouterView>
   <SiteFooter />
+  <AudioPlayerButton />
 </template>

@@ -2,7 +2,9 @@
   "site": {
     "brand": "febrianthomas · Kanban",
     "copyright": "© febrianthomas - 2026",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "playMusic": "Play background music",
+    "pauseMusic": "Pause background music"
   },
   "navigation": {
     "label": "Main navigation",

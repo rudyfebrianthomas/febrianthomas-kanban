@@ -2,7 +2,9 @@
   "site": {
     "brand": "febrianthomas · Kanban",
     "copyright": "© febrianthomas - 2026",
-    "loading": "Memuat..."
+    "loading": "Memuat...",
+    "playMusic": "Putar musik latar",
+    "pauseMusic": "Jeda musik latar"
   },
   "navigation": {
     "label": "Navigasi utama",
