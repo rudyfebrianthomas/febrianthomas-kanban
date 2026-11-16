@@ -16,13 +16,45 @@ Commission queue tracker, commission request portal, and owner admin workspace f
 
 | Category | Technology | Role |
 | --- | --- | --- |
-| Framework | Vue 3 (`^3.5.42`) & Vue Router (`^4.6.4`) | Reactive UI components, client-side routing, and route auth guards |
-| Language | TypeScript (`~6.0.0`) & `vue-tsc` (`^3.3.11`) | Strict static typing across `.ts` and `.vue` modules |
-| Styling | Tailwind CSS v4 (`^4.3.5`) & `@tailwindcss/vite` | Utility-first styling, dark mode variant, and custom font theme tokens |
+| Framework | Vue 3 (`^3.5.42`), Vue Router (`^4.6.4`) | Reactive UI components, client-side routing, and route auth guards |
+| Language | TypeScript (`~6.0.0`), `vue-tsc` (`^3.3.11`) | Strict static typing across `.ts` and `.vue` modules |
+| Styling | Tailwind CSS v4 (`^4.3.5`), `@tailwindcss/vite` | Utility-first styling, dark mode variant, and custom font theme tokens |
 | UI & Motion | Reka UI (`^2.11.0`), `motion-v` (`^2.12.0`), `@lucide/vue`, `simple-icons` | Accessible dialogs/selects, spring/reduced-motion animations, and icons |
 | Backend | `@supabase/supabase-js` (`2.119.0`) | PostgreSQL queries, auth sessions, RPC submissions, and image storage |
 | Media & UX | `gifsicle-wasm-browser`, `@vueuse/sound`, `lenis`, Fontsource | Client-side GIF optimization, audio playback, smooth scroll, and bundled fonts |
 | Build Tooling | Vite (`^8.2.2`), `@vitejs/plugin-vue`, `npm-run-all2` | Dev server, production bundling, and parallel build/typecheck scripts |
+
+## Getting Started
+
+Requires **Node.js `^22.18.0` or `>=24.12.0`**.
+
+```bash
+# Install dependencies
+npm install
+
+# Optional: configure Supabase environment variables
+cp .env.example .env.local
+
+# Start the development server
+npm run dev
+```
+
+`.env.example` keys:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+
+Omitting these variables locally falls back to built-in demo defaults. Restart the dev server after updating `.env.local`.
+
+## Scripts
+
+```bash
+npm run dev         # Start the Vite development server
+npm run build       # Run type-check and build-only in parallel
+npm run preview     # Preview the production build locally
+npm run build-only  # Run Vite production build into dist/
+npm run type-check  # Run vue-tsc --build
+```
 
 ## Routes
 
@@ -37,48 +69,48 @@ Commission queue tracker, commission request portal, and owner admin workspace f
 | `/slots` | `SlotsView.vue` | Authenticated | Offer board & slot manager (`/offers`, `/commission-settings` redirect here) |
 | `/login` | `LoginView.vue` | Public (guests) | Owner sign-in via Supabase Auth |
 
+## Supabase & Deployment
+
+1. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env.local` using your Supabase publishable key only (never expose a secret or service role key in the browser).
+2. Apply the SQL migrations in `supabase/migrations/` to provision tables (`kanban_boards`, `kanban_cards`, `commission_offer_boards`, `commission_offers`, `commission_status`, `commission_requests`, `support_buttons`), storage (`kanban-images`), RLS policies, and RPCs (`submit_commission_request`).
+3. Create your owner account in Supabase Auth and sign in at `/login`.
+4. Production hosting rewrites all routes to `index.html` for SPA routing via `vercel.json`.
+
 ## Project Structure
 
 ```text
-src/
-├── assets/          # Global Tailwind CSS v4 setup and shared utility styles
-├── components/
-│   ├── commission/  # Kanban cards, card/board/offer dialogs, progress bar, SlotsManager
-│   ├── layout/      # SiteHeader, SiteFooter
-│   ├── terms/       # TermsDialog, TermsSections
-│   └── ui/          # BaseDialog, ConfirmDialog, BoardFilterBar, BulkSelectionBar, SelectField, etc.
-├── composables/     # useAuth, useBoardDragSelect, useLanguage
-├── constants/       # Static commission, contact-channel, board ID, and site UI constants
-├── content/         # en.json and id.json localization strings
-├── data/            # Static social links catalog
-├── lib/             # Supabase client, image upload/optimization, card/board/offer/status/stage helpers
-├── router/          # Vue Router configuration, auth guards, and page titles
-└── views/           # Route-level pages matching each path
-supabase/migrations/ # PostgreSQL schema, RLS policies, RPCs, and constraints
+├── LICENSE
+├── index.html
+├── package.json
+├── tsconfig.json
+├── tsconfig.app.json
+├── tsconfig.node.json
+├── vercel.json
+├── vite.config.ts
+├── public/
+│   ├── favicon.ico
+│   ├── images/              # UI graphics, GIFs, and WebP tool/software icons
+│   └── mp3/                 # Background music and click audio assets
+├── src/
+│   ├── App.vue
+│   ├── main.ts
+│   ├── assets/              # Global Tailwind CSS v4 setup and shared utility styles
+│   ├── components/
+│   │   ├── commission/      # Kanban cards, card/board/offer dialogs, progress bar, SlotsManager
+│   │   ├── layout/          # SiteHeader, SiteFooter
+│   │   ├── terms/           # TermsDialog, TermsSections
+│   │   └── ui/              # BaseDialog, ConfirmDialog, BoardFilterBar, BulkSelectionBar, etc.
+│   ├── composables/         # useAuth, useBoardDragSelect, useLanguage
+│   ├── constants/           # Static commission, contact-channel, board ID, and site UI constants
+│   ├── content/             # en.json and id.json localization strings
+│   ├── data/                # Static social links catalog
+│   ├── lib/                 # Supabase client, image optimization/upload, board/card/offer helpers
+│   ├── router/              # Vue Router configuration, auth guards, and page titles
+│   └── views/               # Route-level pages matching each path
+└── supabase/
+    └── migrations/          # PostgreSQL schema, RLS policies, RPCs, and constraints
 ```
 
-## Getting Started & Scripts
+## License
 
-Requires **Node.js `^22.18.0` or `>=24.12.0`**.
-
-```bash
-npm install
-npm run dev
-```
-
-### Scripts
-
-```bash
-npm run dev         # Start the Vite development server
-npm run type-check  # Run vue-tsc --build
-npm run build-only  # Run Vite production build
-npm run build       # Run type-check and build-only in parallel
-npm run preview     # Preview the production build locally
-```
-
-## Supabase Setup & Deployment
-
-1. Copy `.env.example` to `.env.local` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` from your Supabase project settings (publishable key only; never expose a secret or service role key in the browser).
-2. Apply the SQL migrations in `supabase/migrations/` to provision tables (`kanban_boards`, `kanban_cards`, `commission_offer_boards`, `commission_offers`, `commission_status`, `commission_requests`, `support_buttons`), storage (`kanban-images`), RLS policies, and RPCs (`submit_commission_request`).
-3. Create your owner account in Supabase Auth and sign in at `/login`. Omitting Supabase environment variables locally falls back to built-in demo defaults.
-4. Restart the dev server after updating `.env.local`. Production hosting rewrites all routes to `index.html` for SPA routing via `vercel.json`.
+This project is licensed under the [MIT License](LICENSE).
