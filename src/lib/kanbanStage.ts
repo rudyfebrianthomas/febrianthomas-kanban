@@ -1,4 +1,4 @@
-export interface StageStyle {
+interface StageStyle {
   cardBorder: string
   progressBar: string
   dot: string

@@ -67,12 +67,12 @@ async function signIn() {
           <form class="mt-7 space-y-4" @submit.prevent="signIn">
             <div>
               <label for="email" class="mb-1.5 block text-sm text-zinc-900 dark:text-zinc-100">{{ text.login.email }}</label>
-              <input id="email" v-model="email" type="email" autocomplete="email" :placeholder="text.login.emailPlaceholder" required class="h-11 w-full rounded-xl border border-zinc-300 bg-white px-3.5 text-sm outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300" />
+              <input id="email" v-model="email" type="email" autocomplete="email" :placeholder="text.login.emailPlaceholder" required class="h-11 w-full rounded-xl border border-zinc-300 bg-white px-3.5 text-sm outline-hidden focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300" />
             </div>
             <div>
               <label for="password" class="mb-1.5 block text-sm text-zinc-900 dark:text-zinc-100">{{ text.login.password }}</label>
               <div class="relative">
-                <input id="password" v-model="password" :type="showPassword ? 'text' : 'password'" autocomplete="current-password" :placeholder="text.login.passwordPlaceholder" required class="h-11 w-full rounded-xl border border-zinc-300 bg-white px-3.5 pr-12 text-sm outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300" />
+                <input id="password" v-model="password" :type="showPassword ? 'text' : 'password'" autocomplete="current-password" :placeholder="text.login.passwordPlaceholder" required class="h-11 w-full rounded-xl border border-zinc-300 bg-white px-3.5 pr-12 text-sm outline-hidden focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300" />
                 <button type="button" class="absolute right-0 top-0 flex size-11 items-center justify-center rounded-xl text-zinc-500 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-zinc-400 dark:hover:text-zinc-100" :aria-label="showPassword ? text.login.hidePassword : text.login.showPassword" :aria-pressed="showPassword" aria-controls="password" @click="showPassword = !showPassword">
                   <EyeOff v-if="showPassword" :size="18" aria-hidden="true" />
                   <Eye v-else :size="18" aria-hidden="true" />

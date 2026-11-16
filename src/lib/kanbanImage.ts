@@ -102,3 +102,16 @@ export function revokeBlobUrls(urls: Array<string | undefined>): void {
     if (url?.startsWith('blob:')) URL.revokeObjectURL(url)
   }
 }
+
+export function resolveOfflineImageUrl(
+  existingUrl: string | undefined,
+  nextFile: File | null,
+  removeExisting: boolean,
+  revokeCurrent = false,
+): string | undefined {
+  if (revokeCurrent && (nextFile || removeExisting)) {
+    revokeBlobUrls([existingUrl])
+  }
+  if (nextFile) return URL.createObjectURL(nextFile)
+  return removeExisting ? undefined : existingUrl
+}

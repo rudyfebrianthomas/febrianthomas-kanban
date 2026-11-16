@@ -8,6 +8,7 @@ import LoadingIndicator from '../components/ui/LoadingIndicator.vue'
 import ThumbnailBox from '../components/ui/ThumbnailBox.vue'
 import { useAuth } from '../composables/useAuth'
 import { useLanguage } from '../composables/useLanguage'
+import { OFFER_BOARD_ORDER } from '../constants/commission'
 import {
   type CommissionOffer,
   type CommissionOfferBoard,
@@ -32,12 +33,6 @@ import {
 } from '../lib/commissionStatus'
 import { supabase } from '../lib/supabase'
 
-const BOARD_ORDER: Record<OfferBoardStatus, number> = {
-  active: 0,
-  waitlist: 1,
-  inactive: 2,
-}
-
 const { language, text } = useLanguage()
 const { signedIn } = useAuth()
 
@@ -60,7 +55,7 @@ const canAccess = computed(() =>
 const visibleBoardsWithOffers = computed(() => {
   return [...boards.value]
     .filter((board) => signedIn.value || isOfferBoardVisible(board.status))
-    .sort((a, b) => BOARD_ORDER[a.status] - BOARD_ORDER[b.status] || a.sortOrder - b.sortOrder)
+    .sort((a, b) => OFFER_BOARD_ORDER[a.status] - OFFER_BOARD_ORDER[b.status] || a.sortOrder - b.sortOrder)
     .map((board) => ({
       board,
       offers: offers.value.filter(

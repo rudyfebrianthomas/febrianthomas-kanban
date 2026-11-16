@@ -4,13 +4,29 @@ import { DialogClose } from 'reka-ui'
 import { computed, ref, watch } from 'vue'
 import { useLanguage } from '../../composables/useLanguage'
 import {
+  CARD_SELECT_COLUMNS,
+  CONTACT_CHANNEL_LABELS,
+  CONTACT_CHANNELS,
+  type ContactChannel,
+} from '../../constants/commission'
+import {
   type CommissionOffer,
   formatOfferPrices,
   isOfferLimitReached,
 } from '../../lib/commissionOffers'
 import { COMMISSION_TYPES, type CommissionType } from '../../lib/commissionStatus'
-import { type KanbanCard, type KanbanCardRow, toKanbanCard } from '../../lib/kanbanCard'
-import { removeKanbanImages, revokeBlobUrls, uploadKanbanImage } from '../../lib/kanbanImage'
+import {
+  formatCopyTitle,
+  isValidEmail,
+  type KanbanCard,
+  type KanbanCardRow,
+  toKanbanCard,
+} from '../../lib/kanbanCard'
+import {
+  removeKanbanImages,
+  resolveOfflineImageUrl,
+  uploadKanbanImage,
+} from '../../lib/kanbanImage'
 import { stageStyle } from '../../lib/kanbanStage'
 import { supabase } from '../../lib/supabase'
 import TermsDialog from '../terms/TermsDialog.vue'
@@ -18,16 +34,6 @@ import BaseDialog from '../ui/BaseDialog.vue'
 import ImageUploadField from '../ui/ImageUploadField.vue'
 import LoadingIndicator from '../ui/LoadingIndicator.vue'
 import SelectField from '../ui/SelectField.vue'
-
-const CONTACT_CHANNELS = ['email', 'discord', 'twitter', 'instagram'] as const
-type ContactChannel = (typeof CONTACT_CHANNELS)[number]
-
-const CHANNEL_LABELS: Record<ContactChannel, string> = {
-  email: 'Email',
-  discord: 'Discord',
-  twitter: 'Twitter',
-  instagram: 'Instagram',
-}
 
 const props = withDefaults(
   defineProps<{
@@ -58,7 +64,7 @@ const emit = defineEmits<{
 }>()
 
 const fieldClass =
-  'mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-base text-zinc-950 outline-none placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:border-zinc-300 dark:focus:ring-zinc-300'
+  'mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-base text-zinc-950 outline-hidden placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:border-zinc-300 dark:focus:ring-zinc-300'
 
 const { language, text } = useLanguage()
 const reducedMotion = useReducedMotion()
@@ -122,7 +128,7 @@ function resetForm(editing?: KanbanCard | null, template?: KanbanCard | null) {
   title.value = editing
     ? editing.title
     : template
-      ? `${template.title} (${text.value.setting.offers.copySuffix})`.slice(0, 120)
+      ? formatCopyTitle(template.title, text.value.setting.offers.copySuffix)
       : props.offer?.title ?? ''
   description.value = source?.description ?? ''
   contactChannel.value = 'discord'
@@ -136,7 +142,7 @@ function resetForm(editing?: KanbanCard | null, template?: KanbanCard | null) {
       contactValue.value = match[2].trim()
     } else if (source.requestors.length > 0) {
       const joined = source.requestors.join(', ').trim()
-      contactChannel.value = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(joined) ? 'email' : 'discord'
+      contactChannel.value = isValidEmail(joined) ? 'email' : 'discord'
       contactValue.value = joined
     }
   }
@@ -169,7 +175,7 @@ async function submitRequestMode(trimmedDescription: string, trimmedContact: str
     error.value = text.value.request.requiredFields
     return
   }
-  if (contactChannel.value === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedContact)) {
+  if (contactChannel.value === 'email' && !isValidEmail(trimmedContact)) {
     error.value = text.value.request.invalidEmail
     return
   }
@@ -214,11 +220,11 @@ async function submitCardMode(trimmedDescription: string, trimmedContact: string
     error.value = text.value.home.requiredFields
     return
   }
-  if (contactChannel.value === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedContact)) {
+  if (contactChannel.value === 'email' && !isValidEmail(trimmedContact)) {
     error.value = text.value.request.invalidEmail
     return
   }
-  const requestors = [`${CHANNEL_LABELS[contactChannel.value]}: ${trimmedContact}`]
+  const requestors = [`${CONTACT_CHANNEL_LABELS[contactChannel.value]}: ${trimmedContact}`]
 
   const editing = props.card
   const targetStage = props.showStage
@@ -227,14 +233,6 @@ async function submitCardMode(trimmedDescription: string, trimmedContact: string
 
   if (!supabase) {
     if (editing) {
-      const nextUrl = imageFile.value
-        ? URL.createObjectURL(imageFile.value)
-        : removeExistingImage.value
-          ? undefined
-          : editing.imageUrl
-      if (imageFile.value || removeExistingImage.value) {
-        revokeBlobUrls([editing.imageUrl])
-      }
       emit(
         'saved',
         {
@@ -244,18 +242,17 @@ async function submitCardMode(trimmedDescription: string, trimmedContact: string
           title: trimmedTitle,
           description: trimmedDescription,
           requestors,
-          imageUrl: nextUrl,
+          imageUrl: resolveOfflineImageUrl(
+            editing.imageUrl,
+            imageFile.value,
+            removeExistingImage.value,
+            true,
+          ),
           updatedAt: new Date().toISOString(),
         },
         true,
       )
     } else {
-      const copiedImageUrl =
-        imageFile.value
-          ? URL.createObjectURL(imageFile.value)
-          : removeExistingImage.value
-            ? undefined
-            : props.templateCard?.imageUrl
       emit(
         'saved',
         {
@@ -267,7 +264,11 @@ async function submitCardMode(trimmedDescription: string, trimmedContact: string
           description: trimmedDescription,
           requestors,
           imagePath: null,
-          imageUrl: copiedImageUrl,
+          imageUrl: resolveOfflineImageUrl(
+            props.templateCard?.imageUrl,
+            imageFile.value,
+            removeExistingImage.value,
+          ),
           createdAt: new Date().toISOString(),
           updatedAt: null,
         },
@@ -286,9 +287,6 @@ async function submitCardMode(trimmedDescription: string, trimmedContact: string
       uploadedPath = await uploadKanbanImage(imageFile.value)
     }
 
-    const selectColumns =
-      'id,board_id,stage_number,commission_type,title,description,requestors,image_path,created_at,updated_at'
-
     if (editing) {
       const oldImagePath = editing.imagePath
       const nextImagePath = uploadedPath ?? (removeExistingImage.value ? null : oldImagePath)
@@ -303,7 +301,7 @@ async function submitCardMode(trimmedDescription: string, trimmedContact: string
           image_path: nextImagePath,
         })
         .eq('id', editing.id)
-        .select(selectColumns)
+        .select(CARD_SELECT_COLUMNS)
         .single()
 
       if (updateError) throw updateError
@@ -325,7 +323,7 @@ async function submitCardMode(trimmedDescription: string, trimmedContact: string
           requestors,
           image_path: nextImagePath,
         })
-        .select(selectColumns)
+        .select(CARD_SELECT_COLUMNS)
         .single()
 
       if (insertError) throw insertError

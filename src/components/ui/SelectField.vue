@@ -48,7 +48,7 @@ const selectedOption = computed(() => props.options.find((option) => option.valu
       :id="id"
       :aria-label="ariaLabel"
       :class="[
-        'group inline-flex w-full cursor-pointer items-center justify-between gap-2.5 rounded-xl border border-zinc-300 bg-white text-left text-zinc-950 outline-none transition-colors hover:border-zinc-400 focus-visible:border-zinc-900 focus-visible:ring-2 focus-visible:ring-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:hover:border-zinc-500 dark:focus-visible:border-zinc-300 dark:focus-visible:ring-zinc-300',
+        'group inline-flex w-full cursor-pointer items-center justify-between gap-2.5 rounded-xl border border-zinc-300 bg-white text-left text-zinc-950 outline-hidden transition-colors hover:border-zinc-400 focus-visible:border-zinc-900 focus-visible:ring-2 focus-visible:ring-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:hover:border-zinc-500 dark:focus-visible:border-zinc-300 dark:focus-visible:ring-zinc-300',
         size === 'lg' ? 'mt-2 min-h-12 px-4 py-3 text-base' : 'min-h-11 px-3.5 py-2 text-sm',
         triggerClass,
       ]"
@@ -75,14 +75,14 @@ const selectedOption = computed(() => props.options.find((option) => option.valu
         position="popper"
         :side-offset="6"
         data-lenis-prevent
-        class="surface-shadow z-90 max-h-64 min-w-(--reka-select-trigger-width) overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-1.5 text-zinc-950 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+        class="surface-shadow z-90 max-h-64 min-w-(--reka-select-trigger-width) overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-1.5 text-zinc-950 focus:outline-hidden dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
       >
         <SelectViewport class="space-y-0.5">
           <SelectItem
             v-for="option in options"
             :key="option.value"
             :value="option.value"
-            class="relative flex cursor-pointer select-none items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm outline-none transition-colors data-highlighted:bg-zinc-100 data-[state=checked]:bg-zinc-100/70 data-[state=checked]:font-medium dark:data-highlighted:bg-zinc-800 dark:data-[state=checked]:bg-zinc-800/70"
+            class="relative flex cursor-pointer select-none items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm outline-hidden transition-colors data-highlighted:bg-zinc-100 data-[state=checked]:bg-zinc-100/70 data-[state=checked]:font-medium dark:data-highlighted:bg-zinc-800 dark:data-[state=checked]:bg-zinc-800/70"
           >
             <span class="flex min-w-0 items-center gap-2">
               <span

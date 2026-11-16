@@ -77,13 +77,13 @@ async function confirm() {
       <DialogOverlay class="fixed inset-0 z-70 bg-zinc-950/50" />
       <DialogContent
         role="alertdialog"
-        class="fixed left-1/2 top-1/2 z-80 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 outline-none"
+        class="fixed left-1/2 top-1/2 z-80 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 outline-hidden"
       >
         <motion.div
           :initial="reducedMotion ? false : { opacity: 0, scale: 0.96, y: 8 }"
           :animate="{ opacity: 1, scale: 1, y: 0 }"
           :transition="{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }"
-          class="surface-shadow rounded-3xl bg-white p-7 text-zinc-950 focus:outline-none dark:bg-zinc-900 dark:text-zinc-50"
+          class="surface-shadow rounded-3xl bg-white p-7 text-zinc-950 focus:outline-hidden dark:bg-zinc-900 dark:text-zinc-50"
         >
           <DialogTitle class="text-3xl font-bold">{{ title }}</DialogTitle>
           <DialogDescription class="mt-3 leading-6 text-zinc-600 dark:text-zinc-300">

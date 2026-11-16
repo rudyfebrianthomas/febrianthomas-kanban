@@ -19,6 +19,7 @@ import MotionButton from '../components/ui/MotionButton.vue'
 import SelectField from '../components/ui/SelectField.vue'
 import { useAuth } from '../composables/useAuth'
 import { useLanguage } from '../composables/useLanguage'
+import { CARD_SELECT_COLUMNS, DEFAULT_BOARD_ID } from '../constants/commission'
 import { isBoardCompleted, type KanbanBoard } from '../lib/kanbanBoard'
 import {
   deleteKanbanCard,
@@ -26,13 +27,13 @@ import {
   type KanbanCard,
   type KanbanCardRow,
   latestTimestamp,
+  matchesCardQuery,
   toKanbanCard,
+  upsertKanbanCard,
 } from '../lib/kanbanCard'
 import { revokeBlobUrls } from '../lib/kanbanImage'
 import { stageLabel as getStageLabel, stageProgress as getStageProgress, stageStyle } from '../lib/kanbanStage'
 import { supabase } from '../lib/supabase'
-
-const DEFAULT_BOARD_ID = '00000000-0000-0000-0000-000000000001'
 
 const { language, text } = useLanguage()
 const { signedIn } = useAuth()
@@ -123,12 +124,7 @@ const filteredBoardCards = computed<KanbanCard[]>(() => {
   const filtered = cards.value.filter((card) => {
     if (card.boardId !== board.id) return false
     if (selectedType.value !== 'all' && card.commissionType !== selectedType.value) return false
-    if (!q) return true
-    return (
-      card.title.toLowerCase().includes(q) ||
-      card.description.toLowerCase().includes(q) ||
-      card.requestors.some((tag) => tag.toLowerCase().includes(q))
-    )
+    return matchesCardQuery(card, q, text.value.home.commissionTypes[card.commissionType])
   })
   if (viewMode.value !== 'completed') return filtered
   return [...filtered].sort(
@@ -187,7 +183,7 @@ onMounted(async () => {
 
     const { data: cardsData } = await supabase
       .from('kanban_cards')
-      .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path,created_at,updated_at')
+      .select(CARD_SELECT_COLUMNS)
       .in(
         'board_id',
         loadedBoards.map((board) => board.id),
@@ -219,12 +215,7 @@ function openEditCard(card: KanbanCard) {
 }
 
 function onCardSaved(savedCard: KanbanCard, isEdit: boolean) {
-  if (isEdit) {
-    const index = cards.value.findIndex((item) => item.id === savedCard.id)
-    if (index !== -1) cards.value[index] = savedCard
-  } else {
-    cards.value.push(savedCard)
-  }
+  upsertKanbanCard(cards.value, savedCard, isEdit)
   editingCard.value = null
 }
 
@@ -450,7 +441,7 @@ async function onColumnDrop(targetStage: string, event: DragEvent) {
                   v-model="searchQuery"
                   type="search"
                   :placeholder="text.home.searchCardsPlaceholder"
-                  class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-4 text-sm text-zinc-950 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-zinc-300"
+                  class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-4 text-sm text-zinc-950 outline-hidden placeholder:text-zinc-400 focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-zinc-300"
                 />
               </div>
             </form>

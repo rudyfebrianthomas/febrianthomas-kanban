@@ -10,6 +10,7 @@ import {
   fetchCommissionStatus,
 } from '../lib/commissionStatus'
 import CommissionStatusBadge from '../components/commission/CommissionStatusBadge.vue'
+import StageProgressBar from '../components/commission/StageProgressBar.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import LoadingIndicator from '../components/ui/LoadingIndicator.vue'
 import ThumbnailBox from '../components/ui/ThumbnailBox.vue'
@@ -334,18 +335,12 @@ onUnmounted(() => {
             <p class="mt-1.5 inline-flex self-start rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
               {{ text.home.commissionTypes[card.commissionType] }}
             </p>
-            <div class="mt-auto pt-3">
-              <div class="flex items-center justify-between gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-                <span>{{ getStageLabel(card.stageNumber) }}</span>
-                <span>{{ stageProgress(card.stageNumber, text.home.stages) }}%</span>
-              </div>
-              <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-                <div
-                  :class="['h-full rounded-full transition-all duration-300', stageStyle(card.stageNumber).progressBar]"
-                  :style="{ width: `${stageProgress(card.stageNumber, text.home.stages)}%` }"
-                />
-              </div>
-            </div>
+            <StageProgressBar
+              :stage-number="card.stageNumber"
+              :stage-label="getStageLabel(card.stageNumber)"
+              :progress="stageProgress(card.stageNumber, text.home.stages)"
+              class="mt-auto pt-3"
+            />
           </RouterLink>
         </div>
 

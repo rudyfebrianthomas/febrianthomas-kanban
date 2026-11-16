@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Check, Copy, Pencil, Plus, Search, Trash2 } from '@lucide/vue'
-import { DialogClose } from 'reka-ui'
+import { Check, Copy, Pencil, Plus, Trash2 } from '@lucide/vue'
 import CommissionStatusBadge from '../components/commission/CommissionStatusBadge.vue'
+import KanbanBoardFormDialog from '../components/commission/KanbanBoardFormDialog.vue'
 import KanbanCardFormDialog from '../components/commission/KanbanCardFormDialog.vue'
-import BaseDialog from '../components/ui/BaseDialog.vue'
+import BoardFilterBar from '../components/ui/BoardFilterBar.vue'
+import BulkSelectionBar from '../components/ui/BulkSelectionBar.vue'
 import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import LoadingIndicator from '../components/ui/LoadingIndicator.vue'
@@ -15,6 +16,7 @@ import ThumbnailBox from '../components/ui/ThumbnailBox.vue'
 import { useAuth } from '../composables/useAuth'
 import { useBoardDragSelect } from '../composables/useBoardDragSelect'
 import { useLanguage } from '../composables/useLanguage'
+import { BACKLOG_BOARD_ID, CARD_SELECT_COLUMNS } from '../constants/commission'
 import {
   type CommissionStatus,
   DEFAULT_COMMISSION_STATUS,
@@ -26,13 +28,14 @@ import {
   formatCardDate,
   type KanbanCard,
   type KanbanCardRow,
+  latestTimestamp,
+  matchesCardQuery,
   toKanbanCard,
+  upsertKanbanCard,
 } from '../lib/kanbanCard'
 import { removeKanbanImages, revokeBlobUrls } from '../lib/kanbanImage'
 import { stageLabel, stageProgress } from '../lib/kanbanStage'
 import { supabase } from '../lib/supabase'
-
-const BACKLOG_BOARD_ID = '00000000-0000-0000-0000-000000000000'
 
 const { language, text } = useLanguage()
 const { signedIn } = useAuth()
@@ -67,8 +70,6 @@ const backlogSortOrder = ref<BacklogSortOrder>('newest')
 const dialogOpen = ref(false)
 const editingBoard = ref<KanbanBoard | null>(null)
 const copySourceBoard = ref<KanbanBoard | null>(null)
-const titleInput = ref('')
-const descriptionInput = ref('')
 const saving = ref(false)
 const formError = ref('')
 
@@ -80,18 +81,6 @@ const cardDialogOpen = ref(false)
 const targetCardBoard = ref<KanbanBoard | null>(null)
 const editingCard = ref<KanbanCard | null>(null)
 const templateCard = ref<KanbanCard | null>(null)
-
-const boardDialogTitle = computed(() => {
-  if (editingBoard.value) return text.value.setting.editBoardTitle
-  if (copySourceBoard.value) return text.value.setting.copyBoardTitle
-  return text.value.setting.createBoardTitle
-})
-
-const boardDialogDescription = computed(() => {
-  if (editingBoard.value) return text.value.setting.editBoardDescription
-  if (copySourceBoard.value) return text.value.setting.copyBoardDescription
-  return text.value.setting.createBoardDescription
-})
 
 const boardMoveOptions = computed(() =>
   boards.value.map((board) => ({ value: board.id, label: board.title })),
@@ -105,14 +94,7 @@ function boardMatchesQuery(board: KanbanBoard, needle: string): boolean {
 }
 
 function cardMatchesQuery(card: KanbanCard, needle: string): boolean {
-  const typeLabel = text.value.home.commissionTypes[card.commissionType].toLowerCase()
-  return (
-    card.title.toLowerCase().includes(needle) ||
-    card.description.toLowerCase().includes(needle) ||
-    card.commissionType.toLowerCase().includes(needle) ||
-    typeLabel.includes(needle) ||
-    card.requestors.some((requestor) => requestor.toLowerCase().includes(needle))
-  )
+  return matchesCardQuery(card, needle, text.value.home.commissionTypes[card.commissionType])
 }
 
 const filteredBoards = computed(() => {
@@ -153,8 +135,8 @@ function cardsForBoard(boardId: string, needle = query.value.trim().toLowerCase(
   }
   if (!board?.is_backlog) return boardCards
   return [...boardCards].sort((a, b) => {
-    const timeA = Date.parse(a.createdAt ?? '') || 0
-    const timeB = Date.parse(b.createdAt ?? '') || 0
+    const timeA = latestTimestamp(undefined, a.createdAt)
+    const timeB = latestTimestamp(undefined, b.createdAt)
     return backlogSortOrder.value === 'newest' ? timeB - timeA : timeA - timeB
   })
 }
@@ -267,7 +249,7 @@ async function loadBoardsAndCards() {
       .order('created_at', { ascending: false }),
     supabase
       .from('kanban_cards')
-      .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path,created_at,updated_at')
+      .select(CARD_SELECT_COLUMNS)
       .order('created_at', { ascending: true }),
     fetchCommissionStatus(),
   ])
@@ -292,8 +274,6 @@ async function loadBoardsAndCards() {
 function resetBoardDialog() {
   editingBoard.value = null
   copySourceBoard.value = null
-  titleInput.value = ''
-  descriptionInput.value = ''
   formError.value = ''
 }
 
@@ -311,16 +291,12 @@ function openCreateBoard() {
 function openEditBoard(board: KanbanBoard) {
   resetBoardDialog()
   editingBoard.value = board
-  titleInput.value = board.title
-  descriptionInput.value = board.description ?? ''
   dialogOpen.value = true
 }
 
 function openCopyBoard(board: KanbanBoard) {
   resetBoardDialog()
   copySourceBoard.value = board
-  titleInput.value = `${board.title} (${text.value.setting.offers.copySuffix})`.slice(0, 120)
-  descriptionInput.value = board.description ?? ''
   dialogOpen.value = true
 }
 
@@ -329,15 +305,14 @@ function boardSaveErrorMessage(error: { code?: string; message?: string } | null
   return error?.message || text.value.setting.saveBoardError
 }
 
-async function handleSaveBoard() {
-  const trimmedTitle = titleInput.value.trim()
+async function handleSaveBoard(payload: { title: string; description: string | null }) {
+  const trimmedTitle = payload.title
   if (!trimmedTitle) {
     formError.value = text.value.setting.requiredTitle
     return
   }
 
-  const trimmedDescription = descriptionInput.value.trim()
-  const nextDescription = trimmedDescription || null
+  const nextDescription = payload.description
   const editing = editingBoard.value
   const copySource = copySourceBoard.value
   const normalizedTitle = trimmedTitle.toLowerCase()
@@ -450,7 +425,7 @@ async function handleSaveBoard() {
       const { data: copiedCardsData, error: copyCardsError } = await supabase
         .from('kanban_cards')
         .insert(insertRows)
-        .select('id,board_id,stage_number,commission_type,title,description,requestors,image_path,created_at,updated_at')
+        .select(CARD_SELECT_COLUMNS)
       if (copyCardsError) {
         await supabase.from('kanban_boards').delete().eq('id', created.id)
         saving.value = false
@@ -601,12 +576,7 @@ function openCopyCard(card: KanbanCard, board: KanbanBoard) {
 }
 
 function onCardSaved(savedCard: KanbanCard, isEdit: boolean) {
-  if (isEdit) {
-    const index = cards.value.findIndex((item) => item.id === savedCard.id)
-    if (index !== -1) cards.value[index] = savedCard
-  } else {
-    cards.value.push(savedCard)
-  }
+  upsertKanbanCard(cards.value, savedCard, isEdit)
 }
 
 async function deleteCard(card: KanbanCard) {
@@ -656,94 +626,15 @@ function clearBoardFilters() {
         </MotionButton>
       </div>
 
-      <BaseDialog
+      <KanbanBoardFormDialog
         :open="dialogOpen"
-        :title="boardDialogTitle"
-        :description="boardDialogDescription"
-        :close-label="text.setting.close"
-        :close-disabled="saving"
+        :editing-board="editingBoard"
+        :copy-source-board="copySourceBoard"
+        :saving="saving"
+        :error="formError"
         @update:open="onDialogOpenChange"
-      >
-        <form class="mt-5 space-y-4" @submit.prevent="handleSaveBoard">
-                <div>
-                  <label
-                    for="board-title"
-                    class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200"
-                  >
-                    {{ text.setting.titleLabel }}
-                  </label>
-                  <input
-                    id="board-title"
-                    v-model="titleInput"
-                    type="text"
-                    maxlength="120"
-                    required
-                    class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    for="board-description"
-                    class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200"
-                  >
-                    {{ text.setting.descriptionLabel }}
-                  </label>
-                  <textarea
-                    id="board-description"
-                    v-model="descriptionInput"
-                    rows="3"
-                    maxlength="240"
-                    class="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
-                  />
-                </div>
-
-                <p
-                  v-if="formError"
-                  role="alert"
-                  class="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
-                >
-                  {{ formError }}
-                </p>
-
-                <div class="flex justify-end gap-2 pt-1">
-                  <DialogClose as-child>
-                    <button
-                      type="button"
-                      :disabled="saving"
-                      class="inline-flex min-h-11 items-center justify-center rounded-xl border border-zinc-300 px-4 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                    >
-                      {{ text.setting.close }}
-                    </button>
-                  </DialogClose>
-                  <MotionButton
-                    type="submit"
-                    :disabled="saving"
-                    class="min-h-11"
-                  >
-                    <LoadingIndicator
-                      v-if="saving"
-                      :label="
-                        editingBoard
-                          ? text.setting.savingChanges
-                          : copySourceBoard
-                            ? text.setting.savingCopyBoard
-                            : text.setting.savingBoard
-                      "
-                    />
-                    <template v-else>
-                      {{
-                        editingBoard
-                          ? text.setting.saveChanges
-                          : copySourceBoard
-                            ? text.setting.submitCopyBoard
-                            : text.setting.submitBoard
-                      }}
-                    </template>
-                  </MotionButton>
-                </div>
-        </form>
-      </BaseDialog>
+        @save="handleSaveBoard"
+      />
 
       <KanbanCardFormDialog
         v-model:open="cardDialogOpen"
@@ -767,70 +658,33 @@ function clearBoardFilters() {
         @update:open="onSwitchDialogOpenChange"
       />
 
-      <form v-if="!loading && boards.length > 0" class="mt-12 flex flex-wrap gap-3" role="search" @submit.prevent>
-        <label for="board-search" class="sr-only">{{ text.setting.searchBoards }}</label>
-        <div class="relative min-w-48 flex-1">
-          <Search
-            class="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
-            aria-hidden="true"
-          />
-          <input
-            id="board-search"
-            v-model="query"
-            type="search"
-            :placeholder="text.setting.searchBoardsPlaceholder"
-            class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-4 text-sm text-zinc-950 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-zinc-300"
-          />
-        </div>
-        <div class="w-40">
-          <label for="board-filter" class="sr-only">{{ text.setting.filterBoards }}</label>
-          <SelectField
-            id="board-filter"
-            v-model="statusFilter"
-            :options="boardFilterOptions"
-            :aria-label="text.setting.filterBoards"
-          />
-        </div>
-      </form>
-      <p v-if="!loading && boards.length > 0" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-        {{ text.setting.searchHint }}
-      </p>
+      <BoardFilterBar
+        v-if="!loading && boards.length > 0"
+        v-model:query="query"
+        v-model:filter="statusFilter"
+        search-id="board-search"
+        filter-id="board-filter"
+        :search-label="text.setting.searchBoards"
+        :search-placeholder="text.setting.searchBoardsPlaceholder"
+        :filter-label="text.setting.filterBoards"
+        :hint="text.setting.searchHint"
+        :filter-options="boardFilterOptions"
+        class="mt-12"
+      />
 
-      <div
+      <BulkSelectionBar
         v-if="selectedCardIds.length > 0 && boardMoveOptions.length > 1"
-        class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-orange-300 bg-orange-50/80 px-4 py-3 dark:border-orange-500/40 dark:bg-orange-950/30"
-      >
-        <span class="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          {{ text.setting.selectedCount.replace('{count}', String(selectedCardIds.length)) }}
-        </span>
-        <div class="flex flex-wrap items-center gap-2">
-          <div class="min-w-44">
-            <label for="bulk-move-board" class="sr-only">{{ text.setting.moveSelectedTo }}</label>
-            <SelectField
-              id="bulk-move-board"
-              :model-value="bulkTargetBoardId || boardMoveOptions[0]?.value || ''"
-              :options="boardMoveOptions"
-              :aria-label="text.setting.moveSelectedTo"
-              @update:model-value="(val) => { bulkTargetBoardId = val }"
-            />
-          </div>
-          <button
-            type="button"
-            :disabled="bulkMoving"
-            class="inline-flex min-h-10 items-center rounded-xl bg-zinc-900 px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-            @click="moveSelectedCards"
-          >
-            {{ text.setting.moveSelectedButton }}
-          </button>
-          <button
-            type="button"
-            class="inline-flex min-h-10 items-center rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            @click="selectedCardIds = []"
-          >
-            {{ text.setting.clearSelection }}
-          </button>
-        </div>
-      </div>
+        v-model:target-board-id="bulkTargetBoardId"
+        select-id="bulk-move-board"
+        :selected-text="text.setting.selectedCount.replace('{count}', String(selectedCardIds.length))"
+        :move-to-label="text.setting.moveSelectedTo"
+        :move-button-label="text.setting.moveSelectedButton"
+        :clear-button-label="text.setting.clearSelection"
+        :options="boardMoveOptions"
+        :busy="bulkMoving"
+        @move="moveSelectedCards"
+        @clear="selectedCardIds = []"
+      />
 
       <div :class="loading || boards.length === 0 ? 'mt-12' : 'mt-6'">
         <p

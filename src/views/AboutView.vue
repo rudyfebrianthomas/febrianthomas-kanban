@@ -4,6 +4,7 @@ import { Image as ImageIcon } from '@lucide/vue'
 import { motion, useReducedMotion } from 'motion-v'
 import { useAuth } from '../composables/useAuth'
 import { useLanguage } from '../composables/useLanguage'
+import { SUPPORT_BUTTON_IDS, type SupportButtonId } from '../constants/site'
 import { socials as socialCatalog } from '../data/socials'
 import { supabase } from '../lib/supabase'
 
@@ -19,9 +20,7 @@ interface AboutSection {
   items: AboutItem[]
 }
 
-const supportButtonIds = ['streamlabs', 'saweria', 'kofi', 'trakteer'] as const
-type ButtonId = (typeof supportButtonIds)[number]
-type SupportStatus = Partial<Record<ButtonId, boolean>>
+type SupportStatus = Partial<Record<SupportButtonId, boolean>>
 
 const { text } = useLanguage()
 const reducedMotion = useReducedMotion()
@@ -40,7 +39,7 @@ const { signedIn } = useAuth()
 const supportStatus = ref<SupportStatus | null>(
   supabase ? null : { streamlabs: true, saweria: true, kofi: true, trakteer: true },
 )
-const supportPending = ref<ButtonId | null>(null)
+const supportPending = ref<SupportButtonId | null>(null)
 const supportError = ref(false)
 
 let active = true
@@ -53,7 +52,7 @@ onMounted(() => {
       if (!active) return
       if (error) throw error
       supportStatus.value = Object.fromEntries(
-        ((data ?? []) as Array<{ id: ButtonId; enabled: boolean }>).map((row) => [row.id, row.enabled]),
+        ((data ?? []) as Array<{ id: SupportButtonId; enabled: boolean }>).map((row) => [row.id, row.enabled]),
       )
     } catch {
       if (active) supportError.value = true
@@ -65,7 +64,7 @@ onUnmounted(() => {
   active = false
 })
 
-async function toggleSupportButton(id: ButtonId, enabled: boolean) {
+async function toggleSupportButton(id: SupportButtonId, enabled: boolean) {
   if (!supabase || !signedIn.value) return
   supportPending.value = id
   supportError.value = false
@@ -88,13 +87,13 @@ async function toggleSupportButton(id: ButtonId, enabled: boolean) {
   }
 }
 
-function onSupportToggle(id: ButtonId, event: Event) {
+function onSupportToggle(id: SupportButtonId, event: Event) {
   const input = event.target as HTMLInputElement
   void toggleSupportButton(id, input.checked)
 }
 
-function visibleSupportButtons(status: SupportStatus): ButtonId[] {
-  return supportButtonIds.filter((id) => signedIn.value || status[id] === true)
+function visibleSupportButtons(status: SupportStatus): SupportButtonId[] {
+  return SUPPORT_BUTTON_IDS.filter((id) => signedIn.value || status[id] === true)
 }
 </script>
 

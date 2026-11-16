@@ -5,6 +5,7 @@ import { type KanbanCard } from '../../lib/kanbanCard'
 import { stageStyle } from '../../lib/kanbanStage'
 import ConfirmDialog from '../ui/ConfirmDialog.vue'
 import ThumbnailBox from '../ui/ThumbnailBox.vue'
+import StageProgressBar from './StageProgressBar.vue'
 
 const props = defineProps<{
   card: KanbanCard
@@ -114,25 +115,13 @@ const { text } = useLanguage()
       <p class="mt-1.5 inline-flex self-start rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
         {{ text.home.commissionTypes[card.commissionType] }}
       </p>
-      <div class="mt-auto pt-2.5">
-        <div class="flex items-center justify-between gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-          <span>{{ stageLabel }}</span>
-          <span>{{ progress }}%</span>
-        </div>
-        <div
-          role="progressbar"
-          :aria-label="text.home.progressLabel"
-          :aria-valuenow="progress"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
-        >
-          <div
-            :class="['h-full rounded-full transition-all duration-300', stageStyle(props.card.stageNumber).progressBar]"
-            :style="{ width: `${progress}%` }"
-          />
-        </div>
-      </div>
+      <StageProgressBar
+        :stage-number="card.stageNumber"
+        :stage-label="stageLabel"
+        :progress="progress"
+        :progress-label="text.home.progressLabel"
+        class="mt-auto pt-2.5"
+      />
       <div class="mt-2.5 flex flex-wrap gap-1.5">
         <span
           v-for="requestor in card.requestors"

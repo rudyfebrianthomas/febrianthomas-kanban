@@ -68,6 +68,42 @@ export function formatCardDate(iso: string | null | undefined, language: Languag
   }).format(date)
 }
 
+export function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
+export function formatCopyTitle(title: string, copySuffix: string): string {
+  return `${title} (${copySuffix})`.slice(0, 120)
+}
+
+export function matchesCardQuery(
+  card: Pick<KanbanCard, 'title' | 'description' | 'commissionType' | 'requestors'>,
+  needle: string,
+  localizedTypeLabel?: string,
+): boolean {
+  if (!needle) return true
+  return (
+    card.title.toLowerCase().includes(needle) ||
+    card.description.toLowerCase().includes(needle) ||
+    card.commissionType.toLowerCase().includes(needle) ||
+    (localizedTypeLabel?.toLowerCase().includes(needle) ?? false) ||
+    card.requestors.some((requestor) => requestor.toLowerCase().includes(needle))
+  )
+}
+
+export function upsertKanbanCard(
+  cards: KanbanCard[],
+  savedCard: KanbanCard,
+  isEdit: boolean,
+): void {
+  if (isEdit) {
+    const index = cards.findIndex((item) => item.id === savedCard.id)
+    if (index !== -1) cards[index] = savedCard
+    return
+  }
+  cards.push(savedCard)
+}
+
 export async function deleteKanbanCard(card: KanbanCard): Promise<void> {
   if (supabase) {
     const { error } = await supabase.from('kanban_cards').delete().eq('id', card.id)

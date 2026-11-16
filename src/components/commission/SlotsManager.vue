@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { Check, Copy, Pencil, Plus, RotateCcw, Search, Trash2 } from '@lucide/vue'
-import { DialogClose } from 'reka-ui'
+import { Check, Copy, Pencil, Plus, RotateCcw, Trash2 } from '@lucide/vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useBoardDragSelect } from '../../composables/useBoardDragSelect'
 import { useLanguage } from '../../composables/useLanguage'
-import BaseDialog from '../ui/BaseDialog.vue'
+import { OFFER_SELECT_COLUMNS } from '../../constants/commission'
+import BoardFilterBar from '../ui/BoardFilterBar.vue'
+import BulkSelectionBar from '../ui/BulkSelectionBar.vue'
 import EmptyState from '../ui/EmptyState.vue'
 import LoadingIndicator from '../ui/LoadingIndicator.vue'
-import MotionButton from '../ui/MotionButton.vue'
 import ThumbnailBox from '../ui/ThumbnailBox.vue'
 import {
   canSetOfferBoardStatus,
@@ -29,22 +29,15 @@ import {
   toCommissionOffer,
   toCommissionOfferBoard,
 } from '../../lib/commissionOffers'
-import {
-  COMMISSION_TYPES,
-  type CommissionType,
-  syncCommissionStatusRow,
-} from '../../lib/commissionStatus'
-import { removeKanbanImages, revokeBlobUrls, uploadKanbanImage } from '../../lib/kanbanImage'
+import { syncCommissionStatusRow } from '../../lib/commissionStatus'
+import { removeKanbanImages, revokeBlobUrls } from '../../lib/kanbanImage'
 import { supabase } from '../../lib/supabase'
 import ConfirmDialog from '../ui/ConfirmDialog.vue'
-import ImageUploadField from '../ui/ImageUploadField.vue'
 import SelectField from '../ui/SelectField.vue'
 import OfferBoardFormDialog from './OfferBoardFormDialog.vue'
+import OfferFormDialog from './OfferFormDialog.vue'
 
 type BoardFilter = 'all' | OfferBoardStatus | 'completed'
-
-const OFFER_SELECT_COLUMNS =
-  'id,board_id,commission_type,title,description,price_usd,price_idr,image_path,is_open,sort_order,max_requests,request_count'
 
 const emit = defineEmits<{
   offersChange: [offers: CommissionOffer[], boards: CommissionOfferBoard[]]
@@ -93,28 +86,13 @@ const dialogOpen = ref(false)
 const editingOffer = ref<CommissionOffer | null>(null)
 const templateOffer = ref<CommissionOffer | null>(null)
 const targetBoardId = ref('')
-const typeInput = ref<CommissionType>('Illustration')
-const titleInput = ref('')
-const priceUsdInput = ref<number | string>('')
-const priceIdrInput = ref<number | string>('')
-const maxRequestsInput = ref<number | string>('')
-const descriptionInput = ref('')
-const openInput = ref(true)
-const imageFile = ref<File | null>(null)
-const removeExistingImage = ref(false)
-const imageError = ref('')
-const saving = ref(false)
-const formError = ref('')
 
 const boardMoveOptions = computed(() =>
   boards.value.map((board) => ({ value: board.id, label: board.title })),
 )
 
-const commissionTypeOptions = computed(() =>
-  COMMISSION_TYPES.map((typeOption) => ({
-    value: typeOption,
-    label: text.value.home.commissionTypes[typeOption],
-  })),
+const nextOfferSortOrder = computed(
+  () => offers.value.reduce((max, item) => Math.max(max, item.sortOrder), 0) + 1,
 )
 
 const boardStatusOptions = computed(() =>
@@ -203,18 +181,6 @@ const filteredBoards = computed(() => {
     if (boardMatches) return true
     return offersForBoard(board.id, needle).length > 0
   })
-})
-
-const dialogTitle = computed(() => {
-  if (editingOffer.value) return text.value.setting.offers.editTitle
-  if (templateOffer.value) return text.value.setting.offers.copyTitle
-  return text.value.setting.offers.createTitle
-})
-
-const dialogDescription = computed(() => {
-  if (editingOffer.value) return text.value.setting.offers.editDescription
-  if (templateOffer.value) return text.value.setting.offers.copyDescription
-  return text.value.setting.offers.createDescription
 })
 
 watch(
@@ -543,223 +509,35 @@ async function deleteBoard(board: CommissionOfferBoard) {
   await syncCommissionStatusRow(boards.value).catch(() => {})
 }
 
-function resetImageState() {
-  imageFile.value = null
-  removeExistingImage.value = false
-  imageError.value = ''
-}
-
 function openCreate(boardId: string) {
   editingOffer.value = null
   templateOffer.value = null
   targetBoardId.value = boardId
-  typeInput.value = 'Illustration'
-  titleInput.value = ''
-  priceUsdInput.value = ''
-  priceIdrInput.value = ''
-  maxRequestsInput.value = ''
-  descriptionInput.value = ''
-  openInput.value = true
-  resetImageState()
-  formError.value = ''
-  dialogOpen.value = true
-}
-
-function prefillOfferForm(offer: CommissionOffer, asCopy: boolean) {
-  editingOffer.value = asCopy ? null : offer
-  templateOffer.value = asCopy ? offer : null
-  targetBoardId.value = offer.boardId
-  typeInput.value = offer.commissionType
-  titleInput.value = asCopy
-    ? `${offer.title} (${text.value.setting.offers.copySuffix})`.slice(0, 120)
-    : offer.title
-  priceUsdInput.value = offer.priceUsd
-  priceIdrInput.value = offer.priceIdr
-  maxRequestsInput.value = offer.maxRequests ?? ''
-  descriptionInput.value = offer.description
-  openInput.value = offer.isOpen
-  resetImageState()
-  formError.value = ''
   dialogOpen.value = true
 }
 
 function openEdit(offer: CommissionOffer) {
-  prefillOfferForm(offer, false)
+  editingOffer.value = offer
+  templateOffer.value = null
+  targetBoardId.value = offer.boardId
+  dialogOpen.value = true
 }
 
 function openCopy(offer: CommissionOffer) {
-  prefillOfferForm(offer, true)
+  editingOffer.value = null
+  templateOffer.value = offer
+  targetBoardId.value = offer.boardId
+  dialogOpen.value = true
 }
 
-function onOpenChange(nextOpen: boolean) {
-  if (saving.value) return
-  dialogOpen.value = nextOpen
-  if (!nextOpen) {
-    templateOffer.value = null
-    resetImageState()
+function onOfferSaved(savedOffer: CommissionOffer, isEdit: boolean) {
+  if (isEdit) {
+    offers.value = offers.value.map((item) => (item.id === savedOffer.id ? savedOffer : item))
+  } else {
+    offers.value.push(savedOffer)
   }
-}
-
-function parseNonNegativePrice(rawInput: number | string): number | null {
-  const raw = String(rawInput ?? '').trim()
-  if (!/^\d+(\.\d+)?$/.test(raw)) return null
-  const value = Number(raw)
-  return Number.isFinite(value) && value >= 0 ? value : null
-}
-
-function parseOptionalPositiveInt(rawInput: number | string): number | null | 'invalid' {
-  const raw = String(rawInput ?? '').trim()
-  if (!raw) return null
-  if (!/^\d+$/.test(raw)) return 'invalid'
-  const value = Number(raw)
-  return Number.isInteger(value) && value >= 1 ? value : 'invalid'
-}
-
-async function saveOffer() {
-  if (saving.value || imageError.value) return
-  const title = titleInput.value.trim()
-  const rawUsd = String(priceUsdInput.value ?? '').trim()
-  const rawIdr = String(priceIdrInput.value ?? '').trim()
-  const description = descriptionInput.value.trim()
-  if (!title || !rawUsd || !rawIdr || !description) {
-    formError.value = text.value.setting.offers.requiredFields
-    return
-  }
-
-  const priceUsd = parseNonNegativePrice(rawUsd)
-  const priceIdr = parseNonNegativePrice(rawIdr)
-  if (priceUsd === null || priceIdr === null) {
-    formError.value = text.value.setting.offers.invalidPrice
-    return
-  }
-
-  const maxRequests = parseOptionalPositiveInt(maxRequestsInput.value)
-  if (maxRequests === 'invalid') {
-    formError.value = text.value.setting.offers.invalidMaxRequests
-    return
-  }
-  const roundedIdr = Math.round(priceIdr)
-
-  saving.value = true
-  formError.value = ''
-  try {
-    const editing = editingOffer.value
-    const boardId = editing?.boardId ?? targetBoardId.value
-    if (!boardId) throw new Error('Missing board')
-
-    if (!supabase) {
-      if (editing) {
-        const nextUrl = imageFile.value
-          ? URL.createObjectURL(imageFile.value)
-          : removeExistingImage.value
-            ? undefined
-            : editing.imageUrl
-        if (imageFile.value || removeExistingImage.value) {
-          revokeBlobUrls([editing.imageUrl])
-        }
-        offers.value = offers.value.map((item) =>
-          item.id === editing.id
-            ? {
-                ...item,
-                commissionType: typeInput.value,
-                title,
-                priceUsd,
-                priceIdr: roundedIdr,
-                description,
-                imageUrl: nextUrl,
-                isOpen: openInput.value,
-                maxRequests,
-              }
-            : item,
-        )
-      } else {
-        const inheritedTemplate = removeExistingImage.value ? null : templateOffer.value
-        offers.value.push({
-          id: crypto.randomUUID(),
-          boardId,
-          commissionType: typeInput.value,
-          title,
-          priceUsd,
-          priceIdr: roundedIdr,
-          description,
-          imagePath: inheritedTemplate?.imagePath ?? null,
-          imageUrl: imageFile.value
-            ? URL.createObjectURL(imageFile.value)
-            : inheritedTemplate?.imageUrl,
-          isOpen: openInput.value,
-          sortOrder: offers.value.length + 1,
-          maxRequests,
-          requestCount: 0,
-        })
-      }
-      dialogOpen.value = false
-      templateOffer.value = null
-      resetImageState()
-      return
-    }
-
-    let uploadedPath: string | null = null
-    if (imageFile.value) {
-      uploadedPath = await uploadKanbanImage(imageFile.value)
-    }
-
-    if (editing) {
-      const oldImagePath = editing.imagePath
-      const nextImagePath = uploadedPath ?? (removeExistingImage.value ? null : oldImagePath)
-      const { data, error } = await supabase
-        .from('commission_offers')
-        .update({
-          commission_type: typeInput.value,
-          title,
-          price: String(priceUsd),
-          price_usd: priceUsd,
-          price_idr: roundedIdr,
-          description,
-          image_path: nextImagePath,
-          is_open: openInput.value,
-          max_requests: maxRequests,
-        })
-        .eq('id', editing.id)
-        .select(OFFER_SELECT_COLUMNS)
-        .single()
-      if (error || !data) throw error
-      if (uploadedPath || removeExistingImage.value) {
-        await removeKanbanImages([oldImagePath])
-      }
-      const updated = toCommissionOffer(data as CommissionOfferRow)
-      offers.value = offers.value.map((item) => (item.id === updated.id ? updated : item))
-    } else {
-      const nextSort = offers.value.reduce((max, item) => Math.max(max, item.sortOrder), 0) + 1
-      const copiedImagePath =
-        uploadedPath ?? (removeExistingImage.value ? null : (templateOffer.value?.imagePath ?? null))
-      const { data, error } = await supabase
-        .from('commission_offers')
-        .insert({
-          board_id: boardId,
-          commission_type: typeInput.value,
-          title,
-          price: String(priceUsd),
-          price_usd: priceUsd,
-          price_idr: roundedIdr,
-          description,
-          image_path: copiedImagePath,
-          is_open: openInput.value,
-          sort_order: nextSort,
-          max_requests: maxRequests,
-        })
-        .select(OFFER_SELECT_COLUMNS)
-        .single()
-      if (error || !data) throw error
-      offers.value.push(toCommissionOffer(data as CommissionOfferRow))
-    }
-    dialogOpen.value = false
-    templateOffer.value = null
-    resetImageState()
-  } catch {
-    formError.value = text.value.setting.offers.saveError
-  } finally {
-    saving.value = false
-  }
+  editingOffer.value = null
+  templateOffer.value = null
 }
 
 async function toggleOpen(offer: CommissionOffer) {
@@ -884,70 +662,32 @@ defineExpose({
 
 <template>
   <section class="mt-12">
-    <form v-if="!loading && boards.length > 0" class="flex flex-wrap gap-3" role="search" @submit.prevent>
-      <label for="offer-search" class="sr-only">{{ text.setting.offers.searchOffers }}</label>
-      <div class="relative min-w-48 flex-1">
-        <Search
-          class="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
-          aria-hidden="true"
-        />
-        <input
-          id="offer-search"
-          v-model="query"
-          type="search"
-          :placeholder="text.setting.offers.searchOffersPlaceholder"
-          class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white pl-11 pr-4 text-sm text-zinc-950 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-zinc-300"
-        />
-      </div>
-      <div class="w-40">
-        <label for="offer-filter" class="sr-only">{{ text.setting.offers.filterOffers }}</label>
-        <SelectField
-          id="offer-filter"
-          v-model="statusFilter"
-          :options="boardFilterOptions"
-          :aria-label="text.setting.offers.filterOffers"
-        />
-      </div>
-    </form>
-    <p v-if="!loading && boards.length > 0" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-      {{ text.setting.offers.searchHint }}
-    </p>
+    <BoardFilterBar
+      v-if="!loading && boards.length > 0"
+      v-model:query="query"
+      v-model:filter="statusFilter"
+      search-id="offer-search"
+      filter-id="offer-filter"
+      :search-label="text.setting.offers.searchOffers"
+      :search-placeholder="text.setting.offers.searchOffersPlaceholder"
+      :filter-label="text.setting.offers.filterOffers"
+      :hint="text.setting.offers.searchHint"
+      :filter-options="boardFilterOptions"
+    />
 
-    <div
+    <BulkSelectionBar
       v-if="selectedOfferIds.length > 0 && boardMoveOptions.length > 1"
-      class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-orange-300 bg-orange-50/80 px-4 py-3 dark:border-orange-500/40 dark:bg-orange-950/30"
-    >
-      <span class="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-        {{ text.setting.selectedCount.replace('{count}', String(selectedOfferIds.length)) }}
-      </span>
-      <div class="flex flex-wrap items-center gap-2">
-        <div class="min-w-44">
-          <label for="bulk-move-offer-board" class="sr-only">{{ text.setting.offers.moveSelectedTo }}</label>
-          <SelectField
-            id="bulk-move-offer-board"
-            :model-value="bulkTargetBoardId || boardMoveOptions[0]?.value || ''"
-            :options="boardMoveOptions"
-            :aria-label="text.setting.offers.moveSelectedTo"
-            @update:model-value="(val) => { bulkTargetBoardId = val }"
-          />
-        </div>
-        <button
-          type="button"
-          :disabled="bulkMoving"
-          class="inline-flex min-h-10 items-center rounded-xl bg-zinc-900 px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-          @click="moveSelectedOffers"
-        >
-          {{ text.setting.moveSelectedButton }}
-        </button>
-        <button
-          type="button"
-          class="inline-flex min-h-10 items-center rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          @click="selectedOfferIds = []"
-        >
-          {{ text.setting.clearSelection }}
-        </button>
-      </div>
-    </div>
+      v-model:target-board-id="bulkTargetBoardId"
+      select-id="bulk-move-offer-board"
+      :selected-text="text.setting.selectedCount.replace('{count}', String(selectedOfferIds.length))"
+      :move-to-label="text.setting.offers.moveSelectedTo"
+      :move-button-label="text.setting.moveSelectedButton"
+      :clear-button-label="text.setting.clearSelection"
+      :options="boardMoveOptions"
+      :busy="bulkMoving"
+      @move="moveSelectedOffers"
+      @clear="selectedOfferIds = []"
+    />
 
     <p
       v-if="loadError"
@@ -1275,151 +1015,13 @@ defineExpose({
       @update:open="onSwitchDialogOpenChange"
     />
 
-    <BaseDialog
-      :open="dialogOpen"
-      :title="dialogTitle"
-      :description="dialogDescription"
-      :close-label="text.setting.close"
-      :close-disabled="saving"
-      @update:open="onOpenChange"
-    >
-      <form class="mt-5 space-y-4" @submit.prevent="saveOffer">
-              <div>
-                <label for="offer-type" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
-                  {{ text.home.commissionTypeLabel }}
-                </label>
-                <SelectField
-                  id="offer-type"
-                  v-model="typeInput"
-                  :options="commissionTypeOptions"
-                />
-              </div>
-
-              <div class="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label for="offer-price-usd" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
-                    {{ text.setting.offers.priceUsdLabel }}
-                  </label>
-                  <input
-                    id="offer-price-usd"
-                    v-model="priceUsdInput"
-                    type="number"
-                    min="0"
-                    step="any"
-                    inputmode="decimal"
-                    required
-                    :placeholder="text.setting.offers.priceUsdPlaceholder"
-                    class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
-                  />
-                </div>
-                <div>
-                  <label for="offer-price-idr" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
-                    {{ text.setting.offers.priceIdrLabel }}
-                  </label>
-                  <input
-                    id="offer-price-idr"
-                    v-model="priceIdrInput"
-                    type="number"
-                    min="0"
-                    step="1"
-                    inputmode="numeric"
-                    required
-                    :placeholder="text.setting.offers.priceIdrPlaceholder"
-                    class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label for="offer-max-requests" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
-                  {{ text.setting.offers.maxRequestsLabel }}
-                </label>
-                <input
-                  id="offer-max-requests"
-                  v-model="maxRequestsInput"
-                  type="number"
-                  min="1"
-                  step="1"
-                  inputmode="numeric"
-                  :placeholder="text.setting.offers.maxRequestsPlaceholder"
-                  class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
-                />
-              </div>
-
-              <div>
-                <label for="offer-title" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
-                  {{ text.setting.titleLabel }}
-                </label>
-                <input
-                  id="offer-title"
-                  v-model="titleInput"
-                  type="text"
-                  maxlength="120"
-                  required
-                  class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
-                />
-              </div>
-
-              <div>
-                <label for="offer-description" class="mb-1.5 block text-sm text-zinc-800 dark:text-zinc-200">
-                  {{ text.home.descriptionLabel }}
-                </label>
-                <textarea
-                  id="offer-description"
-                  v-model="descriptionInput"
-                  rows="3"
-                  maxlength="240"
-                  required
-                  class="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
-                />
-              </div>
-
-              <ImageUploadField
-                v-model:file="imageFile"
-                v-model:removed="removeExistingImage"
-                v-model:error="imageError"
-                id-prefix="offer-example"
-                :label="text.setting.offers.exampleImageLabel"
-                :existing-url="editingOffer?.imageUrl ?? templateOffer?.imageUrl"
-              />
-
-              <label class="inline-flex cursor-pointer items-center gap-2.5 text-sm text-zinc-800 dark:text-zinc-200">
-                <input
-                  v-model="openInput"
-                  type="checkbox"
-                  class="size-4 cursor-pointer rounded border-zinc-300 accent-zinc-900 dark:border-zinc-600 dark:accent-zinc-100"
-                />
-                <span>{{ text.setting.offers.openToggle }}</span>
-              </label>
-
-              <p
-                v-if="formError"
-                role="alert"
-                class="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
-              >
-                {{ formError }}
-              </p>
-
-              <div class="flex justify-end gap-2 pt-1">
-                <DialogClose as-child>
-                  <button
-                    type="button"
-                    :disabled="saving"
-                    class="inline-flex min-h-11 items-center justify-center rounded-xl border border-zinc-300 px-4 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                  >
-                    {{ text.setting.close }}
-                  </button>
-                </DialogClose>
-                <MotionButton
-                  type="submit"
-                  :disabled="saving"
-                  class="min-h-11"
-                >
-                  <LoadingIndicator v-if="saving" :label="text.setting.savingChanges" />
-                  <template v-else>{{ text.setting.saveChanges }}</template>
-                </MotionButton>
-              </div>
-      </form>
-    </BaseDialog>
+    <OfferFormDialog
+      v-model:open="dialogOpen"
+      :board-id="targetBoardId"
+      :offer="editingOffer"
+      :template-offer="templateOffer"
+      :next-sort-order="nextOfferSortOrder"
+      @saved="onOfferSaved"
+    />
   </section>
 </template>

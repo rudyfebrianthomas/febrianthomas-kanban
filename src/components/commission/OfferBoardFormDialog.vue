@@ -8,6 +8,7 @@ import {
   OFFER_BOARD_STATUS_DOTS,
   type OfferBoardStatus,
 } from '../../lib/commissionOffers'
+import { formatCopyTitle } from '../../lib/kanbanCard'
 import BaseDialog from '../ui/BaseDialog.vue'
 import SelectField from '../ui/SelectField.vue'
 import LoadingIndicator from '../ui/LoadingIndicator.vue'
@@ -83,7 +84,7 @@ watch(
     }
     const isCopy = props.mode === 'copy'
     titleInput.value = isCopy
-      ? `${props.board.title} (${text.value.setting.offers.copySuffix})`.slice(0, 120)
+      ? formatCopyTitle(props.board.title, text.value.setting.offers.copySuffix)
       : props.board.title
     descriptionInput.value = props.board.description ?? ''
     statusInput.value = isCopy && isStatusSlotFull(props.board.status) ? 'inactive' : props.board.status
@@ -129,7 +130,7 @@ function submit() {
                 type="text"
                 maxlength="120"
                 required
-                class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
+                class="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-hidden focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
               />
             </div>
 
@@ -142,7 +143,7 @@ function submit() {
                 v-model="descriptionInput"
                 rows="2"
                 maxlength="240"
-                class="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm text-zinc-950 outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
+                class="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm text-zinc-950 outline-hidden focus:ring-2 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:ring-zinc-300"
               />
             </div>
 

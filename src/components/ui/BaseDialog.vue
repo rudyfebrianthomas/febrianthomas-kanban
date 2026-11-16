@@ -52,7 +52,7 @@ function handleOpenChange(nextOpen: boolean) {
       <DialogOverlay :class="['fixed inset-0 bg-zinc-950/50', overlayClass]" />
       <DialogContent
         :class="[
-          'fixed left-1/2 top-1/2 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 outline-none',
+          'fixed left-1/2 top-1/2 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 outline-hidden',
           maxWidthClass,
           contentClass,
         ]"
@@ -62,7 +62,7 @@ function handleOpenChange(nextOpen: boolean) {
           :initial="reducedMotion ? false : { opacity: 0, scale: 0.97, y: 8 }"
           :animate="{ opacity: 1, scale: 1, y: 0 }"
           :transition="{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }"
-          class="surface-shadow max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl bg-white p-6 text-zinc-950 focus:outline-none sm:p-8 dark:bg-zinc-900 dark:text-zinc-50"
+          class="surface-shadow max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl bg-white p-6 text-zinc-950 focus:outline-hidden sm:p-8 dark:bg-zinc-900 dark:text-zinc-50"
         >
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0 flex-1">
